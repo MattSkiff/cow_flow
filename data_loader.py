@@ -17,6 +17,7 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms, utils
 from skimage import io, transform
 from sklearn.preprocessing import normalize # normalise data
+from utils import matlab_style_gauss2D
 from PIL import Image
 
 import config as c
@@ -24,12 +25,14 @@ import config as c
 proj_dir = c.proj_dir
 debug = False
 random_flag = False
+points_flag = True
 demo = False
+mk_size = 25
 
 class CowObjectsDataset(Dataset):
     """Cow Objects dataset."""
 
-    def __init__(self, root_dir,transform=None,convert_to_points=False):
+    def __init__(self, root_dir,transform=None,convert_to_points=False,generate_density=False):
         """
         Args:
             root_dir (string): Directory with the following structure:
@@ -47,6 +50,7 @@ class CowObjectsDataset(Dataset):
         self.root_dir = root_dir
         self.transform = transform
         self.points = convert_to_points
+        self.density = generate_density
         
         names = []
         with open(os.path.join(self.root_dir,"object.names")) as f:
@@ -110,7 +114,21 @@ class CowObjectsDataset(Dataset):
             annotations = annotations.to_numpy()
             
             if self.points:
-                print(annotations)
+                # delete height and width columns, which won't be used in density map
+                annotations = np.delete(arr = annotations,obj = [3,4],axis = 1) # np 2d: row = axis 0, col = axis 1
+                
+            if self.density:
+                if not self.points:
+                    print("Generation of maps requires conversion to points")
+                    
+                assert self.points  
+                
+                # running gaussian filter over points as in crowdcount mcnn
+                # https://github.com/svishwa/crowdcount-mcnn/blob/master/data_preparation/get_density_map_gaussian.m
+                # https://stackoverflow.com/questions/17190649/how-to-obtain-a-gaussian-filter-in-python
+                
+                # map generation
+                gauss2dkern = matlab_style_gauss2D(shape = (c.filter_size,c.filter_size),sigma = c.sigma)
         
         sample = {'image': image, 'annotations': annotations}
 
@@ -120,7 +138,7 @@ class CowObjectsDataset(Dataset):
         return sample
 
     # Helper function to show a batch
-    def show_annotations_batch(self,sample_batched,debug = False):
+    def show_annotations_batch(self,sample_batched,debug = False,points = False):
         """Show image with annotations for a batch of samples."""
         fig, ax = plt.subplots(4)
         plt.ioff()
@@ -141,11 +159,12 @@ class CowObjectsDataset(Dataset):
             print(annotations_batch)
     
         
-        if True:
-            for i in range(batch_size):
-                # sample_batched: image, annotations, classes
-                an = sample_batched[1][i]
-                if len(an) != 0:
+        for i in range(batch_size):
+            # sample_batched: image, annotations, classes
+            an = sample_batched[1][i]
+            if len(an) != 0:
+                an = an.numpy()
+                if not points:
                     for j in range(0,len(an)):
                         
                         rect = patches.Rectangle(xy = ((an[j,0]*800-0.5*an[j,2]*800),
@@ -154,11 +173,18 @@ class CowObjectsDataset(Dataset):
                                                linewidth=1, edgecolor='r', facecolor='none')
                         # Add the patch to the Axes
                         ax[i].add_patch(rect)
+                else:
+                    num_cols = an.shape[1]
+                    if num_cols != 2:
+                        ax[i].scatter(an[:,1]*800,an[:,2]*600, s=mk_size,color = 'red') 
+                    else:
+                        ax[i].scatter(an[:,0]*800,an[:,1]*600, s=mk_size,color = 'red')
+                            
      
-            plt.show()
+        plt.show()
             
     # helper function to show annotations + example
-    def show_annotations(self,image, annotations,title = "", save = False,show = False,debug = False):
+    def show_annotations(self,image, annotations,title = "", save = False,show = False,debug = False,points = False):
         """Show image with landmarks"""
         
         an = annotations
@@ -177,14 +203,22 @@ class CowObjectsDataset(Dataset):
             print(an)
         
         # define patch using x1,x2,y1,y2 coords -> map to height and width
-        # <object-class> <x> <y> <width> <height>
-        for i in range(0,len(an)):
-            rect = patches.Rectangle(xy = (an[i,1]*800-0.5*an[i,3]*800,
-                                           an[i,2]*600-0.5*an[i,4]*600),
-                                     width = an[i,3]*800,height = an[i,4]*600, 
-                                     linewidth=1, edgecolor='r', facecolor='none')
-            # Add the patch to the Axes
-            ax.add_patch(rect)
+        # <object-class> <centre-x> <centre-y> <width> <height>
+        if len(an) != 0:
+            if not points:
+                for i in range(0,len(an)):
+                    rect = patches.Rectangle(xy = (an[i,1]*800-0.5*an[i,3]*800,
+                                                   an[i,2]*600-0.5*an[i,4]*600),
+                                             width = an[i,3]*800,height = an[i,4]*600, 
+                                             linewidth=1, edgecolor='r', facecolor='none')
+                    # Add the patch to the Axes
+                    ax.add_patch(rect)
+            else:
+                num_cols = an.shape[1]
+                if num_cols != 2:
+                    ax.scatter(an[:,1]*800,an[:,2]*600, s=mk_size,color = 'red') 
+                else:
+                    ax.scatter(an[:,0]*800,an[:,1]*600, s=mk_size,color = 'red')
         
         if title != "":
             ax.set_title(title)
@@ -274,7 +308,7 @@ class ToTensor(object):
 if demo:
 
 # instantiate class
-    cow_dataset = CowObjectsDataset(root_dir=proj_dir,convert_to_points=False)
+    cow_dataset = CowObjectsDataset(root_dir=proj_dir,convert_to_points=points_flag)
     
 # test helper 'show annotations' function
     header_list = ['class', 'x', 'y', 'width', 'height']   
@@ -284,7 +318,7 @@ if demo:
     annotations = np.asarray(annotations)  
     im = Image.open(os.path.join(cow_dataset.root_dir,'obj/', img_name))
     
-    cow_dataset.show_annotations(im,annotations,show = True)
+    cow_dataset.show_annotations(im,annotations,show = True,points=points_flag)
 
     # iterate through the data samples. 
     # we will print the sizes of first 4 samples and show their annotations.
@@ -294,7 +328,7 @@ if demo:
         if debug:
             print(i, sample['image'].shape, sample['annotations'].shape)
     
-        cow_dataset.show_annotations(**sample,title = 'Sample #{}'.format(i),show = True)
+        cow_dataset.show_annotations(**sample,title = 'Sample #{}'.format(i),show = True,points=points_flag)
     
         if i == 3:
             break
@@ -302,11 +336,11 @@ if demo:
     # since the first images are empty, hit the below until some annotations come up
     if random_flag:
         r_int = random.randint(0, len(cow_dataset))
-        cow_dataset.show_annotations(**cow_dataset[r_int],show = True,title = r_int)
+        cow_dataset.show_annotations(**cow_dataset[r_int],show = True,title = r_int,points=points_flag)
     else:
-        cow_dataset.show_annotations(**cow_dataset[5809],show = True,title = 5809)
+        cow_dataset.show_annotations(**cow_dataset[5809],show = True,title = 5809,points=points_flag)
     
-    transformed_dataset = CowObjectsDataset(root_dir=proj_dir,transform = ToTensor())
+    transformed_dataset = CowObjectsDataset(root_dir=proj_dir,transform = ToTensor(),convert_to_points=points_flag)
         
     # example iterating over the dataset
     for i in range(len(transformed_dataset)):
@@ -332,17 +366,17 @@ if demo:
             print(sample_batched[1])
         
         # since annotations are sparse, break when some are found:
-        if False:
+        if True:
             for i in range(0,len(sample_batched[0])):
                 if sample_batched[1][i].size()[0] != 0:
-                    cow_dataset.show_annotations_batch(sample_batched,debug=debug)
+                    cow_dataset.show_annotations_batch(sample_batched,debug=debug,points=points_flag)
                     break
     
         # observe 4th batch and stop.
         if i_batch == r_int and random == True:
-            cow_dataset.show_annotations_batch(sample_batched,debug=debug)
+            cow_dataset.show_annotations_batch(sample_batched,debug=debug,points=points_flag)
             
         if i_batch == 4:
-            cow_dataset.show_annotations_batch(sample_batched,debug=debug)
+            cow_dataset.show_annotations_batch(sample_batched,debug=debug,points=points_flag)
     
             break

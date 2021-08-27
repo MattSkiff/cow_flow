@@ -6,6 +6,10 @@ batch_size = 4
 steps = 100
 debug = False
 
+# density map ground truth generation
+filter_size = 15 # as per single image mcnn paper
+sigma = 4.0 # "   -----    "
+
 
 # differ net config settings
 
