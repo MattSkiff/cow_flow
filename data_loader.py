@@ -29,9 +29,9 @@ import config as c
 
 proj_dir = c.proj_dir
 random_flag = False
-points_flag = True
+points_flag = False
 demo = True
-density_demo = True
+density_demo = False
 mk_size = 25
 
 class CowObjectsDataset(Dataset):
@@ -179,11 +179,18 @@ class CowObjectsDataset(Dataset):
         
         batch_size = len(sample_batched[0])
         
-        fig, ax = plt.subplots(batch_size)
+        if self.density: 
+            ncol = 2 
+        else:
+            ncol = 1
+        
+        fig, ax = plt.subplots(batch_size,ncol)
         plt.ioff()
         fig.suptitle('Batch from dataloader',y=0.9,fontsize=24)
-        fig.set_size_inches(8,6*4)
+        fig.set_size_inches(8*ncol,6*batch_size)
         fig.set_dpi(100)
+      
+        images_batch = sample_batched[0]
       
         if self.density:
             
@@ -191,11 +198,14 @@ class CowObjectsDataset(Dataset):
             
             for i in range(batch_size):
                 density = density_batch[i]
-                ax[i].axis('off')
-                ax[i].imshow(density, cmap='hot', interpolation='nearest')
+                image = images_batch[i]
+                image = image.permute((1, 2, 0))
+                ax[i,0].axis('off')
+                ax[i,1].axis('off')
+                ax[i,0].imshow(density, cmap='hot', interpolation='nearest')
+                ax[i,1].imshow(image)
         else:
         
-            images_batch = sample_batched[0]
             annotations_batch = sample_batched[1]
             
             for i in range(batch_size):
@@ -237,8 +247,9 @@ class CowObjectsDataset(Dataset):
         sample = self[sample_no]
         
         if self.density:
-                plt.imshow(sample['density'], cmap='hot', interpolation='nearest')
-                plt.show()
+                fig, ax = plt.subplots(1,2)
+                ax[0].imshow(sample['density'], cmap='hot', interpolation='nearest')
+                ax[1].imshow(sample['image'], cmap='hot', interpolation='nearest')
         else:
             """Show image with landmarks"""
             image = sample['image']
@@ -249,16 +260,13 @@ class CowObjectsDataset(Dataset):
             fig.set_size_inches(8,6)
             fig.set_dpi(100)
             ax.imshow(image)
-            # turn off whitespace etc
-            plt.axis('off')
-            ax.get_xaxis().set_visible(False)
-            ax.get_yaxis().set_visible(False)
             
             if debug:
                 print(an)
             
             # define patch using x1,x2,y1,y2 coords -> map to height and width
             # <object-class> <centre-x> <centre-y> <width> <height>
+            
             if len(an) != 0:
                 if not self.points:
                     for i in range(0,len(an)):
@@ -274,15 +282,28 @@ class CowObjectsDataset(Dataset):
                         ax.scatter(an[:,1]*c.img_size[0],an[:,2]*c.img_size[1], s=mk_size,color = 'red') 
                     else:
                         ax.scatter(an[:,0]*c.img_size[0],an[:,1]*c.img_size[1], s=mk_size,color = 'red')
+                        
+        # turn off whitespace etc
+        plt.axis('off')
+        
+        if self.density:
+            for i in range(0,len(ax)):
+                ax[i].get_xaxis().set_visible(False)
+                ax[i].get_yaxis().set_visible(False)
+        else:
+            ax.get_xaxis().set_visible(False)
+            ax.get_yaxis().set_visible(False)
             
-            if title != "":
-                ax.set_title(title)
+        if title != "" and self.density:
+            ax[0].set_title(title)
+        elif title != "":
+            ax.set_title(title)
             
-            if save:      
-                plt.savefig(cow_dataset.root_dir+"plot.jpg", bbox_inches='tight', pad_inches = 0)
+        if save:      
+            plt.savefig(cow_dataset.root_dir+"plot.jpg", bbox_inches='tight', pad_inches = 0)
                 
-            if show:
-                plt.show()
+        if show:
+            plt.show()
             
     # because batches have varying numbers of bounding boxes, need to define custom collate func
     # https://discuss.pytorch.org/t/dataloader-gives-stack-expects-each-tensor-to-be-equal-size-due-to-different-image-has-different-objects-number/91941/5
