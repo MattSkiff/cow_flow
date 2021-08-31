@@ -1,14 +1,24 @@
 '''This file configures the training procedure because handling arguments in every single function'''
 
 # custom config settings
-proj_dir = "C:/Users/user/Desktop/nf_cows/data/"
+proj_dir = "C:/Users/user/Desktop/clones/nf_cows/data/"
 batch_size = 4
 steps = 100
-debug = False
+debug = True
+
+# data settings
+dataset_path = "dummy_dataset"
+class_name = "dummy_class"
+modelname = "dummy_test"
+
+img_size = (800, 600) # width, height (x-y)
+img_dims = [3] + list(img_size)
 
 # density map ground truth generation
 filter_size = 15 # as per single image mcnn paper
 sigma = 4.0 # "   -----    "
+density_map_h = img_size[1]
+density_map_w = img_size[0]
 
 
 # differ net config settings
@@ -17,14 +27,6 @@ sigma = 4.0 # "   -----    "
 device = 'cuda' # or 'cpu'
 import torch
 torch.cuda.set_device(0)
-
-# data settings
-dataset_path = "dummy_dataset"
-class_name = "dummy_class"
-modelname = "dummy_test"
-
-img_size = (800, 600)
-img_dims = [3] + list(img_size)
 
 # transformation settings
 transf_rotations = True
