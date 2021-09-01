@@ -21,17 +21,16 @@ import scipy
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms, utils
 from skimage import io, transform
-from sklearn.preprocessing import normalize # normalise data
-from utils import matlab_style_gauss2D
+#from sklearn.preprocessing import normalize # normalise data
 from PIL import Image
 
 import config as c
 
 proj_dir = c.proj_dir
 random_flag = False
-points_flag = False
+points_flag = True
 demo = True
-density_demo = False
+density_demo = True
 mk_size = 25
 
 class CowObjectsDataset(Dataset):
@@ -139,14 +138,17 @@ class CowObjectsDataset(Dataset):
                 
                 # map generation
                 # set density map image size equal to data image size
-                gauss2dkern = matlab_style_gauss2D(shape = (c.filter_size,c.filter_size),sigma = c.sigma)
+                #gauss2dkern = matlab_style_gauss2D(shape = (c.filter_size,c.filter_size),sigma = c.sigma)
                 density_map = np.zeros((c.img_size[1], c.img_size[0]), dtype=np.float32)
                
                 # add points onto basemap
                 for point in annotations:
                     # error introduced here as float position annotation centre converted to int
                     base_map = np.zeros((c.img_size[1], c.img_size[0]), dtype=np.float32)
-                    print(point)
+                    
+                    if c.debug:
+                        print(point)
+                        
                     # subtract 1 to account for 0 indexing
                     base_map[int(round(point[2]*c.img_size[1])-1),int(round(point[1]*c.img_size[0])-1)] += 1
                     density_map += scipy.ndimage.filters.gaussian_filter(base_map, sigma = c.sigma, mode='constant')
@@ -225,10 +227,16 @@ class CowObjectsDataset(Dataset):
                     if not self.points:
                         for j in range(0,len(an)):
                             
-                            rect = patches.Rectangle(xy = ((an[j,0]*c.img_size[1]-0.5*an[j,2]*c.img_size[0]),
-                                                   an[j,1]*c.img_size[1]-0.5*an[j,3]*c.img_size[1]),
-                                                   width = an[j,2]*c.img_size[0],height = an[j,3]*c.img_size[1], 
-                                                   linewidth=1, edgecolor='r', facecolor='none')
+                            if c.debug:
+                                print(an)
+                            
+                            x = an[j,0]*c.img_size[0]-0.5*an[j,2]*c.img_size[0]
+                            y = an[j,1]*c.img_size[1]-0.5*an[j,3]*c.img_size[1]
+                            
+                            rect = patches.Rectangle(xy = (x,y),
+                                                 width = an[j,2]*c.img_size[0],
+                                                 height = an[j,3]*c.img_size[1], 
+                                                 linewidth=1, edgecolor='r', facecolor='none')
                             # Add the patch to the Axes
                             ax[i].add_patch(rect)
                     else:

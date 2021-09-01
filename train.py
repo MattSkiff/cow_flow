@@ -25,18 +25,18 @@ def train(data_loader):
     # https://pyro.ai/examples/normalizing_flows_i.html
     # https://docs.pyro.ai/en/dev/_modules/pyro/distributions/transforms/affine_coupling.html
     
-    input_dim=c.n_feat
-    annotations_dim = 4 # dim annotations = 4
+    feat_dim=c.n_feat
+    dmap_dim = (80,60) #240000 # dim annotations = 4
     # split_dim = 6 - defaults to input_dim / 2 ; don't need to specify
     
     # x1 in tutorial - 'univariate distribution'
     
     
     # 2d density of object annotations
-    base_dist = dist.Normal(torch.zeros(input_dim, device=c.device).cuda(), torch.ones(input_dim, device=c.device).cuda())
+    base_dist = dist.Normal(torch.zeros(feat_dim, device=c.device).cuda(), torch.ones(feat_dim, device=c.device).cuda())
     
     
-    features_transform = T.spline(input_dim).cuda()
+    features_transform = T.spline(feat_dim).cuda()
     dist_features = dist.TransformedDistribution(base_dist, [features_transform])
     
     # old : may need to manually define hypernet as using helper function default
@@ -45,10 +45,12 @@ def train(data_loader):
     # transform = T.ConditionalAffineCoupling(split_dim, hypernet)
     
     # x2 in tutorial - 'conditional distribution'
-    annotations_transform = T.conditional_affine_coupling(input_dim=annotations_dim, context_dim = c.n_feat).cuda()
-    dist_annotations_given_features = dist.ConditionalTransformedDistribution(base_dist, [annotations_transform])
+    #dmap_transform = T.conditional_spline(input_dim=dmap_dim, context_dim = c.n_feat)
+    #dmap_transform = T.conditional_affine_coupling(input_dim=dmap_dim, context_dim = c.n_feat, dim=-2).cuda()
+    #dist_dmaps_given_features = dist.ConditionalTransformedDistribution(base_dist, [dmap_transform])
     
-    modules = torch.nn.ModuleList([features_transform, annotations_transform])
+    #modules = torch.nn.ModuleList([features_transform, dmap_transform])
+    modules = torch.nn.ModuleList([features_transform])
     optimizer = torch.optim.Adam(modules.parameters(), lr=c.lr_init, betas=(0.8, 0.8), eps=1e-04, weight_decay=1e-5)
     
     for epoch in range(c.meta_epochs):
@@ -62,20 +64,22 @@ def train(data_loader):
             
             for i, data in enumerate(tqdm(data_loader, disable=c.hide_tqdm_bar)):
                 
-                images,annotations,classes = preprocess_batch(data)
+                images,dmaps,classes = data
+                
+                images = images.to(c.device)
+                #dmaps = dmaps.to(c.device)
+                #images,annotations,classes = preprocess_batch(data)
+                    
  
                 y = model(images.float()) # retrieve features
-                z = annotations
-                
-                gaussianise_annotations(z)
-                1/0
+                z = dmaps
                 
                 print(y.device)
                 print(z.device)
                 
                 if c.debug:
-                    print("number of elements in annotation list:")
-                    print(len(annotations))
+                    print("number of elements in density maps list:")
+                    print(len(dmaps))
                     print("number of images in image tensor:")
                     print(len(images))
                     
@@ -85,19 +89,25 @@ def train(data_loader):
                     optimizer.zero_grad()
                     # nb: x1 = features (y), x2 = annotations
                     
-                    print(y.device)
-                    print(z.device)
+                    print(y.shape)
+                    print(z.shape)
+                    
+                    print(dist_features)
+                    #print(dist_dmaps_given_features)
                     
                     ln_p_x1 = dist_features.log_prob(y)
                     # this loss needs to calc distance between predicted density and density map
-                    ln_p_x2_given_x1 = dist_annotations_given_features.condition(z.detach()).log_prob(y.detach())
-                    loss = -(ln_p_x1 + ln_p_x2_given_x1).mean()
+                    #ln_p_x2_given_x1 = dist_dmaps_given_features.condition(z.detach()).log_prob(y.detach())
+                    loss = -ln_p_x1.mean()
+                    #loss = -(ln_p_x1 + ln_p_x2_given_x1).mean()
+                    
+                    print(loss)
                     
                     loss.backward()
                     optimizer.step()
                     
                     dist_features.clear_cache()
-                    dist_annotations_given_features.clear_cache()
+                    #dist_dmaps_given_features.clear_cache()
                     
                     #z = model(data[0]) # load images into model
 
