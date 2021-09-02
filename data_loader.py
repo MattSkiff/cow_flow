@@ -28,9 +28,9 @@ import config as c
 
 proj_dir = c.proj_dir
 random_flag = False
-points_flag = True
-demo = True
-density_demo = True
+points_flag = False
+demo = False
+density_demo = False
 mk_size = 25
 
 class CowObjectsDataset(Dataset):

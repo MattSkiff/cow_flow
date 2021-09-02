@@ -7,67 +7,48 @@ from __future__ import print_function, division
 
 import torch
 import torch.nn as nn
-import torch.optim as optim
-from torch.optim import lr_scheduler
-import numpy as np
-import torchvision
-from torchvision import datasets, models, transforms
-from torchvision.models import alexnet
-import matplotlib.pyplot as plt
-import time
-import os
-import copy
+from torchvision.models import alexnet # feature extractor
 
 import config as c
 
-# pyro NF implementation
-import pyro
-import pyro.distributions as dist
-import pyro.distributions.transforms as T
-from pyro.nn import ConditionalDenseNN
+# FrEIA imports
+import FrEIA.framework as Ff
+import FrEIA.modules as Fm
+from freia_funcs import F_fully_connected
 
-from data_loader import CowObjectsDataset
-
-# attempted to create class for Normalizing Flow in PyTorch, but quickly tied up
-#class nf_head(nn.ModuleList):
+def nf_head(input_dim=(c.density_map_w,c.density_map_h),condition_dim=c.n_feat):
     
-
-# class nf_head(input_dim=c.n_feat,context_dim=4):
-    
-#     # create base distribution for NF
-#     # context variable for pyro is extracted features from alexnet
-#     # https://docs.pyro.ai/en/dev/_modules/pyro/distributions/transforms/affine_coupling.html
-#     def __init__(self,input_dim=c.n_feat,context_dim=4):
+    # from FrEIA tutorial
+    def subnet(dims_in, dims_out):
         
-#         split_dim = 6
-#         base_dist = dist.Normal(torch.zeros(input_dim), torch.ones(input_dim))
-#         param_dims = [input_dim-split_dim, input_dim-split_dim]
-#         hypernet = ConditionalDenseNN(split_dim, context_dim, [10*input_dim],param_dims)
-#         transform = T.ConditionalAffineCoupling(split_dim, hypernet)
-        
-#         modules = torch.nn.ModuleList([transform])
-#         print(modules)
-#         print(transform)
-#         self.modules = modules
-#         self.transform = transform
-#         self.base_dist = base_dist
+        return nn.Sequential(nn.Linear(dims_in, 128), nn.ReLU(),
+                        nn.Linear(128,  128), nn.ReLU(),
+                        nn.Linear(128,  dims_out))
+            
+    nodes = [Ff.InputNode(input_dim[0],input_dim[1],name='input')]
+    condition  = Ff.ConditionNode(condition_dim,name = 'condition')
     
-#     def forward(self, x, context):
+    for k in range(c.n_coupling_blocks):
+        nodes.append(Ff.Node(nodes[-1], Fm.PermuteRandom, {'seed': k}, name='permute_{k}'))
+        nodes.append(Ff.Node(nodes[-1], Fm.GLOWCouplingBlock,{'clamp': c.clamp_alpha, 'subnet_constructor':subnet},conditions=condition))
         
-#         flow_dist = dist.ConditionalTransformedDistribution(self.base_dist,[self.transform]).condition(context)
-    
+    return Ff.ReversibleGraphNet(nodes + [condition,Ff.OutputNode(nodes[-1], name='output')]) 
+        
+                     
 
 class CowFlow(nn.Module):
     
     def __init__(self):
         super(CowFlow,self).__init__()
         self.feature_extractor = alexnet(pretrained=True,progress=False)
-        # self.nf = nf_head()
-        
-    def forward(self,x):
+        self.nf = nf_head()   
+
+    # x = attributes, images->features, y = labels = density_maps
+    def forward(self,x,condition):
         # no multi-scale architecture (yet) as per differnet paper
-        y_cat = list()
+        x_cat = list()
         feat_s = self.feature_extractor.features(x) # extract features
+        
         if c.debug:
             print(x.size())
             print("feature size....")
@@ -77,15 +58,16 @@ class CowFlow(nn.Module):
         # h x w x d -> 1 x 1 x d
         # see: https://alexisbcook.github.io/2017/global-average-pooling-layers-for-object-localization/
         # torch.Size([24, 256, 17, 24])
-        y_cat.append(torch.mean(feat_s,dim = (2,3))) 
-        y = torch.cat(y_cat,dim = 1) # concatenation
+        
+        x_cat.append(torch.mean(feat_s,dim = (2,3))) 
+        x = torch.cat(x_cat,dim = 1) # concatenation
+        
         if c.debug:
             print("y concatenated size..........")
-            print(y.size())
-        
-        # define NF inside train.py instead
-        # z = self.nf(y)
-        return y
+            print(x.size())
+            
+        z = self.nf(x,c=condition)
+        return z
     
 def load_model():
     pass
