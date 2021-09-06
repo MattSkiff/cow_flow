@@ -14,7 +14,6 @@ import config as c
 # FrEIA imports
 import FrEIA.framework as Ff
 import FrEIA.modules as Fm
-from freia_funcs import F_fully_connected
 
 def nf_head(input_dim=(c.density_map_w,c.density_map_h),condition_dim=c.n_feat):
     
@@ -26,16 +25,18 @@ def nf_head(input_dim=(c.density_map_w,c.density_map_h),condition_dim=c.n_feat):
                         nn.Linear(128,  dims_out))
             
     nodes = [Ff.InputNode(input_dim[0],input_dim[1],name='input')]
-    condition  = Ff.ConditionNode(condition_dim,name = 'condition')
+    # 'Because of the construction of the conditional coupling blocks, the condition must have the same spatial dimensions as the data'
+    # https://github.com/VLL-HD/FrEIA/issues/9
+    # condition_dim,c.density_map_w,c.density_map_h
+    condition  = Ff.ConditionNode(input_dim[0],input_dim[1], name = 'condition')
     
     for k in range(c.n_coupling_blocks):
-        nodes.append(Ff.Node(nodes[-1], Fm.PermuteRandom, {'seed': k}, name='permute_{k}'))
-        nodes.append(Ff.Node(nodes[-1], Fm.GLOWCouplingBlock,{'clamp': c.clamp_alpha, 'subnet_constructor':subnet},conditions=condition))
+        nodes.append(Ff.Node(nodes[-1], Fm.PermuteRandom, {'seed': k}, name='permute_{}'.format(k)))
+        nodes.append(Ff.Node(nodes[-1], Fm.GLOWCouplingBlock,{'clamp': c.clamp_alpha, 'subnet_constructor':subnet},conditions=condition,
+                             name = 'couple_{}'.format(k)))
         
     return Ff.ReversibleGraphNet(nodes + [condition,Ff.OutputNode(nodes[-1], name='output')]) 
         
-                     
-
 class CowFlow(nn.Module):
     
     def __init__(self):
@@ -43,15 +44,14 @@ class CowFlow(nn.Module):
         self.feature_extractor = alexnet(pretrained=True,progress=False)
         self.nf = nf_head()   
 
-    # x = attributes, images->features, y = labels = density_maps
-    def forward(self,x,condition):
+    # x = attributes, images->features (conditioning), y = labels = density_maps
+    def forward(self,x,y):
         # no multi-scale architecture (yet) as per differnet paper
         x_cat = list()
         feat_s = self.feature_extractor.features(x) # extract features
         
         if c.debug:
-            print(x.size())
-            print("feature size....")
+            print("raw feature size..")
             print(feat_s.size())
             
         # global average pooling as described in paper:
@@ -62,11 +62,16 @@ class CowFlow(nn.Module):
         x_cat.append(torch.mean(feat_s,dim = (2,3))) 
         x = torch.cat(x_cat,dim = 1) # concatenation
         
-        if c.debug:
-            print("y concatenated size..........")
-            print(x.size())
-            
-        z = self.nf(x,c=condition)
+        # adding spatial dimensions....
+        print("concatenated and pooled feature size..")
+        if c.debug: print(x.size())
+        x = x.unsqueeze(2).unsqueeze(3).expand(-1, -1,c.density_map_w,c.density_map_h)
+        print("reshaped feature size with spatial dims..")
+        if c.debug: print(x.size())
+        
+        1/0
+        
+        z = self.nf(x,y)
         return z
     
 def load_model():

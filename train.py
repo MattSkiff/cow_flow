@@ -32,9 +32,24 @@ def train(data_loader): #def train(train_loader, test_loader):
                 
                 # x=images->features,y=dmaps
                 x,y,classes = data
-                x = x.to(c.device)
-
+                x = x.float().to(c.device)
+                y = y.float().to(c.device)
+                
+                if c.debug:
+                    print("density maps from data batch size, device..")
+                    print(y.size())
+                    print(y.device)
+                    
+                    print("images from data batch size, device..")
+                    print(x.size())
+                    print(x.device)
+                
+                # z is the probability density under the latent normal distribution
                 z = model(x,y) # inputs features,dmaps
+                
+                if c.debug:
+                    print(z.shape)
+                    print(z.device)
                 
                 # this loss needs to calc distance between predicted density and density map
                 loss = get_loss(z, model.nf.jacobian(run_forward=False))
@@ -48,12 +63,6 @@ def train(data_loader): #def train(train_loader, test_loader):
                 mean_train_loss = np.mean(train_loss)
                 if c.verbose:
                     print('Epoch: {:d}.{:d} \t train loss: {:.4f}'.format(epoch, sub_epoch, mean_train_loss))
-                
-                if c.debug:
-                    print(y.shape)
-                    print(z.shape)
-                    print(y.device)
-                    print(z.device)
                 
                 if c.debug:
                     print("number of elements in density maps list:")

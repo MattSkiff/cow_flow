@@ -4,7 +4,7 @@
 proj_dir = "C:/Users/user/Desktop/clones/nf_cows/data/"
 batch_size = 4
 steps = 100
-debug = False
+debug = True
 
 # data settings
 dataset_path = "dummy_dataset"

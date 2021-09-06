@@ -138,7 +138,7 @@ class CowObjectsDataset(Dataset):
                 
                 # map generation
                 # set density map image size equal to data image size
-                #gauss2dkern = matlab_style_gauss2D(shape = (c.filter_size,c.filter_size),sigma = c.sigma)
+                # gauss2dkern = matlab_style_gauss2D(shape = (c.filter_size,c.filter_size),sigma = c.sigma)
                 density_map = np.zeros((c.img_size[1], c.img_size[0]), dtype=np.float32)
                
                 # add points onto basemap
