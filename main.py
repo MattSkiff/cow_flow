@@ -23,4 +23,4 @@ dataloader = DataLoader(transformed_dataset, batch_size=1,shuffle=True,
 #train_loader, test_loader = make_dataloaders(train_set, test_set)
 
 #model = train(train_loader, test_loader)
-model = train(dataloader)
+model = train(dataloader) 

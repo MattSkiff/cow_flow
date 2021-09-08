@@ -2,8 +2,9 @@ conda create -n cows python=3.7  -y -q
 conda activate cows 
 conda install pytorch torchvision torchaudio cudatoolkit=10.2 -c pytorch
 conda install -c conda-forge pyro-ppl -y -q
+conda install pandas -y -q
 conda install matplotlib -y -q
 conda install scipy -y -q
 conda install torchvision -y -q
 conda install tqdm -y -q
-pip install git+https://github.com/VLL-HD/FrEIA.git -y -q
+pip install git+https://github.com/VLL-HD/FrEIA.git -q

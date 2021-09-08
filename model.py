@@ -15,20 +15,25 @@ import config as c
 import FrEIA.framework as Ff
 import FrEIA.modules as Fm
 
-def nf_head(input_dim=(c.density_map_w,c.density_map_h),condition_dim=c.n_feat):
+def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat):
     
     # from FrEIA tutorial
     def subnet(dims_in, dims_out):
         
-        return nn.Sequential(nn.Linear(dims_in, 128), nn.ReLU(),
-                        nn.Linear(128,  128), nn.ReLU(),
-                        nn.Linear(128,  dims_out))
-            
-    nodes = [Ff.InputNode(input_dim[0],input_dim[1],name='input')]
+        return nn.Sequential(
+                            nn.Conv2d(dims_in, 32, kernel_size = 3,padding = 1), 
+                            nn.ReLU(),
+                            nn.Conv2d(32, 64, kernel_size = 3,padding = 1), 
+                            nn.ReLU(),
+                            nn.Conv2d(64, dims_out,kernel_size = 3,padding = 1)
+                        )
+    
+    # include batch size as extra dimension here? data is batched along extra dimension
+    nodes = [Ff.InputNode(c.n_feat,input_dim[0],input_dim[1],name='input')]
     # 'Because of the construction of the conditional coupling blocks, the condition must have the same spatial dimensions as the data'
     # https://github.com/VLL-HD/FrEIA/issues/9
-    # condition_dim,c.density_map_w,c.density_map_h
-    condition  = Ff.ConditionNode(input_dim[0],input_dim[1], name = 'condition')
+
+    condition  = Ff.ConditionNode(c.n_feat,input_dim[0],input_dim[1], name = 'condition')
     
     for k in range(c.n_coupling_blocks):
         nodes.append(Ff.Node(nodes[-1], Fm.PermuteRandom, {'seed': k}, name='permute_{}'.format(k)))
@@ -52,7 +57,7 @@ class CowFlow(nn.Module):
         
         if c.debug:
             print("raw feature size..")
-            print(feat_s.size())
+            print(feat_s.size(),"\n")
             
         # global average pooling as described in paper:
         # h x w x d -> 1 x 1 x d
@@ -63,13 +68,18 @@ class CowFlow(nn.Module):
         x = torch.cat(x_cat,dim = 1) # concatenation
         
         # adding spatial dimensions....
+        # remove dimension of size one for concatenation in NF coupling layer - squeeze()
         print("concatenated and pooled feature size..")
-        if c.debug: print(x.size())
-        x = x.unsqueeze(2).unsqueeze(3).expand(-1, -1,c.density_map_w,c.density_map_h)
-        print("reshaped feature size with spatial dims..")
-        if c.debug: print(x.size())
+        if c.debug: print(x.size(),"\n")
         
-        1/0
+        x = x.unsqueeze(2).unsqueeze(3).expand(-1, -1, c.density_map_h,c.density_map_w)
+        print("reshaped feature size with spatial dims..")
+        if c.debug: print(x.size(),"\n")
+        
+        # mapping density map dims to match feature dims
+        y = y.unsqueeze(1).expand(-1,c.n_feat,-1, -1)
+        print("expanded density map size")
+        if c.debug: print(y.size(),"\n")
         
         z = self.nf(x,y)
         return z

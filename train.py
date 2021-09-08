@@ -20,7 +20,7 @@ def train(data_loader): #def train(train_loader, test_loader):
         model.train()
         
         if c.verbose:
-            print(F'\nTrain epoch {epoch}')
+            print(F'\nTrain epoch {epoch}',"\n")
             
         for sub_epoch in range(c.sub_epochs):
             
@@ -38,21 +38,26 @@ def train(data_loader): #def train(train_loader, test_loader):
                 if c.debug:
                     print("density maps from data batch size, device..")
                     print(y.size())
-                    print(y.device)
+                    print(y.device,"\n")
                     
                     print("images from data batch size, device..")
                     print(x.size())
-                    print(x.device)
+                    print(x.device,"\n")
                 
                 # z is the probability density under the latent normal distribution
-                z = model(x,y) # inputs features,dmaps
+                print("output of model - two elements: y (z), jacobian")
+                z, log_det_jac = model(x,y) # inputs features,dmaps
                 
+                # x: inputs (i.e. 'x-side' when rev is False, 'z-side' when rev is True) [FrEIA]
+                # i.e. what y (output) is depends on direction of flow
                 if c.debug:
-                    print(z.shape)
-                    print(z.device)
+                    print(z.size()) # log likelihoods
+                    print("z shape")
+                    print(z.shape[1]) # 256
                 
                 # this loss needs to calc distance between predicted density and density map
-                loss = get_loss(z, model.nf.jacobian(run_forward=False))
+                loss = get_loss(z, log_det_jac) # model.nf.jacobian(run_forward=False)
+                
                 print("loss: {}".format(loss))
                 train_loss.append(t2np(loss))
                 loss.backward()
