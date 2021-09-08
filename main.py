@@ -17,8 +17,9 @@ transformed_dataset = CowObjectsDataset(root_dir=c.proj_dir,
                                         transform = ToTensor(),convert_to_points=True,generate_density=True)
 
 #train_set, test_set = load_datasets(c.dataset_path, c.class_name)
-dataloader = DataLoader(transformed_dataset, batch_size=1,shuffle=True, 
-                        num_workers=0,collate_fn=transformed_dataset.custom_collate_density)
+dataloader = DataLoader(transformed_dataset, batch_size=c.batch_size,shuffle=True, 
+                        num_workers=0,collate_fn=transformed_dataset.custom_collate_density,
+                        pin_memory=True)
 
 #train_loader, test_loader = make_dataloaders(train_set, test_set)
 

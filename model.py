@@ -69,17 +69,23 @@ class CowFlow(nn.Module):
         
         # adding spatial dimensions....
         # remove dimension of size one for concatenation in NF coupling layer - squeeze()
-        print("concatenated and pooled feature size..")
-        if c.debug: print(x.size(),"\n")
+        
+        if c.debug: 
+            print("concatenated and pooled feature size..")
+            print(x.size(),"\n")
         
         x = x.unsqueeze(2).unsqueeze(3).expand(-1, -1, c.density_map_h,c.density_map_w)
-        print("reshaped feature size with spatial dims..")
-        if c.debug: print(x.size(),"\n")
+        
+        if c.debug: 
+            print("reshaped feature size with spatial dims..")
+            print(x.size(),"\n")
         
         # mapping density map dims to match feature dims
         y = y.unsqueeze(1).expand(-1,c.n_feat,-1, -1)
-        print("expanded density map size")
-        if c.debug: print(y.size(),"\n")
+        
+        if c.debug: 
+            print("expanded density map size")
+            print(y.size(),"\n")
         
         z = self.nf(x,y)
         return z

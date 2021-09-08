@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 from tqdm import tqdm # progress bar
+import time 
 
 import config as c
 from utils import get_loss
@@ -24,9 +25,14 @@ def train(data_loader): #def train(train_loader, test_loader):
             
         for sub_epoch in range(c.sub_epochs):
             
+            if c.verbose:
+                t_e1 = time.perf_counter()
+            
             train_loss = list()
             
             for i, data in enumerate(tqdm(data_loader, disable=c.hide_tqdm_bar)):
+                
+                t1 = time.perf_counter()
                 
                 optimizer.zero_grad()
                 
@@ -44,8 +50,8 @@ def train(data_loader): #def train(train_loader, test_loader):
                     print(x.size())
                     print(x.device,"\n")
                 
-                # z is the probability density under the latent normal distribution
-                print("output of model - two elements: y (z), jacobian")
+                    # z is the probability density under the latent normal distribution
+                    print("output of model - two elements: y (z), jacobian")
                 z, log_det_jac = model(x,y) # inputs features,dmaps
                 
                 # x: inputs (i.e. 'x-side' when rev is False, 'z-side' when rev is True) [FrEIA]
@@ -66,14 +72,21 @@ def train(data_loader): #def train(train_loader, test_loader):
                 # nb: x1 = features (y), x2 = annotations
                 
                 mean_train_loss = np.mean(train_loss)
+                
+                t2 = time.perf_counter()
+                
                 if c.verbose:
-                    print('Epoch: {:d}.{:d} \t train loss: {:.4f}'.format(epoch, sub_epoch, mean_train_loss))
+                    print('Batch Time: {:f},Batch: {:d},Epoch: {:d}.{:d} \t train loss: {:.4f}'.format(t2-t1,i, epoch, sub_epoch, mean_train_loss))
                 
                 if c.debug:
                     print("number of elements in density maps list:")
                     print(len(y)) # images
                     print("number of images in image tensor:")
                     print(len(x)) # features
+            
+            if c.verbose:
+                t_e2 = time.perf_counter()
+                print("Sub Epoch Time: {:f}".format(t_e2-t_e1))
 
                        
     return model
