@@ -15,29 +15,50 @@ import config as c
 import FrEIA.framework as Ff
 import FrEIA.modules as Fm
 
+# change default initialisation
+# https://stackoverflow.com/questions/49433936/how-to-initialize-weights-in-pytorch
+def init_weights(m):
+    if isinstance(m, nn.Conv2d):
+        torch.nn.init.xavier_uniform(m.weight)
+        m.bias.data.fill_(0.01)
+
 def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat):
     
     # from FrEIA tutorial
     def subnet(dims_in, dims_out):
         
-        return nn.Sequential(
+        net = nn.Sequential(
                             nn.Conv2d(dims_in, 32, kernel_size = 3,padding = 1), 
                             nn.ReLU(),
                             nn.Conv2d(32, 64, kernel_size = 3,padding = 1), 
                             nn.ReLU(),
                             nn.Conv2d(64, dims_out,kernel_size = 3,padding = 1)
                         )
+        
+
+        
+        #net.apply(init_weights)
+        print('dims in and dims out')
+        print(dims_in)
+        print(dims_out)
+        
+        return net
     
     # include batch size as extra dimension here? data is batched along extra dimension
-    nodes = [Ff.InputNode(c.n_feat,input_dim[0],input_dim[1],name='input')]
+    # input = density maps
+    nodes = [Ff.InputNode(c.n_feat,input_dim[0],input_dim[1],name='input')] 
+    # first dim should be 1 not c.n_feat -> crashes if don't expand input to condition dims
+    
     # 'Because of the construction of the conditional coupling blocks, the condition must have the same spatial dimensions as the data'
     # https://github.com/VLL-HD/FrEIA/issues/9
-
-    condition  = Ff.ConditionNode(c.n_feat,input_dim[0],input_dim[1], name = 'condition')
+    
+    # condition = exacted image features
+    condition  = Ff.ConditionNode(1,input_dim[0],input_dim[1], name = 'condition')
     
     for k in range(c.n_coupling_blocks):
+        print("creating layer {:d}".format(k))
         nodes.append(Ff.Node(nodes[-1], Fm.PermuteRandom, {'seed': k}, name='permute_{}'.format(k)))
-        nodes.append(Ff.Node(nodes[-1], Fm.GLOWCouplingBlock,{'clamp': c.clamp_alpha, 'subnet_constructor':subnet},conditions=condition,
+        nodes.append(Ff.Node(nodes[-1], Fm.GLOWCouplingBlock,{'clamp': c.clamp_alpha, 'subnet_constructor':subnet},conditions=[condition],
                              name = 'couple_{}'.format(k)))
         
     return Ff.ReversibleGraphNet(nodes + [condition,Ff.OutputNode(nodes[-1], name='output')]) 
@@ -81,7 +102,7 @@ class CowFlow(nn.Module):
             print(x.size(),"\n")
         
         # mapping density map dims to match feature dims
-        y = y.unsqueeze(1).expand(-1,c.n_feat,-1, -1)
+        y = y #y.unsqueeze(1).expand(-1,-1,-1, -1) # c.n_feat
         
         if c.debug: 
             print("expanded density map size")

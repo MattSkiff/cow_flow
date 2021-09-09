@@ -74,9 +74,12 @@ def train(data_loader): #def train(train_loader, test_loader):
                 mean_train_loss = np.mean(train_loss)
                 
                 t2 = time.perf_counter()
+                est_total_train = (t2-t1) * len(data_loader) * c.sub_epochs * c.meta_epochs
                 
                 if c.verbose:
                     print('Batch Time: {:f},Batch: {:d},Epoch: {:d}.{:d} \t train loss: {:.4f}'.format(t2-t1,i, epoch, sub_epoch, mean_train_loss))
+                    print('{:d} Batches in sub-epoch remaining'.format(len(data_loader)-i))
+                    print('Estimated Total Training Time: {:f}'.format(est_total_train))
                 
                 if c.debug:
                     print("number of elements in density maps list:")
