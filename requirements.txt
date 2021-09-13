@@ -7,4 +7,5 @@ conda install matplotlib -y -q
 conda install scipy -y -q
 conda install torchvision -y -q
 conda install tqdm -y -q
+conda install tensorboard
 pip install git+https://github.com/VLL-HD/FrEIA.git -q

@@ -1,3 +1,4 @@
 **/obj
 *.jpg
 **/__pycache__
+**/runs

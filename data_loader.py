@@ -28,9 +28,9 @@ import config as c
 
 proj_dir = c.proj_dir
 random_flag = False
-points_flag = False
-demo = False
-density_demo = False
+points_flag = True
+demo = True
+density_demo = True
 mk_size = 25
 
 class CowObjectsDataset(Dataset):
@@ -419,6 +419,42 @@ class ToTensor(object):
             sample['annotations'] = torch.from_numpy(sample['annotations'])
         
         return sample
+
+# Need to create lists of test and train indices
+# Dataset is highly imbalanced, want test set to mirror train set imbalance
+def train_valid_split(dataset,train_percent):
+    ''' takes in dataset and valid_percent and returns tuple of two lists - one for train and test 
+     class balance (in terms of prescence of annotations) is preserved'''
+    
+    
+    l = len(dataset)
+    
+    valid_indices = []
+    train_indices = []
+    
+    split =  round(train_percent * l / 100)
+
+    empty_indices = []
+    annotation_indices = []
+    
+    for i in range(l):
+        if len(dataset[i]['labels']) != 0:
+            annotation_indices.append(i)
+        else:
+            empty_indices.append(i)
+     
+    # modify lists to be random
+    np.random.shuffle(annotation_indices)
+    np.random.shuffle(empty_indices)
+    
+    train_indices.append(empty_indices[:split])
+    train_indices.append(annotation_indices[:split])
+    
+    valid_indices.append(empty_indices[split:])
+    valid_indices.append(annotation_indices[split:])
+            
+    
+    return train_indices, valid_indices
 
 # class Normalize(object):
 #     """Normalise ndarrays in sample"""

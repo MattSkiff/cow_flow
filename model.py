@@ -9,11 +9,17 @@ import torch
 import torch.nn as nn
 from torchvision.models import alexnet # feature extractor
 
-import config as c
+import config as c # hyper params
 
-# FrEIA imports
+# FrEIA imports for invertible networks
 import FrEIA.framework as Ff
 import FrEIA.modules as Fm
+
+# save model 
+import os
+
+WEIGHT_DIR = './weights'
+MODEL_DIR = './models'
 
 # change default initialisation
 # https://stackoverflow.com/questions/49433936/how-to-initialize-weights-in-pytorch
@@ -24,9 +30,10 @@ def init_weights(m):
 
 def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat):
     
-    # from FrEIA tutorial
     def subnet(dims_in, dims_out):
         
+        # subnet is operating over density map 
+        # hence switch from linear to conv2d net
         net = nn.Sequential(
                             nn.Conv2d(dims_in, 32, kernel_size = 3,padding = 1), 
                             nn.ReLU(),
@@ -46,20 +53,32 @@ def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat):
     
     # include batch size as extra dimension here? data is batched along extra dimension
     # input = density maps
-    nodes = [Ff.InputNode(c.n_feat,input_dim[0],input_dim[1],name='input')] 
+    nodes = [Ff.InputNode(1,input_dim[0],input_dim[1],name='input')] 
+    
+    # haar downsampling to resolves input data only having a single channel
+    # affine coupling performs channel wise split
+    # https://github.com/VLL-HD/FrEIA/issues/8
+    
+    nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling'))
+    
+    print(nodes[0])
     # first dim should be 1 not c.n_feat -> crashes if don't expand input to condition dims
     
     # 'Because of the construction of the conditional coupling blocks, the condition must have the same spatial dimensions as the data'
     # https://github.com/VLL-HD/FrEIA/issues/9
     
     # condition = exacted image features
-    condition  = Ff.ConditionNode(1,input_dim[0],input_dim[1], name = 'condition')
+    condition  = Ff.ConditionNode(c.n_feat,input_dim[0] // 2,input_dim[1] // 2, name = 'condition')
     
     for k in range(c.n_coupling_blocks):
         print("creating layer {:d}".format(k))
         nodes.append(Ff.Node(nodes[-1], Fm.PermuteRandom, {'seed': k}, name='permute_{}'.format(k)))
+        print(condition)
         nodes.append(Ff.Node(nodes[-1], Fm.GLOWCouplingBlock,{'clamp': c.clamp_alpha, 'subnet_constructor':subnet},conditions=[condition],
                              name = 'couple_{}'.format(k)))
+       
+    # perform haar upsampling (reshape) to ensure loss calculation is correct
+    # nodes.append(Ff.Node(nodes[-1], Fm.HaarUpsampling, {}, name = 'Upsampling'))
         
     return Ff.ReversibleGraphNet(nodes + [condition,Ff.OutputNode(nodes[-1], name='output')]) 
         
@@ -95,31 +114,44 @@ class CowFlow(nn.Module):
             print("concatenated and pooled feature size..")
             print(x.size(),"\n")
         
-        x = x.unsqueeze(2).unsqueeze(3).expand(-1, -1, c.density_map_h,c.density_map_w)
+        x = x.unsqueeze(2).unsqueeze(3).expand(-1, -1, c.density_map_h // 2,c.density_map_w // 2)
         
         if c.debug: 
             print("reshaped feature size with spatial dims..")
             print(x.size(),"\n")
         
         # mapping density map dims to match feature dims
-        y = y #y.unsqueeze(1).expand(-1,-1,-1, -1) # c.n_feat
+        y = y.unsqueeze(1) #.expand(-1,c.n_feat,-1, -1) 
         
         if c.debug: 
             print("expanded density map size")
-            print(y.size(),"\n")
+            print(y.size(),"\n") 
         
-        z = self.nf(x,y)
+        # second argument to NF is the condition - i.e. the features
+        # first argument is the 'x' i.e. the data we are mapping to z (NF : x <--> z)
+        # is also what we are trying to predict (in a sense we are using 'x' features to predict 'y' density maps)
+        # hence ambiguity in notation
+        z = self.nf(y,x)
         return z
+
+# unaltered from differnet  
+def save_model(model, filename):
+    if not os.path.exists(MODEL_DIR):
+        os.makedirs(MODEL_DIR)
+    torch.save(model, os.path.join(MODEL_DIR,filename))
     
-def load_model():
-    pass
+def load_model(filename):
+    path = os.path.join(MODEL_DIR, filename)
+    model = torch.load(path)
+    return model
     
-def save_model():
-    pass
-    
-def save_weights():
-    pass
+def save_weights(model, filename):
+    if not os.path.exists(WEIGHT_DIR):
+        os.makedirs(WEIGHT_DIR)
+    torch.save(model.state_dict(),os.apth.join(WEIGHT_DIR,filename))
         
-def load_weights():
-    pass
+def load_weights(model, filename):
+    path = os.path.join(WEIGHT_DIR, filename)
+    model.load_state_dict(torch.load(path))
+    return model
 
