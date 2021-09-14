@@ -45,9 +45,8 @@ def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat):
 
         
         #net.apply(init_weights)
-        print('dims in and dims out')
-        print(dims_in)
-        print(dims_out)
+        if c.debug:
+            print('dims in: {}, dims out: {}'.format(dims_in,dims_out))
         
         return net
     
@@ -55,7 +54,7 @@ def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat):
     # input = density maps
     nodes = [Ff.InputNode(1,input_dim[0],input_dim[1],name='input')] 
     
-    # haar downsampling to resolves input data only having a single channel
+    # haar downsampling to resolves input data only having a single channel (from unsqueezed singleton dimension)
     # affine coupling performs channel wise split
     # https://github.com/VLL-HD/FrEIA/issues/8
     
@@ -71,16 +70,21 @@ def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat):
     condition  = Ff.ConditionNode(c.n_feat,input_dim[0] // 2,input_dim[1] // 2, name = 'condition')
     
     for k in range(c.n_coupling_blocks):
-        print("creating layer {:d}".format(k))
+        if c.verbose:
+            print("creating layer {:d}".format(k))
+            
         nodes.append(Ff.Node(nodes[-1], Fm.PermuteRandom, {'seed': k}, name='permute_{}'.format(k)))
-        print(condition)
+        
+        if c.verbose:
+            print(condition)
+            
         nodes.append(Ff.Node(nodes[-1], Fm.GLOWCouplingBlock,{'clamp': c.clamp_alpha, 'subnet_constructor':subnet},conditions=[condition],
                              name = 'couple_{}'.format(k)))
        
     # perform haar upsampling (reshape) to ensure loss calculation is correct
     # nodes.append(Ff.Node(nodes[-1], Fm.HaarUpsampling, {}, name = 'Upsampling'))
         
-    return Ff.ReversibleGraphNet(nodes + [condition,Ff.OutputNode(nodes[-1], name='output')]) 
+    return Ff.ReversibleGraphNet(nodes + [condition,Ff.OutputNode(nodes[-1], name='output')], verbose=c.verbose) 
         
 class CowFlow(nn.Module):
     
@@ -89,11 +93,16 @@ class CowFlow(nn.Module):
         self.feature_extractor = alexnet(pretrained=True,progress=False)
         self.nf = nf_head()   
 
-    # x = attributes, images->features (conditioning), y = labels = density_maps
-    def forward(self,x,y):
+    def forward(self,images,dmaps,rev=False):
         # no multi-scale architecture (yet) as per differnet paper
-        x_cat = list()
-        feat_s = self.feature_extractor.features(x) # extract features
+        
+        if c.debug:
+            print("images size..")
+            print(images.size(),"\n")
+        
+        # x = raw images, y = density maps
+        feat_cat = list()
+        feat_s = self.feature_extractor.features(images) # extract features
         
         if c.debug:
             print("raw feature size..")
@@ -102,39 +111,43 @@ class CowFlow(nn.Module):
         # global average pooling as described in paper:
         # h x w x d -> 1 x 1 x d
         # see: https://alexisbcook.github.io/2017/global-average-pooling-layers-for-object-localization/
-        # torch.Size([24, 256, 17, 24])
+        # torch.Size([batch_size, 256, 17, 24])
         
-        x_cat.append(torch.mean(feat_s,dim = (2,3))) 
-        x = torch.cat(x_cat,dim = 1) # concatenation
+        feat_cat.append(torch.mean(feat_s,dim = (2,3))) 
+        feats = torch.cat(feat_cat,dim = 1) # concatenation
         
         # adding spatial dimensions....
         # remove dimension of size one for concatenation in NF coupling layer - squeeze()
         
         if c.debug: 
             print("concatenated and pooled feature size..")
-            print(x.size(),"\n")
+            print(feats.size(),"\n")
         
-        x = x.unsqueeze(2).unsqueeze(3).expand(-1, -1, c.density_map_h // 2,c.density_map_w // 2)
+        feats = feats.unsqueeze(2).unsqueeze(3).expand(-1, -1, c.density_map_h // 2,c.density_map_w // 2)
         
         if c.debug: 
             print("reshaped feature size with spatial dims..")
-            print(x.size(),"\n")
+            print(feats.size(),"\n")
         
         # mapping density map dims to match feature dims
-        y = y.unsqueeze(1) #.expand(-1,c.n_feat,-1, -1) 
+        # introduces singleton dimension
+        # don't want to introduce this dimension when running z -> x
+        if not rev:
+            dmaps = dmaps.unsqueeze(1) #.expand(-1,c.n_feat,-1, -1) 
         
         if c.debug: 
             print("expanded density map size")
-            print(y.size(),"\n") 
+            print(dmaps.size(),"\n") 
         
         # second argument to NF is the condition - i.e. the features
         # first argument is the 'x' i.e. the data we are mapping to z (NF : x <--> z)
         # is also what we are trying to predict (in a sense we are using 'x' features to predict 'y' density maps)
         # hence ambiguity in notation
-        z = self.nf(y,x)
+        z = self.nf(x_or_z = dmaps,c = feats,rev=rev)
         return z
 
 # unaltered from differnet  
+# todo: bugged - hit error 'pickle can't serialise local obj"
 def save_model(model, filename):
     if not os.path.exists(MODEL_DIR):
         os.makedirs(MODEL_DIR)

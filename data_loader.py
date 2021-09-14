@@ -15,13 +15,17 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
 # https://docs.opencv.org/4.5.2/d4/d13/tutorial_py_filtering.html
-import cv2 as cv # for convolution
 import scipy
 
 from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms, utils
-from skimage import io, transform
+
+# transforms = todo
+#from torchvision import transforms
+#from skimage import transform
 #from sklearn.preprocessing import normalize # normalise data
+
+from torchvision import utils
+from skimage import io
 from PIL import Image
 
 import config as c
@@ -29,8 +33,8 @@ import config as c
 proj_dir = c.proj_dir
 random_flag = False
 points_flag = True
-demo = True
-density_demo = True
+demo = False
+density_demo = False
 mk_size = 25
 
 class CowObjectsDataset(Dataset):
@@ -161,7 +165,6 @@ class CowObjectsDataset(Dataset):
                                
                 #density_map = cv.GaussianBlur(base_map,(c.filter_size,c.filter_size),c.sigma)
                 #density_map = cv.filter2D(base_map,-1,gauss2dkern)
-                print(density_map.sum())
         
         if not self.density:
             sample = {'image': image, 'annotations': annotations}
@@ -422,8 +425,9 @@ class ToTensor(object):
 
 # Need to create lists of test and train indices
 # Dataset is highly imbalanced, want test set to mirror train set imbalance
+# todo: get split function to only iterate over txt files, not images 
 def train_valid_split(dataset,train_percent):
-    ''' takes in dataset and valid_percent and returns tuple of two lists - one for train and test 
+    ''' takes in dataset and valid_percent and returns tuple of two lists of shuffled indices - one for train and test 
      class balance (in terms of prescence of annotations) is preserved'''
     
     
@@ -447,11 +451,11 @@ def train_valid_split(dataset,train_percent):
     np.random.shuffle(annotation_indices)
     np.random.shuffle(empty_indices)
     
-    train_indices.append(empty_indices[:split])
-    train_indices.append(annotation_indices[:split])
+    train_indices.extend(empty_indices[:split])
+    train_indices.extend(annotation_indices[:split])
     
-    valid_indices.append(empty_indices[split:])
-    valid_indices.append(annotation_indices[split:])
+    valid_indices.extend(empty_indices[split:])
+    valid_indices.extend(annotation_indices[split:])
             
     
     return train_indices, valid_indices
@@ -530,6 +534,7 @@ if demo:
     
     
     j = 0
+    
     for i_batch, sample_batched in enumerate(dataloader):
         r_int = random.randint(0, len(cow_dataset))
         

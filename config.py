@@ -2,8 +2,8 @@
 
 # custom config settings
 proj_dir = "/home/matthew/Desktop/laptop_desktop/clones/cow_flow/data"
-#steps = 100 (pyro)
-debug = False
+data_prop = 0.1 # proportion of the full dataset to use 
+
 
 # data settings
 dataset_path = "dummy_dataset"
@@ -37,7 +37,7 @@ norm_mean, norm_std = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
 # edited: cows counting - only one scale for now
 n_scales = 1 #3 # number of scales at which features are extracted, img_size is the highest - others are //2, //4,...
 clamp_alpha = 3 # see paper equation 2 for explanation
-n_coupling_blocks = 8
+n_coupling_blocks = 4
 #fc_internal = 2048 # number of neurons in hidden layers of s-t-networks
 #dropout = 0.0 # dropout in s-t-networks
 lr_init = 2e-4
@@ -51,11 +51,13 @@ batch_size_test = batch_size * n_transforms // n_transforms_test
 
 # total epochs = meta_epochs * sub_epochs
 # evaluation after <sub_epochs> epochs
-meta_epochs = 6
-sub_epochs = 2
+meta_epochs = 1
+sub_epochs = 1
 
 # output settings
-verbose = True
-grad_map_viz = False
-hide_tqdm_bar = True
-save_model = True
+debug = True
+verbose = False
+report_freq = 200 # nth minibatch to report on (1 = always)
+grad_map_viz = True
+hide_tqdm_bar = False
+save_model = False

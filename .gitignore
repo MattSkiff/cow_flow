@@ -2,3 +2,5 @@
 *.jpg
 **/__pycache__
 **/runs
+**/models
+*.png

@@ -6,7 +6,9 @@ import time
 import config as c
 from utils import get_loss
 from utils import t2np
-from model import CowFlow #, save_model, save_weights
+from model import CowFlow, save_model, save_weights
+
+from localization import export_gradient_maps
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -44,24 +46,24 @@ def train(train_loader,valid_loader): #def train(train_loader, test_loader):
                 
                 optimizer.zero_grad()
                 
-                # x=images->features,y=dmaps
-                x,y,classes = data
-                x = x.float().to(c.device)
-                y = y.float().to(c.device)
+                # x=images->y=dmaps
+                images,dmaps,classes = data
+                images = images.float().to(c.device)
+                dmaps = dmaps.float().to(c.device)
                 
                 if c.debug:
                     print("density maps from data batch size, device..")
-                    print(y.size())
-                    print(y.device,"\n")
+                    print(dmaps.size())
+                    print(dmaps.device,"\n")
                     
                     print("images from data batch size, device..")
-                    print(x.size())
-                    print(x.device,"\n")
+                    print(images.size())
+                    print(images.device,"\n")
                 
                     # z is the probability density under the latent normal distribution
                     print("output of model - two elements: y (z), jacobian")
                     
-                z, log_det_jac = model(x,y) # inputs features,dmaps
+                z, log_det_jac = model(images,dmaps) # inputs features,dmaps
                 
                 # x: inputs (i.e. 'x-side' when rev is False, 'z-side' when rev is True) [FrEIA]
                 # i.e. what y (output) is depends on direction of flow
@@ -79,32 +81,29 @@ def train(train_loader,valid_loader): #def train(train_loader, test_loader):
                 loss = get_loss(z, log_det_jac) # model.nf.jacobian(run_forward=False)
                 k += 1
                 
-                print("loss: {}".format(loss))
-                
                 loss_t = t2np(loss)
                 writer.add_scalar('training_minibatch_loss',loss, k)
                 
                 train_loss.append(loss_t)
                 loss.backward()
                 optimizer.step()
-                   
-                # nb: x1 = features (y), x2 = annotations
                 
                 mean_train_loss = np.mean(train_loss)
                 
                 t2 = time.perf_counter()
-                est_total_train = ((t2-t1) * len(data_loader) * c.sub_epochs * c.meta_epochs) // 60
+                est_total_train = ((t2-t1) * len(train_loader) * c.sub_epochs * c.meta_epochs) // 60
                 
-                if c.verbose:
-                    print('Batch Time: {:f},Mini-Batch: {:d}, Epoch: {:d}, Sub Epoch: {:d}, \t train loss: {:.4f}'.format(t2-t1,i, epoch, sub_epoch, mean_train_loss))
-                    print('{:d} Batches in sub-epoch remaining'.format(len(data_loader)-i))
-                    print('Estimated Total Training Time (minutes): {:f}'.format(est_total_train))
+                if i % c.report_freq == 0:
+                    if c.verbose:
+                        print('Batch Time: {:f},Mini-Batch: {:d}, Epoch: {:d}, Sub Epoch: {:d}, \t Mini-Batch train loss: {:.4f}'.format(t2-t1,i, epoch, sub_epoch, mean_train_loss))
+                        print('{:d} Batches in sub-epoch remaining'.format(len(train_loader)-i))
+                        print('Estimated Total Training Time (minutes): {:f}'.format(est_total_train))
                 
                 if c.debug:
                     print("number of elements in density maps list:")
-                    print(len(y)) # images
+                    print(len(dmaps)) # images
                     print("number of images in image tensor:")
-                    print(len(x)) # features
+                    print(len(images)) # features
             
             writer.add_scalar('training_subpeoch_loss',loss, j)
             
@@ -114,29 +113,58 @@ def train(train_loader,valid_loader): #def train(train_loader, test_loader):
             
             valid_loss = list()
             valid_z = list()
-            valid_labels = list()
+            valid_counts = list()
+            # valid_coords = list() # todo
             
             with torch.no_grad():
+                
                 for i, data in enumerate(tqdm(valid_loader, disable=c.hide_tqdm_bar)):
                 
-                # validation
-                x,y,classes = data
-                x = x.float().to(c.device)
-                y = y.float().to(c.device)
-                z, log_det_jac = model(x,y)
-                
-                valid_z.append(z)
-                valid_labels.append()
-                loss = get_loss(z, log_det_jac)
-                valid_loss.append(t2np(loss))
+                    # validation
+                    images,dmaps,classes = data
+                    images = images.float().to(c.device)
+                    dmaps = dmaps.float().to(c.device)
+                    z, log_det_jac = model(images,dmaps)
+                    
+                    valid_z.append(z)
+                    
+                    
+                    
+                    valid_counts.append(dmaps.sum())
+                    
+                if i % c.report_freq == 0:
+                    if c.verbose:
+                        print('count: {:f}'.format(dmaps.sum()))
+
+                    loss = get_loss(z, log_det_jac)
+                    valid_loss.append(t2np(loss))
                 
             valid_loss = np.mean(np.array(valid_loss))
-                
+             
+            if c.verbose:
+                    print('Epoch: {:d} \t valid_loss: {:4f}'.format(epoch,valid_loss))
             
             writer.add_scalar('valid_subpeoch_loss',valid_loss, j)
 
     writer.flush()
     
+    if c.grad_map_viz:
+        reconstruct_density_map(model, valid_loader, optimizer, -1)
+        
+        import matplotlib.pyplot as plt
+
+        dmap_rev = export_gradient_maps(model, valid_loader, optimizer, -1)
+        dmap_rev_np = dmap_rev[0].squeeze().cpu().detach().numpy()
+        
+        fig, ax = plt.subplots(1,1)
+        plt.ioff()
+        fig.suptitle('test z -> x output',y=0.9,fontsize=24)
+        fig.set_size_inches(8*1,6*1)
+        fig.set_dpi(100)
+        
+        ax.imshow(dmap_rev_np, cmap='hot', interpolation='nearest')
+    
+    # broken # todo
     if c.save_model:
         model.to('cpu')
         save_model(model,c.modelname)
