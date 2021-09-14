@@ -60,7 +60,6 @@ def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat):
     
     nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling'))
     
-    print(nodes[0])
     # first dim should be 1 not c.n_feat -> crashes if don't expand input to condition dims
     
     # 'Because of the construction of the conditional coupling blocks, the condition must have the same spatial dimensions as the data'

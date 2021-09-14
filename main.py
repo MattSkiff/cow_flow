@@ -15,19 +15,26 @@ from data_loader import train_valid_split # Balanced split
 
 from torch import onnx
 
-# free up memory for cuda
-empty_cache()
+empty_cache() # free up memory for cuda
 
 # instantiate class
 transformed_dataset = CowObjectsDataset(root_dir=c.proj_dir,
                                         transform = ToTensor(),convert_to_points=True,generate_density=True)
 
-train_indices, valid_indices = train_valid_split(dataset = transformed_dataset, train_percent = 70)
+# create test train split
+train_indices, valid_indices = train_valid_split(dataset = transformed_dataset, train_percent = 70,annotations_only = c.annotations_only)
+
+# TODO: code to save this file (train and valid indices)
 
 # Creating data samplers and loaders:
 # only train part for dev purposes 
-train_sampler = SubsetRandomSampler(train_indices[:round(c.data_prop*len(train_indices))])
-valid_sampler = SubsetRandomSampler(valid_indices[:round(c.data_prop*len(valid_indices))])
+if not c.annotations_only:
+    train_sampler = SubsetRandomSampler(train_indices[:round(c.data_prop*len(train_indices))])
+    valid_sampler = SubsetRandomSampler(valid_indices[:round(c.data_prop*len(valid_indices))])
+
+if c.annotations_only:
+    train_sampler = SubsetRandomSampler(train_indices)
+    valid_sampler = SubsetRandomSampler(valid_indices)
 
 if c.verbose:
     print("Training using {} train samples and {} validation samples...".format(len(train_sampler),len(valid_sampler)))

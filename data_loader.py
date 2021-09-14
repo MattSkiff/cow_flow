@@ -32,7 +32,7 @@ import config as c
 
 proj_dir = c.proj_dir
 random_flag = False
-points_flag = True
+points_flag = False
 demo = False
 density_demo = False
 mk_size = 25
@@ -148,6 +148,7 @@ class CowObjectsDataset(Dataset):
                 # add points onto basemap
                 for point in annotations:
                     # error introduced here as float position annotation centre converted to int
+                    
                     base_map = np.zeros((c.img_size[1], c.img_size[0]), dtype=np.float32)
                     
                     if c.debug:
@@ -162,9 +163,8 @@ class CowObjectsDataset(Dataset):
                     if c.debug:
                         print(base_map.sum())
                         print(density_map.sum())
-                               
-                #density_map = cv.GaussianBlur(base_map,(c.filter_size,c.filter_size),c.sigma)
-                #density_map = cv.filter2D(base_map,-1,gauss2dkern)
+                
+        labels = np.array(labels) # list into default collate function produces empty tensors
         
         if not self.density:
             sample = {'image': image, 'annotations': annotations}
@@ -334,35 +334,25 @@ class CowObjectsDataset(Dataset):
     
             if b['annotations'].numel() == 0:
                 boxes.append(torch.empty(size=(0,4)))
-                labels.append(torch.empty(size=(0,1)))
+
             else:
                 bx = b['annotations'][:, 1:]
                 if debug:
                     print("bx size:")
                     print(bx.size())
-                #boxes.append(bx.resize_((0,torch.numel(bx))))
+                    
                 boxes.append(bx)
         
-                l = b['annotations'][:, 0]
-                #labels.append(l.resize_((0,torch.numel(l))))
-                labels.append(l)
+        labels.append(b['annotations'][:, 0]) # append labels regardless
         
         images = torch.stack(images,dim = 0)
-        
-        # works, but data is now single tensor instead of tensor of tensors
-        
-        #boxes = torch.cat(boxes,dim = 1) 
-        #labels = torch.cat(labels,dim = 1)
-        
-        
+
         if debug:
             print(type(boxes))
             print(type(labels))
             print(type(images))
             print(boxes)
             print(labels)
-        #boxes = torch.stack(boxes,dim = 0)
-        #labels = torch.stack(boxes,dim = 0 )
     
         return images,boxes,labels
 
@@ -376,11 +366,12 @@ class CowObjectsDataset(Dataset):
         for b in batch:
             images.append(b['image'])
             density.append(b['density'])
+            labels.append(b['labels'])
         
-            l = b['labels'][:]
+            #l = b['labels'][:]
             #labels.append(l.resize_((0,torch.numel(l))))
-            labels.append(l)
-        
+            #labels.append(l)
+
         images = torch.stack(images,dim = 0)
         density = torch.stack(density,dim = 0)
         
@@ -395,7 +386,6 @@ class CowObjectsDataset(Dataset):
             print(type(labels))
             print(type(images))
             print(density)
-            print(labels)
     
         return images,density,labels
 
@@ -420,23 +410,31 @@ class ToTensor(object):
             sample['density'] = torch.from_numpy(sample['density'])
         else:
             sample['annotations'] = torch.from_numpy(sample['annotations'])
+            sample['labels'] = torch.from_numpy(sample['labels'])
         
         return sample
 
 # Need to create lists of test and train indices
 # Dataset is highly imbalanced, want test set to mirror train set imbalance
 # todo: get split function to only iterate over txt files, not images 
-def train_valid_split(dataset,train_percent):
+def train_valid_split(dataset,train_percent,balanced = False,annotations_only = False):
     ''' takes in dataset and valid_percent and returns tuple of two lists of shuffled indices - one for train and test 
-     class balance (in terms of prescence of annotations) is preserved'''
-    
+     class balance (in terms of prescence of annotations) is preserved
+     
+     Args:
+         dataset: pytorch dataset
+         train_percent: percentage of dataset to allocate 
+         
+    Returns:
+        tuple
+     
+     '''
     
     l = len(dataset)
     
     valid_indices = []
     train_indices = []
     
-    split =  round(train_percent * l / 100)
 
     empty_indices = []
     annotation_indices = []
@@ -446,16 +444,27 @@ def train_valid_split(dataset,train_percent):
             annotation_indices.append(i)
         else:
             empty_indices.append(i)
-     
+            
+    if c.debug:
+        print(len(annotation_indices))
+        print(len(empty_indices))
     # modify lists to be random
     np.random.shuffle(annotation_indices)
     np.random.shuffle(empty_indices)
     
-    train_indices.extend(empty_indices[:split])
-    train_indices.extend(annotation_indices[:split])
+    split_e = round(train_percent * len(empty_indices) / 100)
+    split_a = round(train_percent * len(annotation_indices) / 100)
     
-    valid_indices.extend(empty_indices[split:])
-    valid_indices.extend(annotation_indices[split:])
+    
+    if not annotations_only:
+        train_indices.extend(empty_indices[:split_e])
+        
+    train_indices.extend(annotation_indices[:split_a])
+    
+    if not annotations_only:
+        valid_indices.extend(empty_indices[split_e:])
+        
+    valid_indices.extend(annotation_indices[split_a:])
             
     
     return train_indices, valid_indices

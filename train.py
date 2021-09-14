@@ -4,11 +4,11 @@ from tqdm import tqdm # progress bar
 import time 
 
 import config as c
-from utils import get_loss
-from utils import t2np
+
+from utils import get_loss, reconstruct_density_map, t2np
 from model import CowFlow, save_model, save_weights
 
-from localization import export_gradient_maps
+import matplotlib.pyplot as plt
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -47,7 +47,12 @@ def train(train_loader,valid_loader): #def train(train_loader, test_loader):
                 optimizer.zero_grad()
                 
                 # x=images->y=dmaps
-                images,dmaps,classes = data
+                images,dmaps,labels = data
+                
+                if c.debug:
+                    print("labels:")
+                    print(labels)
+                
                 images = images.float().to(c.device)
                 dmaps = dmaps.float().to(c.device)
                 
@@ -121,7 +126,7 @@ def train(train_loader,valid_loader): #def train(train_loader, test_loader):
                 for i, data in enumerate(tqdm(valid_loader, disable=c.hide_tqdm_bar)):
                 
                     # validation
-                    images,dmaps,classes = data
+                    images,dmaps,labels = data
                     images = images.float().to(c.device)
                     dmaps = dmaps.float().to(c.device)
                     z, log_det_jac = model(images,dmaps)
@@ -138,7 +143,7 @@ def train(train_loader,valid_loader): #def train(train_loader, test_loader):
 
                     loss = get_loss(z, log_det_jac)
                     valid_loss.append(t2np(loss))
-                
+                 
             valid_loss = np.mean(np.array(valid_loss))
              
             if c.verbose:
@@ -148,12 +153,9 @@ def train(train_loader,valid_loader): #def train(train_loader, test_loader):
 
     writer.flush()
     
-    if c.grad_map_viz:
-        reconstruct_density_map(model, valid_loader, optimizer, -1)
-        
-        import matplotlib.pyplot as plt
-
-        dmap_rev = export_gradient_maps(model, valid_loader, optimizer, -1)
+    if c.dmap_viz:
+    
+        dmap_rev = reconstruct_density_map(model, valid_loader, optimizer, -1)
         dmap_rev_np = dmap_rev[0].squeeze().cpu().detach().numpy()
         
         fig, ax = plt.subplots(1,1)

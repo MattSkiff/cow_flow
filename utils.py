@@ -28,10 +28,10 @@ def reconstruct_density_map(model, validloader, optimizer, n_batches=1):
     for i, data in enumerate(tqdm(validloader, disable=c.hide_tqdm_bar)):
         optimizer.zero_grad()
         
-        images,dmaps,classes = data
+        images,dmaps,labels = data
         
-        if len(classes) != 0:
-        
+        if labels[0]: # triggers only if there is at least one annotations
+            
             # Z shape: torch.Size([2, 4, 300, 400]) (batch size = 2)
             dummy_z = randn(c.batch_size, 4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True).to(c.device)
             
