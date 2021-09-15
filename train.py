@@ -133,16 +133,14 @@ def train(train_loader,valid_loader): #def train(train_loader, test_loader):
                     
                     valid_z.append(z)
                     
-                    
-                    
                     valid_counts.append(dmaps.sum())
                     
                 if i % c.report_freq == 0:
                     if c.verbose:
                         print('count: {:f}'.format(dmaps.sum()))
 
-                    loss = get_loss(z, log_det_jac)
-                    valid_loss.append(t2np(loss))
+                loss = get_loss(z, log_det_jac)
+                valid_loss.append(t2np(loss))
                  
             valid_loss = np.mean(np.array(valid_loss))
              
@@ -153,6 +151,7 @@ def train(train_loader,valid_loader): #def train(train_loader, test_loader):
 
     writer.flush()
     
+    # post training: visualise a random reconstruction
     if c.dmap_viz:
     
         dmap_rev = reconstruct_density_map(model, valid_loader, optimizer, -1)
@@ -160,7 +159,7 @@ def train(train_loader,valid_loader): #def train(train_loader, test_loader):
         
         fig, ax = plt.subplots(1,1)
         plt.ioff()
-        fig.suptitle('test z -> x output',y=0.9,fontsize=24)
+        fig.suptitle('test z -> x output',y=1.0,fontsize=24)
         fig.set_size_inches(8*1,6*1)
         fig.set_dpi(100)
         

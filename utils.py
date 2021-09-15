@@ -21,8 +21,7 @@ def get_loss(z, jac):
 GRADIENT_MAP_DIR = './gradient_maps/'
 
 def reconstruct_density_map(model, validloader, optimizer, n_batches=1):
-    plt.figure(figsize=(10, 10))
-    validloader.dataset.get_fixed = True
+    #plt.figure(figsize=(10, 10))
 
     # TODO n batches
     for i, data in enumerate(tqdm(validloader, disable=c.hide_tqdm_bar)):
@@ -30,7 +29,7 @@ def reconstruct_density_map(model, validloader, optimizer, n_batches=1):
         
         images,dmaps,labels = data
         
-        if labels[0]: # triggers only if there is at least one annotations
+        if labels.size: # triggers only if there is at least one annotation
             
             # Z shape: torch.Size([2, 4, 300, 400]) (batch size = 2)
             dummy_z = randn(c.batch_size, 4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True).to(c.device)

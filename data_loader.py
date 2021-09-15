@@ -367,19 +367,10 @@ class CowObjectsDataset(Dataset):
             images.append(b['image'])
             density.append(b['density'])
             labels.append(b['labels'])
-        
-            #l = b['labels'][:]
-            #labels.append(l.resize_((0,torch.numel(l))))
-            #labels.append(l)
 
         images = torch.stack(images,dim = 0)
         density = torch.stack(density,dim = 0)
-        
-        # works, but data is now single tensor instead of tensor of tensors
-        
-        #boxes = torch.cat(boxes,dim = 1) 
-        #labels = torch.cat(labels,dim = 1)
-        
+        labels = np.array(labels, dtype=object)
         
         if debug:
             print(type(density))
@@ -416,17 +407,22 @@ class ToTensor(object):
 
 # Need to create lists of test and train indices
 # Dataset is highly imbalanced, want test set to mirror train set imbalance
-# todo: get split function to only iterate over txt files, not images 
+# TODO: implement 'balanced' argument
+# TODO: get split function to only iterate over txt files, not images 
 def train_valid_split(dataset,train_percent,balanced = False,annotations_only = False):
-    ''' takes in dataset and valid_percent and returns tuple of two lists of shuffled indices - one for train and test 
-     class balance (in terms of prescence of annotations) is preserved
-     
+    ''' 
      Args:
          dataset: pytorch dataset
-         train_percent: percentage of dataset to allocate 
+         train_percent: percentage of dataset to allocate to training set
+         balance: whether to create a 50/50 dataset of annotations:empty patches
+         annotations_only: create a dataset that only has non-empty patches 
          
     Returns:
-        tuple
+        tuple of two lists of shuffled indices - one for train and test
+        
+    Notes:
+        class balance (in terms of proportion of annotations in valid & train) is preserved
+        iterates over entire dataset (inc. images, so quite slow)
      
      '''
     
@@ -465,10 +461,13 @@ def train_valid_split(dataset,train_percent,balanced = False,annotations_only = 
         valid_indices.extend(empty_indices[split_e:])
         
     valid_indices.extend(annotation_indices[split_a:])
-            
     
+    np.random.shuffle(valid_indices)
+    np.random.shuffle(train_indices)
+            
     return train_indices, valid_indices
 
+# TODO
 # class Normalize(object):
 #     """Normalise ndarrays in sample"""
     

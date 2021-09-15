@@ -15,8 +15,9 @@ import config as c # hyper params
 import FrEIA.framework as Ff
 import FrEIA.modules as Fm
 
-# save model 
-import os
+import os # save model
+import dill # solve error when trying to pickle lambda function in FrEIA
+
 
 WEIGHT_DIR = './weights'
 MODEL_DIR = './models'
@@ -150,20 +151,20 @@ class CowFlow(nn.Module):
 def save_model(model, filename):
     if not os.path.exists(MODEL_DIR):
         os.makedirs(MODEL_DIR)
-    torch.save(model, os.path.join(MODEL_DIR,filename))
+    torch.save(model, os.path.join(MODEL_DIR,filename), pickle_module=dill)
     
 def load_model(filename):
     path = os.path.join(MODEL_DIR, filename)
-    model = torch.load(path)
+    model = torch.load(path, pickle_module=dill)
     return model
     
 def save_weights(model, filename):
     if not os.path.exists(WEIGHT_DIR):
         os.makedirs(WEIGHT_DIR)
-    torch.save(model.state_dict(),os.apth.join(WEIGHT_DIR,filename))
+    torch.save(model.state_dict(),os.path.join(WEIGHT_DIR,filename), pickle_module=dill)
         
 def load_weights(model, filename):
     path = os.path.join(WEIGHT_DIR, filename)
-    model.load_state_dict(torch.load(path))
+    model.load_state_dict(torch.load(path,pickle_module=dill))
     return model
 
