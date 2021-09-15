@@ -3,6 +3,7 @@ conda activate cows
 conda install pytorch torchvision torchaudio cudatoolkit=10.2 -c pytorch
 conda install -c conda-forge pyro-ppl -y -q
 conda install pandas -y -q
+conda install dill -y -q
 conda install matplotlib -y -q
 conda install scipy -y -q
 conda install torchvision -y -q

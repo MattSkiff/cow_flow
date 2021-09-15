@@ -38,7 +38,7 @@ torch.cuda.set_device(0)
 # edited: cows counting - only one scale for now
 n_scales = 1 #3 # number of scales at which features are extracted, img_size is the highest - others are //2, //4,...
 clamp_alpha = 3 # see paper equation 2 for explanation
-n_coupling_blocks = 4
+n_coupling_blocks = 1
 #fc_internal = 2048 # number of neurons in hidden layers of s-t-networks
 #dropout = 0.0 # dropout in s-t-networks
 lr_init = 2e-4
@@ -60,5 +60,5 @@ debug = False
 verbose = False
 report_freq = 200 # nth minibatch to report on (1 = always)
 dmap_viz = True
-hide_tqdm_bar = True
-save_model = False
+hide_tqdm_bar = False
+save_model = True
