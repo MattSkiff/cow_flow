@@ -3,8 +3,10 @@ from torch import randn
 import config as c
 import matplotlib.pyplot as plt
 from tqdm import tqdm
-
+import os
 import torch
+
+VIZ_DIR = './viz'
 
 def t2np(tensor):
     '''pytorch tensor -> numpy array'''
@@ -16,7 +18,7 @@ def get_loss(z, jac):
     # here, we exponentiate over channel, height, width to produce single norm val per density map
     return torch.mean(0.5 * torch.sum(z ** 2, dim=(1,2,3)) - jac) / z.shape[1]
 
-def reconstruct_density_map(model, validloader, plot = True):
+def reconstruct_density_map(model, validloader, plot = True, save=True):
     #plt.figure(figsize=(10, 10))
 
     # TODO n batches
@@ -45,6 +47,11 @@ def reconstruct_density_map(model, validloader, plot = True):
                 fig.set_dpi(100)
                 
                 ax.imshow(dmap_rev_np, cmap='hot', interpolation='nearest')
+                
+                if save:
+                    if not os.path.exists(VIZ_DIR):
+                        os.makedirs(VIZ_DIR)
+                    plt.savefig("{}/{}.jpg".format(VIZ_DIR,c.modelname), bbox_inches='tight', pad_inches = 0)
             
             break
         
