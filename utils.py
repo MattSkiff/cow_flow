@@ -15,17 +15,12 @@ def get_loss(z, jac):
     # in differnet, exponentiate over 'channel' dim (n_feat)
     # here, we exponentiate over channel, height, width to produce single norm val per density map
     return torch.mean(0.5 * torch.sum(z ** 2, dim=(1,2,3)) - jac) / z.shape[1]
-    
 
-
-GRADIENT_MAP_DIR = './gradient_maps/'
-
-def reconstruct_density_map(model, validloader, optimizer, n_batches=1):
+def reconstruct_density_map(model, validloader, plot = True):
     #plt.figure(figsize=(10, 10))
 
     # TODO n batches
     for i, data in enumerate(tqdm(validloader, disable=c.hide_tqdm_bar)):
-        optimizer.zero_grad()
         
         images,dmaps,labels = data
         
@@ -38,6 +33,19 @@ def reconstruct_density_map(model, validloader, optimizer, n_batches=1):
             dummy_z = dummy_z.float().to(c.device)
             
             x, log_det_jac = model(images,dummy_z,rev=True)
+            
+            if plot:
+            
+                dmap_rev_np = x[0].squeeze().cpu().detach().numpy()
+                
+                fig, ax = plt.subplots(1,1)
+                plt.ioff()
+                fig.suptitle('test z -> x output',y=1.0,fontsize=24)
+                fig.set_size_inches(8*1,6*1)
+                fig.set_dpi(100)
+                
+                ax.imshow(dmap_rev_np, cmap='hot', interpolation='nearest')
+            
             break
         
     return x # reconstructed density map tensor

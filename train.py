@@ -110,7 +110,7 @@ def train(train_loader,valid_loader): #def train(train_loader, test_loader):
                     print("number of images in image tensor:")
                     print(len(images)) # features
             
-            writer.add_scalar('training_subpeoch_loss',loss, j)
+            writer.add_scalar('training_subpeoch_loss',mean_train_loss, j)
             
             if c.verbose:
                 t_e2 = time.perf_counter()
@@ -154,16 +154,7 @@ def train(train_loader,valid_loader): #def train(train_loader, test_loader):
     # post training: visualise a random reconstruction
     if c.dmap_viz:
     
-        dmap_rev = reconstruct_density_map(model, valid_loader, optimizer, -1)
-        dmap_rev_np = dmap_rev[0].squeeze().cpu().detach().numpy()
-        
-        fig, ax = plt.subplots(1,1)
-        plt.ioff()
-        fig.suptitle('test z -> x output',y=1.0,fontsize=24)
-        fig.set_size_inches(8*1,6*1)
-        fig.set_dpi(100)
-        
-        ax.imshow(dmap_rev_np, cmap='hot', interpolation='nearest')
+        dmap_rev = reconstruct_density_map(model, valid_loader, optimizer, -1, plot = True)
     
     # broken # todo
     if c.save_model:

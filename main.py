@@ -36,7 +36,7 @@ if c.annotations_only:
     valid_sampler = SubsetRandomSampler(valid_indices)
 
 if c.verbose:
-    print("Training using {} train samples and {} validation samples...".format(len(train_sampler),len(valid_sampler)))
+    print("Training using {} train samples and {} validation samples...".format(len(train_sampler)*c.batch_size,len(valid_sampler)*c.batch_size))
 
 train_loader = DataLoader(transformed_dataset, batch_size=c.batch_size,shuffle=False, 
                         num_workers=0,collate_fn=transformed_dataset.custom_collate_density,
