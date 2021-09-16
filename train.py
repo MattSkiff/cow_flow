@@ -25,6 +25,7 @@ def train(train_loader,valid_loader): #def train(train_loader, test_loader):
     
     k = 0 # track total mini batches
     j = 0 # track total sub epochs
+    l = 0 # track epochs
     
     for epoch in range(c.meta_epochs):
         
@@ -97,12 +98,15 @@ def train(train_loader,valid_loader): #def train(train_loader, test_loader):
                 
                 t2 = time.perf_counter()
                 est_total_train = ((t2-t1) * len(train_loader) * c.sub_epochs * c.meta_epochs) // 60
+                time_remaining = est_total_train - (((t2-t1) * (len(train_loader) * c.sub_epochs * c.meta_epochs)-i-((j-1)*len(train_loader)-(len(train_loader)*c.sub_epochs*(k-1))) ) // 60)
                 
                 if i % c.report_freq == 0:
                     if c.verbose:
-                        print('Batch Time: {:f},Mini-Batch: {:d}, Epoch: {:d}, Sub Epoch: {:d}, \t Mini-Batch train loss: {:.4f}'.format(t2-t1,i, epoch, sub_epoch, mean_train_loss))
-                        print('{:d} Batches in sub-epoch remaining'.format(len(train_loader)-i))
-                        print('Estimated Total Training Time (minutes): {:f}'.format(est_total_train))
+                        print('Mini-Batch Time: {:f}, Mini-Batch: {:d}, Mini-Batch train loss: {:.4f}'.format(t2-t1,i, mean_train_loss))
+                        print('Epoch: {:d}, Sub Epoch: {:d}'.format(epoch, sub_epoch))
+                        print('{:d} Mini-Batches in sub-epoch remaining'.format(len(train_loader)-i))
+                        print('Est Total Training Time (minutes): {:f}'.format(est_total_train))
+                        print('Est Time Remaining (minutes): {:f}'.format(time_remaining))
                 
                 if c.debug:
                     print("number of elements in density maps list:")
@@ -114,7 +118,7 @@ def train(train_loader,valid_loader): #def train(train_loader, test_loader):
             
             if c.verbose:
                 t_e2 = time.perf_counter()
-                print("Sub Epoch Time: {:f}".format(t_e2-t_e1))
+                print("Sub Epoch Time (s): {:f}".format(t_e2-t_e1))
             
             valid_loss = list()
             valid_z = list()
@@ -148,13 +152,16 @@ def train(train_loader,valid_loader): #def train(train_loader, test_loader):
                     print('Epoch: {:d} \t valid_loss: {:4f}'.format(epoch,valid_loss))
             
             writer.add_scalar('valid_subpeoch_loss',valid_loss, j)
+            j += 1
 
     writer.flush()
+    
+    l += 1
     
     # post training: visualise a random reconstruction
     if c.dmap_viz:
     
-        dmap_rev = reconstruct_density_map(model, valid_loader, optimizer, -1, plot = True)
+        reconstruct_density_map(model, valid_loader, plot = True)
     
     # broken # todo
     if c.save_model:

@@ -2,7 +2,7 @@
 
 # custom config settings
 proj_dir = "/home/matthew/Desktop/clones/cow_flow/data"
-data_prop = 1 # proportion of the full dataset to use 
+data_prop = 0.1 # proportion of the full dataset to use 
 annotations_only = False # whether to only use image patches that have annotations
 
 # data settings
@@ -22,7 +22,7 @@ density_map_w = img_size[0]
 # differ net config settings
 
 # device settings
-device = 'cuda' # or 'cpu'
+device = 'cpu' # or ' cuda'
 import torch
 torch.cuda.set_device(0)
 
@@ -38,7 +38,7 @@ torch.cuda.set_device(0)
 # edited: cows counting - only one scale for now
 n_scales = 1 #3 # number of scales at which features are extracted, img_size is the highest - others are //2, //4,...
 clamp_alpha = 3 # see paper equation 2 for explanation
-n_coupling_blocks = 4
+n_coupling_blocks = 1
 #fc_internal = 2048 # number of neurons in hidden layers of s-t-networks
 #dropout = 0.0 # dropout in s-t-networks
 lr_init = 2e-4
@@ -52,8 +52,8 @@ batch_size = 1 # actual batch size is this value multiplied by n_transforms(_tes
 
 # total epochs = meta_epochs * sub_epochs
 # evaluation after <sub_epochs> epochs
-meta_epochs = 12
-sub_epochs = 6
+meta_epochs = 1
+sub_epochs = 1
 
 # output settings
 debug = False

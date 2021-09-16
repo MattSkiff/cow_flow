@@ -2,16 +2,13 @@
 from torch.cuda import empty_cache
 from torch.utils.data import DataLoader # Dataset
 from torch.utils.data.sampler import SubsetRandomSampler # RandomSampling
-from torch import randn
 # from torchvision import transforms
 
 import config as c
 from train import train
 
 #from utils import load_datasets, make_dataloaders
-from data_loader import CowObjectsDataset
-from data_loader import ToTensor
-from data_loader import train_valid_split # Balanced split
+from data_loader import CowObjectsDataset, ToTensor, train_valid_split
 
 empty_cache() # free up memory for cuda
 
