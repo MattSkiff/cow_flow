@@ -1,7 +1,7 @@
 '''This file configures the training procedure because handling arguments in every single function'''
 
 # custom config settings
-proj_dir = "/home/matthew/Desktop/laptop_desktop/clones/cow_flow/data"
+proj_dir = "/home/matthew/Desktop/clones/cow_flow/data"
 data_prop = 0.2 # proportion of the full dataset to use 
 annotations_only = True # whether to only use image patches that have annotations
 
@@ -38,7 +38,7 @@ torch.cuda.set_device(0)
 # edited: cows counting - only one scale for now
 n_scales = 1 #3 # number of scales at which features are extracted, img_size is the highest - others are //2, //4,...
 clamp_alpha = 3 # see paper equation 2 for explanation
-n_coupling_blocks = 1
+n_coupling_blocks = 8
 #fc_internal = 2048 # number of neurons in hidden layers of s-t-networks
 #dropout = 0.0 # dropout in s-t-networks
 lr_init = 2e-4
@@ -52,12 +52,12 @@ batch_size = 2 # actual batch size is this value multiplied by n_transforms(_tes
 
 # total epochs = meta_epochs * sub_epochs
 # evaluation after <sub_epochs> epochs
-meta_epochs = 1
-sub_epochs = 1
+meta_epochs = 12
+sub_epochs = 6
 
 # output settings
 debug = False
-verbose = False
+verbose = True
 report_freq = 200 # nth minibatch to report on (1 = always)
 dmap_viz = True
 hide_tqdm_bar = False
