@@ -18,18 +18,24 @@ def get_loss(z, jac):
     # here, we exponentiate over channel, height, width to produce single norm val per density map
     return torch.mean(0.5 * torch.sum(z ** 2, dim=(1,2,3)) - jac) / z.shape[1]
 
-def reconstruct_density_map(model, validloader, plot = True, save=True):
+def reconstruct_density_map(model, validloader, plot = True, save=True,title = ""):
     #plt.figure(figsize=(10, 10))
 
     # TODO n batches
     for i, data in enumerate(tqdm(validloader, disable=c.hide_tqdm_bar)):
         
-        images,dmaps,labels = data
+        if c.toy:
+            images,labels = data
+        else:
+            images,dmaps,labels = data
         
         if labels.size: # triggers only if there is at least one annotation
             
             # Z shape: torch.Size([2, 4, 300, 400]) (batch size = 2)
-            dummy_z = randn(c.batch_size, 4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True).to(c.device)
+            scale = 1000
+            #dummy_z = torch.ones(c.batch_size, 4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True).to(c.device)
+            #dummy_z = torch.zeros(c.batch_size, 4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True).to(c.device)
+            dummy_z = (randn(c.batch_size, 4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True) *scale).to(c.device)
             
             images = images.float().to(c.device)
             dummy_z = dummy_z.float().to(c.device)
@@ -42,11 +48,11 @@ def reconstruct_density_map(model, validloader, plot = True, save=True):
                 
                 fig, ax = plt.subplots(1,1)
                 plt.ioff()
-                fig.suptitle('test z -> x output',y=1.0,fontsize=24)
+                fig.suptitle(title,y=1.0,fontsize=24)
                 fig.set_size_inches(8*1,6*1)
                 fig.set_dpi(100)
                 
-                ax.imshow(dmap_rev_np, cmap='hot', interpolation='nearest')
+                ax.imshow(dmap_rev_np, cmap='viridis', interpolation='nearest')
                 
                 if save:
                     if not os.path.exists(VIZ_DIR):

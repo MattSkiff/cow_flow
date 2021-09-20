@@ -24,6 +24,33 @@ WEIGHT_DIR = './weights'
 MODEL_DIR = './models'
 C_DIR = './cstates'
 
+def sub_conv2d(dims_in,dims_out):
+    net = nn.Sequential(
+        nn.Conv2d(dims_in, 32, kernel_size = 3,padding = 1), 
+        nn.ReLU(),
+        # TODO batch norm
+        nn.Conv2d(32, 64, kernel_size = 3,padding = 1), 
+        nn.ReLU(),
+        # TODO batch norm here
+        nn.Conv2d(64, dims_out,kernel_size = 3,padding = 1)
+        )
+    
+    return net
+    
+def sub_fc(dims_in,dims_out,internal_size):
+    # debugging
+    net = nn.Sequential(
+        nn.Linear(dims_in, dims_out), # internal_size
+        #nn.ReLU(),
+        #nn.Dropout(),
+        #nn.Linear(internal_size, internal_size), 
+        #nn.ReLU(),
+        #nn.Dropout(),
+        #nn.Linear(internal_size,dims_out)
+        )
+    
+    return net
+
 # change default initialisation
 # https://stackoverflow.com/questions/49433936/how-to-initialize-weights-in-pytorch
 def init_weights(m):
@@ -31,22 +58,14 @@ def init_weights(m):
         torch.nn.init.xavier_uniform(m.weight)
         m.bias.data.fill_(0.01)
 
-def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat):
+def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,mnist=False):
     
     def subnet(dims_in, dims_out):
         
         # subnet is operating over density map 
         # hence switch from linear to conv2d net
-        net = nn.Sequential(
-                            nn.Conv2d(dims_in, 32, kernel_size = 3,padding = 1), 
-                            nn.ReLU(),
-                            nn.Conv2d(32, 64, kernel_size = 3,padding = 1), 
-                            nn.ReLU(),
-                            nn.Conv2d(64, dims_out,kernel_size = 3,padding = 1)
-                        )
-        
+        net = sub_conv2d(dims_in,dims_out)
 
-        
         #net.apply(init_weights)
         if c.debug:
             print('dims in: {}, dims out: {}'.format(dims_in,dims_out))
@@ -60,17 +79,14 @@ def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat):
     # haar downsampling to resolves input data only having a single channel (from unsqueezed singleton dimension)
     # affine coupling performs channel wise split
     # https://github.com/VLL-HD/FrEIA/issues/8
-    
     nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling'))
-    
-    # first dim should be 1 not c.n_feat -> crashes if don't expand input to condition dims
     
     # 'Because of the construction of the conditional coupling blocks, the condition must have the same spatial dimensions as the data'
     # https://github.com/VLL-HD/FrEIA/issues/9
     
     # condition = exacted image features
-    condition  = Ff.ConditionNode(c.n_feat,input_dim[0] // 2,input_dim[1] // 2, name = 'condition')
-    
+    condition = Ff.ConditionNode(condition_dim,input_dim[0] // 2,input_dim[1] // 2, name = 'condition')
+        
     for k in range(c.n_coupling_blocks):
         if c.verbose:
             print("creating layer {:d}".format(k))
@@ -148,8 +164,59 @@ class CowFlow(nn.Module):
         z = self.nf(x_or_z = dmaps,c = feats,rev=rev)
         return z
 
-# unaltered from differnet  
-# todo: bugged - hit error 'pickle can't serialise local obj"
+class MNISTFlow(nn.Module):
+    
+    def __init__(self):
+        super(MNISTFlow,self).__init__()
+        self.feature_extractor = alexnet(pretrained=True,progress=False)
+        self.nf = nf_head(mnist=True)   
+
+    def forward(self,images,labels,rev=False):
+        
+        # x = raw images, y = density maps
+        feat_cat = list()
+        images = images.unsqueeze(1).expand(-1,3,-1,-1)
+        
+        if c.debug:
+            print('preprocessed mnist imgs size')
+            print(images.size(),"\n")
+        
+        feat_s = self.feature_extractor.features(images) # extract features
+        
+        if c.debug:
+            print("raw feature size..")
+            print(feat_s.size(),"\n")
+             
+        # global average pooling as described in paper:
+        # h x w x d -> 1 x 1 x d
+        # see: https://alexisbcook.github.io/2017/global-average-pooling-layers-for-object-localization/
+        # torch.Size([batch_size, 256, 17, 24])
+        
+        feat_cat.append(torch.mean(feat_s,dim = (2,3))) 
+        feats = torch.cat(feat_cat,dim = 1) # concatenation
+        
+        # adding spatial dimensions....
+        # remove dimension of size one for concatenation in NF coupling layer - squeeze()
+        
+        if c.debug: 
+            print("concatenated and pooled feature size..")
+            print(feats.size(),"\n")
+        
+        feats = feats.unsqueeze(2).unsqueeze(3).expand(-1, -1, c.density_map_h // 2,c.density_map_w // 2)
+        
+        if c.debug:
+            print("feats size..")
+            print(feats.size(),"\n")
+            
+        if not rev:
+            labels = labels.unsqueeze(1).unsqueeze(2).unsqueeze(3).expand(-1, -1, c.density_map_h,c.density_map_w)
+        
+        if c.debug: 
+            print("expanded labels size")
+            print(labels.size(),"\n") 
+    
+        z = self.nf(x_or_z = labels,c = feats,rev=rev)
+        return z
 
 def save_cstate(cdir,config_file):
     ''' saves a snapshot of the config file before running and saving model '''

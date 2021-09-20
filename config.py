@@ -4,13 +4,19 @@
 proj_dir = "/home/matthew/Desktop/clones/cow_flow/data"
 data_prop = 0.1 # proportion of the full dataset to use 
 annotations_only = False # whether to only use image patches that have annotations
+toy = True
+validation = False
 
 # data settings
-dataset_path = "dummy_dataset"
-class_name = "dummy_class"
-modelname = "debugging_del"
+#dataset_path = "mnist_toy"
+#class_name = "dummy_class"
+modelname = "mnist_test"
 
-img_size = (800, 600) # width, height (x-y)
+if toy:
+    img_size = (228,228) # (28,28)
+else:
+    img_size = (800, 600) # width, height (x-y)
+    
 img_dims = [3] + list(img_size)
 
 # density map ground truth generation
@@ -22,9 +28,15 @@ density_map_w = img_size[0]
 # differ net config settings
 
 # device settings
-device = 'cpu' # or ' cuda'
 import torch
-torch.cuda.set_device(0)
+
+gpu = True
+
+if not gpu:
+    device = 'cpu' 
+else: 
+    device = 'cuda' 
+    torch.cuda.set_device(0)
 
 # unused 
 ## transformation settings
@@ -39,15 +51,16 @@ torch.cuda.set_device(0)
 n_scales = 1 #3 # number of scales at which features are extracted, img_size is the highest - others are //2, //4,...
 clamp_alpha = 3 # see paper equation 2 for explanation
 n_coupling_blocks = 1
-#fc_internal = 2048 # number of neurons in hidden layers of s-t-networks
+fc_internal = 2048/2 # number of neurons in hidden layers of s-t-networks
 #dropout = 0.0 # dropout in s-t-networks
-lr_init = 2e-4
+lr_init = 2e-5
+
 n_feat = 256 * n_scales # do not change except you change the feature extractor
 
 # dataloader parameters
 n_transforms = 4 # number of transformations per sample in training
 n_transforms_test = 64 # number of transformations per sample in testing
-batch_size = 1 # actual batch size is this value multiplied by n_transforms(_test)
+batch_size = 2 # actual batch size is this value multiplied by n_transforms(_test)
 # batch_size_test = batch_size * n_transforms // n_transforms_test
 
 # total epochs = meta_epochs * sub_epochs
@@ -57,8 +70,8 @@ sub_epochs = 1
 
 # output settings
 debug = False
-verbose = True
+verbose = False
 report_freq = 200 # nth minibatch to report on (1 = always)
-dmap_viz = True
+dmap_viz = False
 hide_tqdm_bar = False
-save_model = True
+save_model = True # also saves a copy of the config file with the name of the model

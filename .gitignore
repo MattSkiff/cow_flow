@@ -6,4 +6,5 @@
 **/weights
 *.png
 **/cstates
+**/MNIST
 scratch.py
