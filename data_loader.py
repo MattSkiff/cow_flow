@@ -383,7 +383,7 @@ class CowObjectsDataset(Dataset):
 # Define transform to tensor
 # Rescale transform not needed as slices are all same size
 # RandomCrop not needed (unnecesarry for this task)
-class ToTensor(object):
+class CustToTensor(object):
     """Convert ndarrays in sample to Tensors."""
 
     def __call__(self, sample):
