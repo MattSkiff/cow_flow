@@ -18,14 +18,24 @@ empty_cache() # free up memory for cuda
 # alexnet input is 227x227
 mnist_pre = Compose([Resize((c.img_size[0], c.img_size[0])),ToTensor(),Normalize((0.1307,), (0.3081,))])
 
-if c.toy:
+if c.mnist:
     mnist_train = MNIST(root='./data', train=True, download=True, transform=mnist_pre)
     mnist_test = MNIST(root='./data', train=False, download=True, transform=mnist_pre)
     
-    train_loader = DataLoader(mnist_train,batch_size = c.batch_size,pin_memory=True,shuffle=True)
-    valid_loader = DataLoader(mnist_test,batch_size = c.batch_size,pin_memory=True,shuffle=True)
+    toy_sampler = SubsetRandomSampler(range(100))
     
-    model = train(mnist_train,mnist_test)
+    if c.test_run:
+        train_loader = DataLoader(mnist_train,batch_size = c.batch_size,pin_memory=True,
+                                  shuffle=False,sampler=toy_sampler)
+        valid_loader = DataLoader(mnist_test,batch_size = c.batch_size,pin_memory=True,
+                                  shuffle=False,sampler=toy_sampler)
+    else:
+        train_loader = DataLoader(mnist_train,batch_size = c.batch_size,pin_memory=True,
+                              shuffle=True)
+        valid_loader = DataLoader(mnist_test,batch_size = c.batch_size,pin_memory=True,
+                              shuffle=True)
+    
+    model = train(train_loader,valid_loader)
 else:
     # instantiate class
     transformed_dataset = CowObjectsDataset(root_dir=c.proj_dir,transform = CustToTensor(),

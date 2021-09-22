@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 import os
 import torch
+import numpy as np
 
 VIZ_DIR = './viz'
 
@@ -24,7 +25,7 @@ def reconstruct_density_map(model, validloader, plot = True, save=True,title = "
     # TODO n batches
     for i, data in enumerate(tqdm(validloader, disable=c.hide_tqdm_bar)):
         
-        if c.toy:
+        if c.mnist:
             images,labels = data
         else:
             images,dmaps,labels = data
@@ -32,13 +33,15 @@ def reconstruct_density_map(model, validloader, plot = True, save=True,title = "
         if labels.size: # triggers only if there is at least one annotation
             
             # Z shape: torch.Size([2, 4, 300, 400]) (batch size = 2)
-            scale = 1000
-            #dummy_z = torch.ones(c.batch_size, 4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True).to(c.device)
+            scale = 1
+            dummy_z = (torch.ones(c.batch_size, 4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True).to(c.device))*scale
             #dummy_z = torch.zeros(c.batch_size, 4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True).to(c.device)
-            dummy_z = (randn(c.batch_size, 4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True) *scale).to(c.device)
+            #dummy_z = (randn(c.batch_size, 4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True) *scale).to(c.device)
             
             images = images.float().to(c.device)
             dummy_z = dummy_z.float().to(c.device)
+            
+            model = model.to(c.device)
             
             x, log_det_jac = model(images,dummy_z,rev=True)
             
@@ -46,13 +49,16 @@ def reconstruct_density_map(model, validloader, plot = True, save=True,title = "
             
                 dmap_rev_np = x[0].squeeze().cpu().detach().numpy()
                 
-                fig, ax = plt.subplots(1,1)
+                fig, ax = plt.subplots(2,1)
                 plt.ioff()
                 fig.suptitle(title,y=1.0,fontsize=24)
-                fig.set_size_inches(8*1,6*1)
+                fig.set_size_inches(8*1,12*1)
                 fig.set_dpi(100)
                 
-                ax.imshow(dmap_rev_np, cmap='viridis', interpolation='nearest')
+                im = images[0].squeeze().cpu()
+                
+                ax[0].imshow(dmap_rev_np, cmap='viridis', interpolation='nearest')
+                ax[1].imshow(im)
                 
                 if save:
                     if not os.path.exists(VIZ_DIR):
