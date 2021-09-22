@@ -27,9 +27,11 @@ C_DIR = './cstates'
 def sub_conv2d(dims_in,dims_out):
     net = nn.Sequential(
         nn.Conv2d(dims_in, 32, kernel_size = 3,padding = 1), 
+        nn.BatchNorm2d(32),
         nn.ReLU(),
         # TODO batch norm
         nn.Conv2d(32, 64, kernel_size = 3,padding = 1), 
+        nn.BatchNorm2d(64),
         nn.ReLU(),
         # TODO batch norm here
         nn.Conv2d(64, dims_out,kernel_size = 3,padding = 1)
