@@ -1,18 +1,19 @@
 '''This file configures the training procedure because handling arguments in every single function'''
 
 # custom config settings
-proj_dir = "/home/matthew/Desktop/clones/cow_flow/data"
+proj_dir = "C:/Users/skiff/Desktop/clones/cow_flow/data"
 data_prop = 0.1 # proportion of the full dataset to use 
 annotations_only = False # whether to only use image patches that have annotations
-toy = True
+mnist = True 
+test_run = False # use only a small fraction of data to check everything works
 validation = False
 
 # data settings
 #dataset_path = "mnist_toy"
 #class_name = "dummy_class"
-modelname = "mnist_test"
+modelname = "mnist_test_long"
 
-if toy:
+if mnist:
     img_size = (228,228) # (28,28)
 else:
     img_size = (800, 600) # width, height (x-y)
@@ -44,16 +45,16 @@ else:
 #transf_brightness = 0.0
 #transf_contrast = 0.0
 #transf_saturation = 0.0
-#norm_mean, norm_std = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
+#norm_mean, norm_std = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225] 
 
 # network hyperparameters
 # edited: cows counting - only one scale for now
 n_scales = 1 #3 # number of scales at which features are extracted, img_size is the highest - others are //2, //4,...
 clamp_alpha = 3 # see paper equation 2 for explanation
-n_coupling_blocks = 1
+n_coupling_blocks = 2
 fc_internal = 2048/2 # number of neurons in hidden layers of s-t-networks
 #dropout = 0.0 # dropout in s-t-networks
-lr_init = 2e-5
+lr_init = 2e-4
 
 n_feat = 256 * n_scales # do not change except you change the feature extractor
 
@@ -65,8 +66,8 @@ batch_size = 2 # actual batch size is this value multiplied by n_transforms(_tes
 
 # total epochs = meta_epochs * sub_epochs
 # evaluation after <sub_epochs> epochs
-meta_epochs = 1
-sub_epochs = 1
+meta_epochs = 12
+sub_epochs = 6
 
 # output settings
 debug = False

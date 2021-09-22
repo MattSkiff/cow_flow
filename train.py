@@ -13,11 +13,11 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 # tensorboard
 from torch.utils.tensorboard import SummaryWriter
 
-writer = SummaryWriter()
+writer = SummaryWriter(comment=c.modelname)
 
 def train(train_loader,valid_loader): #def train(train_loader, test_loader):
     
-    if c.toy:
+    if c.mnist:
         model = MNISTFlow()    
     else:
         model = CowFlow()
@@ -49,9 +49,7 @@ def train(train_loader,valid_loader): #def train(train_loader, test_loader):
                 
                 optimizer.zero_grad()
                 
-                
-                # x=images->y=dmaps
-                if not c.toy:
+                if not c.mnist:
                     images,dmaps,labels = data
                 else:
                     images,labels = data
@@ -62,13 +60,12 @@ def train(train_loader,valid_loader): #def train(train_loader, test_loader):
                     
                 images = images.float().to(c.device)
                 
-                if not c.toy:
+                if not c.mnist:
                     dmaps = dmaps.float().to(c.device)
                 else: 
-                    labels = torch.Tensor([labels])
-                    labels = labels.to(device)
+                    labels = labels.float().to(c.device)
                 
-                if c.debug and not c.toy:
+                if c.debug and not c.mnist:
                     print("density maps from data batch size, device..")
                     print(dmaps.size())
                     print(dmaps.device,"\n")
@@ -80,7 +77,7 @@ def train(train_loader,valid_loader): #def train(train_loader, test_loader):
                     # z is the probability density under the latent normal distribution
                     print("output of model - two elements: y (z), jacobian")
                   
-                if not c.toy:
+                if not c.mnist:
                     z, log_det_jac = model(images,dmaps) # inputs features,dmaps
                 else:
                     z, log_det_jac = model(images,labels)
@@ -120,7 +117,7 @@ def train(train_loader,valid_loader): #def train(train_loader, test_loader):
                         print('{:d} Mini-Batches in sub-epoch remaining'.format(len(train_loader)-i))
                         print('Est Total Training Time (minutes): {:f}'.format(est_total_train))
                 
-                if c.debug and not c.toy:
+                if c.debug and not c.mnist:
                     print("number of elements in density maps list:")
                     print(len(dmaps)) # images
                     print("number of images in image tensor:")
@@ -143,7 +140,7 @@ def train(train_loader,valid_loader): #def train(train_loader, test_loader):
                     for i, data in enumerate(tqdm(valid_loader, disable=c.hide_tqdm_bar)):
                         
                         # validation
-                        if not c.toy:
+                        if not c.mnist:
                              images,dmaps,labels = data
                              dmaps = dmaps.float().to(c.device)
                              images = images.float().to(c.device)
@@ -159,7 +156,7 @@ def train(train_loader,valid_loader): #def train(train_loader, test_loader):
                         valid_z.append(z)
                         
                         
-                    if i % c.report_freq == 0 and c.verbose and not c.toy:
+                    if i % c.report_freq == 0 and c.verbose and not c.mnist:
                             print('count: {:f}'.format(dmaps.sum()))
     
                     loss = get_loss(z, log_det_jac)

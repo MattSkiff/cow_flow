@@ -12,5 +12,3 @@ def eval(model_name,image_folder):
     
 image_folder = 'test'
 eval(c.modelname,image_folder)
-
-

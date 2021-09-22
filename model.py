@@ -108,7 +108,7 @@ class CowFlow(nn.Module):
     
     def __init__(self):
         super(CowFlow,self).__init__()
-        self.feature_extractor = alexnet(pretrained=True,progress=False)
+        self.feature_extractor = alexnet(pretrained=True,progress=False).to(c.device)
         self.nf = nf_head()   
 
     def forward(self,images,dmaps,rev=False):
@@ -161,6 +161,7 @@ class CowFlow(nn.Module):
         # first argument is the 'x' i.e. the data we are mapping to z (NF : x <--> z)
         # is also what we are trying to predict (in a sense we are using 'x' features to predict 'y' density maps)
         # hence ambiguity in notation
+        
         z = self.nf(x_or_z = dmaps,c = feats,rev=rev)
         return z
 
@@ -168,14 +169,14 @@ class MNISTFlow(nn.Module):
     
     def __init__(self):
         super(MNISTFlow,self).__init__()
-        self.feature_extractor = alexnet(pretrained=True,progress=False)
+        self.feature_extractor = alexnet(pretrained=True,progress=False).to(c.device)
         self.nf = nf_head(mnist=True)   
 
     def forward(self,images,labels,rev=False):
         
-        # x = raw images, y = density maps
         feat_cat = list()
-        images = images.unsqueeze(1).expand(-1,3,-1,-1)
+        
+        images = images.expand(-1,3,-1,-1) # unsqueeze(1)
         
         if c.debug:
             print('preprocessed mnist imgs size')
@@ -214,7 +215,7 @@ class MNISTFlow(nn.Module):
         if c.debug: 
             print("expanded labels size")
             print(labels.size(),"\n") 
-    
+        
         z = self.nf(x_or_z = labels,c = feats,rev=rev)
         return z
 
@@ -252,4 +253,3 @@ def load_weights(model, filename):
     path = os.path.join(WEIGHT_DIR, filename)
     model.load_state_dict(torch.load(path,pickle_module=dill))
     return model
-
