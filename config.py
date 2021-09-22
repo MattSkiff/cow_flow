@@ -1,7 +1,7 @@
 '''This file configures the training procedure because handling arguments in every single function'''
 
 # custom config settings
-proj_dir = "C:/Users/skiff/Desktop/clones/cow_flow/data"
+proj_dir = "/home/matthew/Desktop/laptop_desktop/clones/cow_flow/data"
 data_prop = 0.1 # proportion of the full dataset to use 
 annotations_only = False # whether to only use image patches that have annotations
 mnist = True 
@@ -11,7 +11,7 @@ validation = False
 # data settings
 #dataset_path = "mnist_toy"
 #class_name = "dummy_class"
-modelname = "mnist_test_long"
+modelname = "weka13-mnist_batchnorm_test"
 
 if mnist:
     img_size = (228,228) # (28,28)
@@ -51,7 +51,7 @@ else:
 # edited: cows counting - only one scale for now
 n_scales = 1 #3 # number of scales at which features are extracted, img_size is the highest - others are //2, //4,...
 clamp_alpha = 3 # see paper equation 2 for explanation
-n_coupling_blocks = 2
+n_coupling_blocks = 8
 fc_internal = 2048/2 # number of neurons in hidden layers of s-t-networks
 #dropout = 0.0 # dropout in s-t-networks
 lr_init = 2e-4
@@ -61,13 +61,13 @@ n_feat = 256 * n_scales # do not change except you change the feature extractor
 # dataloader parameters
 n_transforms = 4 # number of transformations per sample in training
 n_transforms_test = 64 # number of transformations per sample in testing
-batch_size = 2 # actual batch size is this value multiplied by n_transforms(_test)
+batch_size = 24 # actual batch size is this value multiplied by n_transforms(_test)
 # batch_size_test = batch_size * n_transforms // n_transforms_test
 
 # total epochs = meta_epochs * sub_epochs
 # evaluation after <sub_epochs> epochs
-meta_epochs = 12
-sub_epochs = 6
+meta_epochs = 4
+sub_epochs = 3
 
 # output settings
 debug = False

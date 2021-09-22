@@ -3,7 +3,7 @@ from torchvision.datasets import MNIST
 from torchvision.transforms import Compose, ToTensor, Normalize, Resize
 
 from torch.cuda import empty_cache
-from torch.utils.data import DataLoader # Dataset
+from torch.utils.data import DataLoader # Dataset                                                                                                                                                                    
 from torch.utils.data.sampler import SubsetRandomSampler # RandomSampling
 # from torchvision import transforms
 

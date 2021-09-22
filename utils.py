@@ -34,9 +34,9 @@ def reconstruct_density_map(model, validloader, plot = True, save=True,title = "
             
             # Z shape: torch.Size([2, 4, 300, 400]) (batch size = 2)
             scale = 1
-            dummy_z = (torch.ones(c.batch_size, 4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True).to(c.device))*scale
+            #dummy_z = (torch.ones(c.batch_size, 4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True).to(c.device))*scale
             #dummy_z = torch.zeros(c.batch_size, 4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True).to(c.device)
-            #dummy_z = (randn(c.batch_size, 4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True) *scale).to(c.device)
+            dummy_z = (randn(c.batch_size, 4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True) *scale).to(c.device)
             
             images = images.float().to(c.device)
             dummy_z = dummy_z.float().to(c.device)
@@ -55,10 +55,17 @@ def reconstruct_density_map(model, validloader, plot = True, save=True,title = "
                 fig.set_size_inches(8*1,12*1)
                 fig.set_dpi(100)
                 
-                im = images[0].squeeze().cpu()
-                
+                if c.mnist:
+                    im = images[0].squeeze().cpu().numpy()
+                else:
+                    im = images[0].permute(1,2,0).cpu().numpy()
+                    
                 ax[0].imshow(dmap_rev_np, cmap='viridis', interpolation='nearest')
-                ax[1].imshow(im)
+                
+                if c.mnist:
+                    ax[1].imshow(im)
+                else:
+                    ax[1].imshow((im * 255).astype(np.uint8))
                 
                 if save:
                     if not os.path.exists(VIZ_DIR):
