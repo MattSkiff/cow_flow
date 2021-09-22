@@ -19,7 +19,7 @@ def get_loss(z, jac):
     # here, we exponentiate over channel, height, width to produce single norm val per density map
     return torch.mean(0.5 * torch.sum(z ** 2, dim=(1,2,3)) - jac) / z.shape[1]
 
-def reconstruct_density_map(model, validloader, plot = True, save=True,title = ""):
+def reconstruct_density_map(model, validloader, plot = True, save=True,title = "",digit=None,hist=True):
     #plt.figure(figsize=(10, 10))
 
     # TODO n batches
@@ -29,6 +29,9 @@ def reconstruct_density_map(model, validloader, plot = True, save=True,title = "
             images,labels = data
         else:
             images,dmaps,labels = data
+            
+        if labels[0] != digit and c.mnist and digit is not None:
+            continue
         
         if labels.size: # triggers only if there is at least one annotation
             
@@ -48,10 +51,11 @@ def reconstruct_density_map(model, validloader, plot = True, save=True,title = "
             if plot:
             
                 dmap_rev_np = x[0].squeeze().cpu().detach().numpy()
+                mean_pred = x[0].mean()
                 
-                fig, ax = plt.subplots(2,1)
+                fig, ax = plt.subplots(3,1)
                 plt.ioff()
-                fig.suptitle(title,y=1.0,fontsize=24)
+                fig.suptitle('{} \n mean reconstruction: {}'.format(title,mean_pred),y=1.0,fontsize=24)
                 fig.set_size_inches(8*1,12*1)
                 fig.set_dpi(100)
                 
@@ -67,6 +71,8 @@ def reconstruct_density_map(model, validloader, plot = True, save=True,title = "
                 else:
                     ax[1].imshow((im * 255).astype(np.uint8))
                 
+                ax[2].hist(dmap_rev_np.flatten(),bins = 30)
+                
                 if save:
                     if not os.path.exists(VIZ_DIR):
                         os.makedirs(VIZ_DIR)
@@ -74,4 +80,4 @@ def reconstruct_density_map(model, validloader, plot = True, save=True,title = "
             
             break
         
-    return x # reconstructed density map tensor
+    return dmap_rev_np, mean_pred # reconstructed density map tensor

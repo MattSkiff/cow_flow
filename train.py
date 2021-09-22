@@ -33,6 +33,21 @@ def train(train_loader,valid_loader): #def train(train_loader, test_loader):
         
         model.train()
         
+        # add param tensorboard scalars
+        writer.add_hparams(hparam_dict = {'learning rate initialisation':c.lr_init,
+                    'batch size':c.batch_size,
+                    'image height':c.density_map_h,
+                    'image width':c.density_map_w,
+                    'mnist?':c.mnist,
+                    'test run?':c.test_run,
+                    'proportion of data':c.data_prop,
+                    'clamp alpha':c.clamp_alpha,
+                    'epochs':c.meta_epochs*c.sub_epochs,
+                    'number of coupling blocks':c.n_coupling_blocks,
+                    'feature vector length':c.n_feat},
+                   metric_dict = {'placeholder':0},
+                   run_name = c.modelname)
+        
         if c.verbose:
             print(F'\nTrain meta epoch {meta_epoch}',"\n")
             
@@ -100,6 +115,7 @@ def train(train_loader,valid_loader): #def train(train_loader, test_loader):
                 k += 1
                 
                 loss_t = t2np(loss)
+                
                 writer.add_scalar('training_minibatch_loss',loss, k)
                 
                 train_loss.append(loss_t)
