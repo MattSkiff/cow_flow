@@ -22,7 +22,7 @@ def train(train_loader,valid_loader): #def train(train_loader, test_loader):
     else:
         model = CowFlow()
         
-    optimizer = torch.optim.Adam(model.nf.parameters(), lr=c.lr_init, betas=(0.8, 0.8), eps=1e-04, weight_decay=1e-5)
+    optimizer = torch.optim.Adam(model.nf.parameters(), lr=c.lr_init, betas=(0.8, 0.8), eps=1e-04, weight_decay=c.weight_decay)
     model.to(c.device)
     
     k = 0 # track total mini batches
@@ -42,6 +42,7 @@ def train(train_loader,valid_loader): #def train(train_loader, test_loader):
                     'test run?':c.test_run,
                     'proportion of data':c.data_prop,
                     'clamp alpha':c.clamp_alpha,
+                    'weight decay':c.weight_decay,
                     'epochs':c.meta_epochs*c.sub_epochs,
                     'number of coupling blocks':c.n_coupling_blocks,
                     'feature vector length':c.n_feat},
