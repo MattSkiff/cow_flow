@@ -19,10 +19,39 @@ def get_loss(z, jac):
     # here, we exponentiate over channel, height, width to produce single norm val per density map
     return torch.mean(0.5 * torch.sum(z ** 2, dim=(1,2,3)) - jac) / z.shape[1]
 
-def reconstruct_density_map(model, validloader, plot = True, save=True,title = "",digit=None,hist=True):
-    #plt.figure(figsize=(10, 10))
+def reconstruct_density_map(model, validloader, plot = True, save=True,title = "",digit=None,hist=True,sampling="randn"):
+    """
 
-    # TODO n batches
+
+    Parameters
+    ----------
+    model
+        A saved model, either MNISTFlow or CowFlow
+    validloader
+        A dataloader of validation samples.
+    plot : Bool, optional
+        Plots the digit that is being predicted. The default is True.
+    save : TYPE, optional
+        DESCRIPTION. The default is True.
+    title : TYPE, optional
+        Plot title. The default is "".
+    digit : TYPE, optional
+        Predict a specific digit from MNIST. The default is None.
+    hist : TYPE, optional
+        Plot histogram of predictions. The default is True.
+    sampling : TYPE, optional
+        Three options: zeros, ones or randn (i.e. ~N(0,1) ). The default is "randn".
+
+    Returns
+    -------
+    dmap_rev_np:
+        the samples used to generate the mean reconstruction.
+    
+    mean_pred:
+        The mean reconstruction
+
+    """
+    
     for i, data in enumerate(tqdm(validloader, disable=c.hide_tqdm_bar)):
         
         if c.mnist:
@@ -36,10 +65,16 @@ def reconstruct_density_map(model, validloader, plot = True, save=True,title = "
         if labels.size: # triggers only if there is at least one annotation
             
             # Z shape: torch.Size([2, 4, 300, 400]) (batch size = 2)
-            scale = 1
-            #dummy_z = (torch.ones(c.batch_size, 4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True).to(c.device))*scale
-            #dummy_z = torch.zeros(c.batch_size, 4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True).to(c.device)
-            dummy_z = (randn(c.batch_size, 4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True) *scale).to(c.device)
+            
+            
+            if sampling == 'randn':
+                dummy_z = (torch.ones(c.batch_size, 4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True).to(c.device))
+            elif sampling == "ones":
+                dummy_z = torch.zeros(c.batch_size, 4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True).to(c.device)
+            elif sampling == "":
+                dummy_z = (randn(c.batch_size, 4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True)).to(c.device)
+            else:
+                ValueError("Invalid function arg (sampling). Try 'randn', 'zeros' or 'ones'.")
             
             images = images.float().to(c.device)
             dummy_z = dummy_z.float().to(c.device)
@@ -48,10 +83,10 @@ def reconstruct_density_map(model, validloader, plot = True, save=True,title = "
             
             x, log_det_jac = model(images,dummy_z,rev=True)
             
-            if plot:
+            dmap_rev_np = x[0].squeeze().cpu().detach().numpy()
+            mean_pred = x[0].mean()
             
-                dmap_rev_np = x[0].squeeze().cpu().detach().numpy()
-                mean_pred = x[0].mean()
+            if plot:
                 
                 fig, ax = plt.subplots(3,1)
                 plt.ioff()
@@ -80,4 +115,4 @@ def reconstruct_density_map(model, validloader, plot = True, save=True,title = "
             
             break
         
-    return dmap_rev_np, mean_pred # reconstructed density map tensor
+    return labels[0],dmap_rev_np, mean_pred

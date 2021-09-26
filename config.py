@@ -7,6 +7,8 @@ annotations_only = False # whether to only use image patches that have annotatio
 mnist = True 
 test_run = False # use only a small fraction of data to check everything works
 validation = False
+feat_extractor = "resnet18"
+weight_decay = 1e-4 # differnet: 1e-5
 
 # data settings
 #dataset_path = "mnist_toy"
@@ -28,15 +30,15 @@ if not mnist:
     density_map_h = img_size[1]
     density_map_w = img_size[0]
 else:
-    density_map_h = 228
-    density_map_w = 228
+    density_map_h = 4
+    density_map_w = 4
 
 # differ net config settings
 
 # device settings
 import torch
 
-gpu = False
+gpu = True
 
 if not gpu:
     device = 'cpu' 
@@ -59,19 +61,19 @@ clamp_alpha = 3 # see paper equation 2 for explanation
 n_coupling_blocks = 4
 fc_internal = 2048/2 # number of neurons in hidden layers of s-t-networks
 #dropout = 0.0 # dropout in s-t-networks
-lr_init = 2e-4
+lr_init = 2e-5
 
 n_feat = 256 * n_scales # do not change except you change the feature extractor
 
 # dataloader parameters
 n_transforms = 4 # number of transformations per sample in training
 n_transforms_test = 64 # number of transformations per sample in testing
-batch_size = 12 # actual batch size is this value multiplied by n_transforms(_test)
+batch_size = 10 # actual batch size is this value multiplied by n_transforms(_test)
 # batch_size_test = batch_size * n_transforms // n_transforms_test
 
 # total epochs = meta_epochs * sub_epochs
 # evaluation after <sub_epochs> epochs
-meta_epochs = 2
+meta_epochs = 10
 sub_epochs = 1
 
 # output settings

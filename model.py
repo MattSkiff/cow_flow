@@ -7,7 +7,8 @@ from __future__ import print_function, division
 
 import torch
 import torch.nn as nn
-from torchvision.models import alexnet # feature extractor
+from torchvision.models import alexnet # feature extractor 1
+from torchvision.models import resnet18 # feature extractor 2
 
 import config as c # hyper params
 
@@ -23,6 +24,11 @@ import dill # solve error when trying to pickle lambda function in FrEIA
 WEIGHT_DIR = './weights'
 MODEL_DIR = './models'
 C_DIR = './cstates'
+
+if c.feat_extractor == "alexnet":
+    feat_extractor = alexnet(pretrained=True,progress=False).to(c.device)
+elif c.feat_extractor == "resnet18":
+    feat_extractor = resnet18(pretrained=True,progress=False).to(c.device)
 
 def sub_conv2d(dims_in,dims_out):
     net = nn.Sequential(
@@ -110,7 +116,7 @@ class CowFlow(nn.Module):
     
     def __init__(self):
         super(CowFlow,self).__init__()
-        self.feature_extractor = alexnet(pretrained=True,progress=False).to(c.device)
+        self.feature_extractor = feat_extractor
         self.nf = nf_head()   
 
     def forward(self,images,dmaps,rev=False):
