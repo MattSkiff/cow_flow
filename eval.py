@@ -4,7 +4,7 @@ import numpy as np
 import config as c
 
 def eval_mnist(model, validloader, trainloader, plot = True, save=True,hist=True):
-    
+
     k = 0
     
     for loader in [validloader,trainloader]:
@@ -14,16 +14,15 @@ def eval_mnist(model, validloader, trainloader, plot = True, save=True,hist=True
         n = 0
     
         for i, data in enumerate(tqdm(loader, disable=c.hide_tqdm_bar)):
-            
+
             if c.mnist:
                 images,labels = data
             else:
                 images,dmaps,labels = data
-                
             
+        
             if labels.size: # triggers only if there is at least one annotation
                 
-            
                 # Z shape: torch.Size([2, 4, 300, 400]) (batch size = 2)
                 dummy_z = (randn(c.batch_size, 4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True)).to(c.device)
                 
@@ -49,5 +48,5 @@ def eval_mnist(model, validloader, trainloader, plot = True, save=True,hist=True
                     elif k == 1:
                         train_accuracy = round((n_correct/6e4)*100,2)
                     break
-        
-    return  validation_accuracy, train_accuracy # 
+
+    return  validation_accuracy, train_accuracy
