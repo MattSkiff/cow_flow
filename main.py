@@ -15,8 +15,10 @@ from data_loader import CowObjectsDataset, CustToTensor, train_valid_split
 
 empty_cache() # free up memory for cuda
 
-# alexnet input is 227x227
+# torchivsion inputs are 3x227x227, mnist_resnet 1x227...
+# 0.1307, 0.3081 = mean, std dev mnist
 mnist_pre = Compose([Resize((c.img_size[0], c.img_size[0])),ToTensor(),Normalize((0.1307,), (0.3081,))])
+
 
 if c.mnist:
     mnist_train = MNIST(root='./data', train=True, download=True, transform=mnist_pre)

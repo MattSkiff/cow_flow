@@ -5,6 +5,7 @@ import time
 
 import config as c
 
+from eval import eval_mnist, eval_model
 from utils import get_loss, reconstruct_density_map, t2np
 from model import CowFlow, MNISTFlow, save_model, save_weights
 
@@ -22,7 +23,15 @@ def train(train_loader,valid_loader): #def train(train_loader, test_loader):
     else:
         model = CowFlow()
         
-    optimizer = torch.optim.Adam(model.nf.parameters(), lr=c.lr_init, betas=(0.8, 0.8), eps=1e-04, weight_decay=c.weight_decay)
+    
+    if c.joint_optim:
+        optimizer = torch.optim.Adam([
+                    {'params': model.nf.parameters()},
+                    {'params': model.feature_extractor.parameters(), 'lr_init': 1e-3,'betas':(0.9,0.999),'eps':1e-08, 'weight_decay':0}
+                ], lr=c.lr_init, betas=(0.8, 0.8), eps=1e-04, weight_decay=c.weight_decay )
+    else:
+        optimizer = torch.optim.Adam(model.nf.parameters(), lr=c.lr_init, betas=(0.8, 0.8), eps=1e-04, weight_decay=c.weight_decay)
+    
     model.to(c.device)
     
     k = 0 # track total mini batches
@@ -186,11 +195,23 @@ def train(train_loader,valid_loader): #def train(train_loader, test_loader):
                 
                 j += 1
                 writer.add_scalar('valid_subpeoch_loss',valid_loss, j)
-            
-
+        
+        l += 1
+        
+        if c.mnist:
+            valid_accuracy, training_accuracy = eval_mnist(model,valid_loader,train_loader)
+        else:
+            valid_accuracy, training_accuracy = eval_model(model,valid_loader,train_loader)
+        
+        writer.add_scalar('training_accuracy',training_accuracy, l)
+        print(training_accuracy,l)
+        writer.add_scalar('valid_accuracy',valid_accuracy, l)
+        print(valid_accuracy,l)
+    
+    
     writer.flush()
     
-    l += 1
+    
     
     # post training: visualise a random reconstruction
     if c.dmap_viz:

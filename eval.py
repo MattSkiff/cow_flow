@@ -3,7 +3,9 @@ from tqdm import tqdm
 import numpy as np
 import config as c
 
-def eval_mnist(model, validloader, trainloader, plot = True, save=True,hist=True):
+# TODO extra args: plot = True, save=True,hist=True
+# TODO: don't shift computation over to cpu after sampling from model
+def eval_mnist(model, validloader, trainloader,samples = 1): 
 
     k = 0
     
@@ -31,15 +33,23 @@ def eval_mnist(model, validloader, trainloader, plot = True, save=True,hist=True
                 
                 model = model.to(c.device)
                 
-                x, log_det_jac = model(images,dummy_z,rev=True)
-                mean_preds = np.round(x.mean(dim = (1,2,3)).cpu().detach().numpy())
+                mean_array = []
+                
+                for i in range(samples):
+                    x, _ = model(images,dummy_z,rev=True) # TODO: investigate eval use for log det j?
+                    mean_preds = np.round(x.mean(dim = (1,2,3)).cpu().detach().numpy())
+                    mean_array.append(mean_preds)
+                
+                # https://stackoverflow.com/questions/48199077/elementwise-aggregation-average-of-values-in-a-list-of-numpy-arrays-with-same
+                mean_preds = np.mean(mean_array,axis=0)
+                    
                 labels = labels.cpu().detach().numpy()
                 
                 n_correct += (labels == mean_preds).sum()
                 n += len(labels)
                 
-                if plot:
-                    pass
+#                if plot:
+#                    pass
                 
                 if n >= n_sz:
                     if k == 0:
@@ -50,3 +60,7 @@ def eval_mnist(model, validloader, trainloader, plot = True, save=True,hist=True
                     break
 
     return  validation_accuracy, train_accuracy
+
+def eval_model(model, validloader, trainloader, plot = True, save=True,hist=True):
+    
+    return 0,0
