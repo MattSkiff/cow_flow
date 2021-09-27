@@ -7,8 +7,11 @@ from __future__ import print_function, division
 
 import torch
 import torch.nn as nn
-from torchvision.models import alexnet # feature extractor 1
-from torchvision.models import resnet18 # feature extractor 2
+from torchvision.models import alexnet, resnet18, vgg16_bn  # feature extractors
+
+import torch
+
+from torchvision.models.resnet import ResNet, BasicBlock
 
 import config as c # hyper params
 
@@ -20,15 +23,29 @@ import os # save model
 import shutil
 import dill # solve error when trying to pickle lambda function in FrEIA
 
+# https://zablo.net/blog/post/using-resnet-for-mnist-in-pytorch-tutorial/
+class MnistResNet(ResNet):
+    def __init__(self):
+        super(MnistResNet, self).__init__(BasicBlock, [2, 2, 2, 2], num_classes=10)
+        self.conv1 = torch.nn.Conv2d(1, 64, 
+            kernel_size=(7, 7), 
+            stride=(2, 2), 
+            padding=(3, 3), bias=False)
 
 WEIGHT_DIR = './weights'
 MODEL_DIR = './models'
 C_DIR = './cstates'
 
 if c.feat_extractor == "alexnet":
-    feat_extractor = alexnet(pretrained=True,progress=False).to(c.device)
+    feat_extractor = alexnet(pretrained=c.pretrained,progress=False).to(c.device)
 elif c.feat_extractor == "resnet18":
-    feat_extractor = resnet18(pretrained=True,progress=False).to(c.device)
+    feat_extractor = resnet18(pretrained=c.pretrained,progress=False).to(c.device)
+elif c.feat_extractor == "vgg16_bn":
+    feat_extractor = vgg16_bn(pretrained=c.pretrained,progress=False).to(c.device)
+elif c.feat_extractor == "mnist_resnet":
+    feat_extractor = MnistResNet()
+elif c.feat_extractor == "none":
+    feat_extractor = torch.nn.Identity()
 
 def sub_conv2d(dims_in,dims_out):
     net = nn.Sequential(
@@ -177,7 +194,7 @@ class MNISTFlow(nn.Module):
     
     def __init__(self):
         super(MNISTFlow,self).__init__()
-        self.feature_extractor = alexnet(pretrained=True,progress=False).to(c.device)
+        self.feature_extractor = feat_extractor
         self.nf = nf_head(mnist=True)   
 
     def forward(self,images,labels,rev=False):
