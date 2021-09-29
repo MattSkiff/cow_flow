@@ -71,5 +71,3 @@ else:
                             pin_memory=True,sampler=valid_sampler)
     
     model = train(train_loader,valid_loader) 
-    
-    
