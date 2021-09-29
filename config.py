@@ -8,9 +8,10 @@ annotations_only = False # whether to only use image patches that have annotatio
 mnist = True 
 test_run = False # use only a small fraction of data to check everything works
 validation = False
-joint_optim = True
+joint_optim = False
 pretrained = True
-feat_extractor = "vgg16_bn" # alexnet, vgg16_bn, 
+feat_extractor = "none" # alexnet, vgg16_bn, 
+scheduler = 'exponential'
 # TODO resnet18, mnist_resnet,
 
 # unused: n_scales = 1 #3 # number of scales at which features are extracted, img_size is the highest - others are //2, //4,...
@@ -18,23 +19,27 @@ if feat_extractor == "alexnet":
     n_feat = 256 #* n_scales # do not change except you change the feature extractor
 elif feat_extractor == "vgg16_bn":
     n_feat = 512 #* n_scales # do not change except you change the feature extractor
+elif feat_extractor == "none":
+    n_feat = 1
 
 # core hyper params
 weight_decay = 1e-5 # differnet: 1e-5
-lr_init = 2e-5
-n_coupling_blocks = 6
-batch_size = 50 # actual batch size is this value multiplied by n_transforms(_test)
+lr_init = 2e-4
+n_coupling_blocks = 8
+batch_size = 200 # actual batch size is this value multiplied by n_transforms(_test)
 
 # total epochs = meta_epochs * sub_epochs
 # evaluation after <sub_epochs> epochs
-meta_epochs = 10
-sub_epochs = 2
+meta_epochs = 100
+sub_epochs = 5
 
 # data settings
 #dataset_path = "mnist_toy"
 #class_name = "dummy_class"
 
-if mnist:
+if mnist and feat_extractor == "none":
+    img_size = (28,28)
+elif mnist:
     img_size = (228,228) # (28,28)
 else:
     img_size = (800, 600) # width, height (x-y)
@@ -48,7 +53,10 @@ sigma = 4.0 # "   -----    "
 if not mnist:
     density_map_h = img_size[1]
     density_map_w = img_size[0]
-else:
+elif mnist and feat_extractor == "none":
+    density_map_h = img_size[1] * 2
+    density_map_w = img_size[0] * 2
+elif mnist:
     density_map_h = 4
     density_map_w = 4
 
@@ -95,11 +103,8 @@ report_freq = 200 # nth minibatch to report on (1 = always)
 dmap_viz = False
 hide_tqdm_bar = False
 save_model = True # also saves a copy of the config file with the name of the model
-
-
-
+schema = 'schema/no_ft'
 pc = os.uname().nodename
-
 modelname = "_".join(["LOC",pc,
                       "J-O",str(joint_optim),
                       "Pre-T",str(pretrained),

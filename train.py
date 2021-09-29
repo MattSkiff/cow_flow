@@ -7,6 +7,7 @@ import config as c
 
 from eval import eval_mnist, eval_model
 from utils import get_loss, reconstruct_density_map, t2np
+from torch.optim.lr_scheduler import ExponentialLR
 from model import CowFlow, MNISTFlow, save_model, save_weights
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -14,7 +15,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 # tensorboard
 from torch.utils.tensorboard import SummaryWriter
 
-writer = SummaryWriter(comment=c.modelname)
+writer = SummaryWriter(log_dir='runs/'+c.schema+'/'+c.modelname)
 
 def train(train_loader,valid_loader): #def train(train_loader, test_loader):
     
@@ -22,8 +23,7 @@ def train(train_loader,valid_loader): #def train(train_loader, test_loader):
         model = MNISTFlow()    
     else:
         model = CowFlow()
-        
-    
+            
     if c.joint_optim:
         optimizer = torch.optim.Adam([
                     {'params': model.nf.parameters()},
@@ -31,6 +31,12 @@ def train(train_loader,valid_loader): #def train(train_loader, test_loader):
                 ], lr=c.lr_init, betas=(0.8, 0.8), eps=1e-04, weight_decay=c.weight_decay )
     else:
         optimizer = torch.optim.Adam(model.nf.parameters(), lr=c.lr_init, betas=(0.8, 0.8), eps=1e-04, weight_decay=c.weight_decay)
+    
+    
+    # add scheduler to improve stability further into training
+    if c.scheduler == "exponential":
+        scheduler = ExponentialLR(optimizer, gamma=0.9)
+
     
     model.to(c.device)
     
@@ -42,31 +48,21 @@ def train(train_loader,valid_loader): #def train(train_loader, test_loader):
         
         model.train()
         
-        # add param tensorboard scalars
-        writer.add_hparams(hparam_dict = {'learning rate initialisation':c.lr_init,
-                    'batch size':c.batch_size,
-                    'image height':c.density_map_h,
-                    'image width':c.density_map_w,
-                    'mnist?':c.mnist,
-                    'test run?':c.test_run,
-                    'proportion of data':c.data_prop,
-                    'clamp alpha':c.clamp_alpha,
-                    'weight decay':c.weight_decay,
-                    'epochs':c.meta_epochs*c.sub_epochs,
-                    'number of coupling blocks':c.n_coupling_blocks,
-                    'feature vector length':c.n_feat},
-                   metric_dict = {'placeholder':0},
-                   run_name = c.modelname)
-        
         if c.verbose:
             print(F'\nTrain meta epoch {meta_epoch}',"\n")
-            
+        
         for sub_epoch in range(c.sub_epochs):
             
             if c.verbose:
                 t_e1 = time.perf_counter()
             
             train_loss = list()
+            
+            if c.scheduler != "none":
+                scheduler.step()
+            
+            if c.debug:
+                print(scheduler.get_lr()[0])
             
             for i, data in enumerate(tqdm(train_loader, disable=c.hide_tqdm_bar)):
                 
@@ -126,11 +122,12 @@ def train(train_loader,valid_loader): #def train(train_loader, test_loader):
                 
                 loss_t = t2np(loss)
                 
-                writer.add_scalar('training_minibatch_loss',loss, k)
+                writer.add_scalar('loss/training_minibatch',loss, k)
                 
                 train_loss.append(loss_t)
                 loss.backward()
                 optimizer.step()
+                
                 
                 mean_train_loss = np.mean(train_loss)
                 
@@ -149,7 +146,7 @@ def train(train_loader,valid_loader): #def train(train_loader, test_loader):
                     print("number of images in image tensor:")
                     print(len(images)) # features
             
-            writer.add_scalar('training_subpeoch_loss',mean_train_loss, j)
+            writer.add_scalar('loss/training_subpeoch',mean_train_loss, j)
             
             if c.verbose:
                 t_e2 = time.perf_counter()
@@ -194,7 +191,7 @@ def train(train_loader,valid_loader): #def train(train_loader, test_loader):
                         print('Sub Epoch: {:d} \t valid_loss: {:4f}'.format(sub_epoch,valid_loss))
                 
                 j += 1
-                writer.add_scalar('valid_subpeoch_loss',valid_loss, j)
+                writer.add_scalar('loss/valid_subpeoch',valid_loss, j)
         
         l += 1
         
@@ -203,13 +200,30 @@ def train(train_loader,valid_loader): #def train(train_loader, test_loader):
         else:
             valid_accuracy, training_accuracy = eval_model(model,valid_loader,train_loader)
         
-        writer.add_scalar('training_accuracy',training_accuracy, l)
+        writer.add_scalar('accuracy/training',training_accuracy, l)
         print(training_accuracy,l)
-        writer.add_scalar('valid_accuracy',valid_accuracy, l)
+        writer.add_scalar('accuracy/valid',valid_accuracy, l)
         print(valid_accuracy,l)
+        
+        # add param tensorboard scalars
+        writer.add_hparams(hparam_dict = {'learning rate initialisation':c.lr_init,
+                    'batch size':c.batch_size,
+                    'image height':c.density_map_h,
+                    'image width':c.density_map_w,
+                    'mnist?':c.mnist,
+                    'test run?':c.test_run,
+                    'proportion of data':c.data_prop,
+                    'clamp alpha':c.clamp_alpha,
+                    'weight decay':c.weight_decay,
+                    'epochs':c.meta_epochs*c.sub_epochs,
+                    'number of coupling blocks':c.n_coupling_blocks,
+                    'feature vector length':c.n_feat},
+                   metric_dict = {'accuracy/valid':valid_accuracy,
+                                  'accuracy/training':training_accuracy},
+                   run_name = c.modelname)
     
     
-    writer.flush()
+        writer.flush()
     
     
     

@@ -31,6 +31,10 @@ class MnistResNet(ResNet):
             kernel_size=(7, 7), 
             stride=(2, 2), 
             padding=(3, 3), bias=False)
+        
+class NothingNet():
+    def __init__(self):
+        self.features = torch.nn.Identity()
 
 WEIGHT_DIR = './weights'
 MODEL_DIR = './models'
@@ -45,7 +49,7 @@ elif c.feat_extractor == "vgg16_bn":
 elif c.feat_extractor == "mnist_resnet":
     feat_extractor = MnistResNet()
 elif c.feat_extractor == "none":
-    feat_extractor = torch.nn.Identity()
+    feat_extractor = NothingNet()
 
 def sub_conv2d(dims_in,dims_out):
     net = nn.Sequential(
@@ -156,8 +160,10 @@ class CowFlow(nn.Module):
         # see: https://alexisbcook.github.io/2017/global-average-pooling-layers-for-object-localization/
         # torch.Size([batch_size, 256, 17, 24])
         
-        feat_cat.append(torch.mean(feat_s,dim = (2,3))) 
-        feats = torch.cat(feat_cat,dim = 1) # concatenation
+        if c.feat_extractor != "none":
+            feat_cat.append(torch.mean(feat_s,dim = (2,3))) 
+        
+        feats = torch.cat(feat_cat,dim = 1) # concatenation (does nothing at single scale feature extraction)
         
         # adding spatial dimensions....
         # remove dimension of size one for concatenation in NF coupling layer - squeeze()
@@ -166,7 +172,8 @@ class CowFlow(nn.Module):
             print("concatenated and pooled feature size..")
             print(feats.size(),"\n")
         
-        feats = feats.unsqueeze(2).unsqueeze(3).expand(-1, -1, c.density_map_h // 2,c.density_map_w // 2)
+        if c.feat_extractor != "none":
+            feats = feats.unsqueeze(2).unsqueeze(3).expand(-1, -1, c.density_map_h // 2,c.density_map_w // 2)
         
         if c.debug: 
             print("reshaped feature size with spatial dims..")
@@ -201,7 +208,8 @@ class MNISTFlow(nn.Module):
         
         feat_cat = list()
         
-        images = images.expand(-1,3,-1,-1) # unsqueeze(1)
+        if c.feat_extractor != "none":
+            images = images.expand(-1,3,-1,-1) 
         
         if c.debug:
             print('preprocessed mnist imgs size')
@@ -209,6 +217,7 @@ class MNISTFlow(nn.Module):
         
         feat_s = self.feature_extractor.features(images) # extract features
         
+
         if c.debug:
             print("raw feature size..")
             print(feat_s.size(),"\n")
@@ -218,7 +227,11 @@ class MNISTFlow(nn.Module):
         # see: https://alexisbcook.github.io/2017/global-average-pooling-layers-for-object-localization/
         # torch.Size([batch_size, 256, 17, 24])
         
-        feat_cat.append(torch.mean(feat_s,dim = (2,3))) 
+        if c.feat_extractor != "none":
+            feat_cat.append(torch.mean(feat_s,dim = (2,3))) 
+        else:
+            feat_cat.append(feat_s) 
+            
         feats = torch.cat(feat_cat,dim = 1) # concatenation
         
         # adding spatial dimensions....
@@ -228,14 +241,15 @@ class MNISTFlow(nn.Module):
             print("concatenated and pooled feature size..")
             print(feats.size(),"\n")
         
-        feats = feats.unsqueeze(2).unsqueeze(3).expand(-1, -1, c.density_map_h // 2,c.density_map_w // 2)
+        if c.feat_extractor != "none":
+            feats = feats.unsqueeze(2).unsqueeze(3).expand(-1, -1, c.density_map_h // 2,c.density_map_w // 2)
         
         if c.debug:
             print("feats size..")
             print(feats.size(),"\n")
             
         if not rev:
-            labels = labels.unsqueeze(1).unsqueeze(2).unsqueeze(3).expand(-1, -1, c.density_map_h,c.density_map_w)
+            labels = labels.unsqueeze(1).unsqueeze(2).unsqueeze(3).expand(-1, -1, c.density_map_h,c.density_map_w )
         
         if c.debug: 
             print("expanded labels size")
