@@ -8,4 +8,5 @@
 **/cstates
 **/MNIST
 **/viz
+**/.ipynb_checkpoints
 scratch.py
