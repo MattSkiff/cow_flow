@@ -58,9 +58,6 @@ def train(train_loader,valid_loader): #def train(train_loader, test_loader):
             
             train_loss = list()
             
-            if c.scheduler != "none":
-                scheduler.step()
-            
             if c.debug:
                 print(scheduler.get_lr()[0])
             
@@ -146,6 +143,9 @@ def train(train_loader,valid_loader): #def train(train_loader, test_loader):
                     print("number of images in image tensor:")
                     print(len(images)) # features
             
+            if c.scheduler != "none":
+                scheduler.step()
+            
             writer.add_scalar('loss/training_subpeoch',mean_train_loss, j)
             
             if c.verbose:
@@ -199,6 +199,11 @@ def train(train_loader,valid_loader): #def train(train_loader, test_loader):
             valid_accuracy, training_accuracy = eval_mnist(model,valid_loader,train_loader)
         else:
             valid_accuracy, training_accuracy = eval_model(model,valid_loader,train_loader)
+        
+        if c.save_model and c.checkpoints:
+            model.to('cpu')
+            save_model(model,str(l)+"_"+c.modelname)
+            save_weights(model,str(l)+"_"+c.modelname)
         
         writer.add_scalar('accuracy/training',training_accuracy, l)
         print(training_accuracy,l)
