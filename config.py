@@ -1,4 +1,4 @@
-'''This file configures the training procedure because handling arguments in every single function'''
+'''This file configures the training procedure'''
 import os
 
 # custom config settings
@@ -26,7 +26,7 @@ elif feat_extractor == "none":
 weight_decay = 1e-5 # differnet: 1e-5
 lr_init = 2e-4
 n_coupling_blocks = 8
-batch_size = 200 # actual batch size is this value multiplied by n_transforms(_test)
+batch_size = 100 # actual batch size is this value multiplied by n_transforms(_test)
 
 # total epochs = meta_epochs * sub_epochs
 # evaluation after <sub_epochs> epochs
@@ -103,7 +103,13 @@ report_freq = 200 # nth minibatch to report on (1 = always)
 dmap_viz = False
 hide_tqdm_bar = False
 save_model = True # also saves a copy of the config file with the name of the model
-schema = 'schema/no_ft'
+checkpoints = False
+
+if debug:
+    schema = 'schema/debug'
+else:
+    schema = 'schema/noise'
+    
 pc = os.uname().nodename
 modelname = "_".join(["LOC",pc,
                       "J-O",str(joint_optim),
@@ -115,4 +121,5 @@ modelname = "_".join(["LOC",pc,
                       "LR_I",str(lr_init),
                       "MNIST",str(mnist),
                       "WD",str(weight_decay),
-                      "FE",str(feat_extractor)])
+                      "FE",str(feat_extractor),
+                      "LRS",str(scheduler)])

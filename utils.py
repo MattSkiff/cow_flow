@@ -19,6 +19,33 @@ def get_loss(z, jac):
     # here, we exponentiate over channel, height, width to produce single norm val per density map
     return torch.mean(0.5 * torch.sum(z ** 2, dim=(1,2,3)) - jac) / z.shape[1]
 
+# from: https://discuss.pytorch.org/t/how-to-add-noise-to-mnist-dataset-when-using-pytorch/59745
+# @ptrblck
+class AddGaussianNoise(object):
+    def __init__(self, mean=0., std=1.):
+        self.std = std
+        self.mean = mean
+        
+    def __call__(self, tensor):
+        return tensor + torch.randn(tensor.size()) * self.std + self.mean
+    
+    def __repr__(self):
+        return self.__class__.__name__ + '(mean={0}, std={1})'.format(self.mean, self.std)
+    
+class AddUniformNoise(object):
+    def __init__(self, r1=0., r2=1.):
+        se.f.r1 = r1
+        self.r2 = r2
+        
+    def __call__(self, tensor):
+        # uniform tensor in pytorch: 
+        # https://stackoverflow.com/questions/44328530/how-to-get-a-uniform-distribution-in-a-range-r1-r2-in-pytorch
+        r1, r2 = 0, 1
+        return tensor + torch.FloatTensor(tensor.size()).uniform_(r1, r2)
+    
+    def __repr__(self):
+        return self.__class__.__name__ + '(mean={0}, std={1})'.format(self.mean, self.std)
+
 def reconstruct_density_map(model, validloader, plot = True, save=True,title = "",digit=None,hist=True,sampling="randn"):
     """
 

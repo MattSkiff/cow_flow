@@ -519,7 +519,7 @@ if demo:
     else:
         cow_dataset.show_annotations(5809,show = True,title = 5809)
     
-    transformed_dataset = CowObjectsDataset(root_dir=proj_dir,transform = ToTensor(),convert_to_points=points_flag,generate_density=density_demo)
+    transformed_dataset = CowObjectsDataset(root_dir=proj_dir,transform = CustToTensor(),convert_to_points=points_flag,generate_density=density_demo)
         
     # example iterating over the dataset
     for i in range(len(transformed_dataset)):
