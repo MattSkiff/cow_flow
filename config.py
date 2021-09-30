@@ -6,6 +6,13 @@ proj_dir = "/home/matthew/Desktop/laptop_desktop/clones/cow_flow/data"
 data_prop = 0.1 # proportion of the full dataset to use 
 annotations_only = False # whether to only use image patches that have annotations
 mnist = True 
+one_hot = True # only for MNIST
+
+if one_hot:
+    channels = 10 # onehot 1 num -> 0,0,0,1 etc
+else:
+    channels = 1 # greyscale mnist, density maps
+
 test_run = False # use only a small fraction of data to check everything works
 validation = False
 joint_optim = False
@@ -20,7 +27,7 @@ if feat_extractor == "alexnet":
 elif feat_extractor == "vgg16_bn":
     n_feat = 512 #* n_scales # do not change except you change the feature extractor
 elif feat_extractor == "none":
-    n_feat = 1
+    n_feat = 1 
 
 # core hyper params
 weight_decay = 1e-5 # differnet: 1e-5
@@ -30,8 +37,8 @@ batch_size = 100 # actual batch size is this value multiplied by n_transforms(_t
 
 # total epochs = meta_epochs * sub_epochs
 # evaluation after <sub_epochs> epochs
-meta_epochs = 100
-sub_epochs = 5
+meta_epochs = 3
+sub_epochs = 3
 
 # data settings
 #dataset_path = "mnist_toy"
@@ -108,7 +115,7 @@ checkpoints = False
 if debug:
     schema = 'schema/debug'
 else:
-    schema = 'schema/noise'
+    schema = 'schema/debug'
     
 pc = os.uname().nodename
 modelname = "_".join(["LOC",pc,

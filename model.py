@@ -9,7 +9,7 @@ import torch
 import torch.nn as nn
 from torchvision.models import alexnet, resnet18, vgg16_bn  # feature extractors
 
-import torch
+import torch.nn.functional as F
 
 from torchvision.models.resnet import ResNet, BasicBlock
 
@@ -103,7 +103,7 @@ def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,m
     
     # include batch size as extra dimension here? data is batched along extra dimension
     # input = density maps
-    nodes = [Ff.InputNode(1,input_dim[0],input_dim[1],name='input')] 
+    nodes = [Ff.InputNode(c.channels,input_dim[0],input_dim[1],name='input')] 
     
     # haar downsampling to resolves input data only having a single channel (from unsqueezed singleton dimension)
     # affine coupling performs channel wise split
@@ -246,11 +246,19 @@ class MNISTFlow(nn.Module):
         
         if c.debug:
             print("feats size..")
-            print(feats.size(),"\n")
-            
+            print(feats.size(),"\n") 
+         
+        if c.debug:
+            print('labels size...')
+            print(labels.size())   
+         
         if not rev:
-            labels = labels.unsqueeze(1).unsqueeze(2).unsqueeze(3).expand(-1, -1, c.density_map_h,c.density_map_w )
-        
+            if c.one_hot:
+                labels = F.one_hot(labels.to(torch.int64),num_classes=10)
+                labels = labels.unsqueeze(2).unsqueeze(3).expand(-1, -1, c.density_map_h,c.density_map_w).to(torch.float)
+            else:
+                labels = labels.unsqueeze(1).unsqueeze(2).unsqueeze(3).expand(-1, -1, c.density_map_h,c.density_map_w)
+
         if c.debug: 
             print("expanded labels size")
             print(labels.size(),"\n") 

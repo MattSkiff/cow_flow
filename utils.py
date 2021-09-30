@@ -34,17 +34,16 @@ class AddGaussianNoise(object):
     
 class AddUniformNoise(object):
     def __init__(self, r1=0., r2=1.):
-        se.f.r1 = r1
+        self.r1 = r1
         self.r2 = r2
         
     def __call__(self, tensor):
         # uniform tensor in pytorch: 
         # https://stackoverflow.com/questions/44328530/how-to-get-a-uniform-distribution-in-a-range-r1-r2-in-pytorch
-        r1, r2 = 0, 1
-        return tensor + torch.FloatTensor(tensor.size()).uniform_(r1, r2)
+        return tensor + torch.FloatTensor(tensor.size()).uniform_(self.r1, self.r2)
     
     def __repr__(self):
-        return self.__class__.__name__ + '(mean={0}, std={1})'.format(self.mean, self.std)
+        return self.__class__.__name__ + '(r1={0}, r2={1})'.format(self.r1, self.r2)
 
 def reconstruct_density_map(model, validloader, plot = True, save=True,title = "",digit=None,hist=True,sampling="randn"):
     """

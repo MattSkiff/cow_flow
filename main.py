@@ -1,7 +1,7 @@
 # This file starts the training
 from torchvision.datasets import MNIST
 from torchvision.transforms import Compose, ToTensor, Normalize, Resize
-from utils import AddUniformNoise  #AddGaussianNoise
+from utils import AddUniformNoise #, AddGaussianNoise
 
 from torch.cuda import empty_cache
 from torch.utils.data import DataLoader # Dataset                                                                                                                                                                    
@@ -19,12 +19,11 @@ empty_cache() # free up memory for cuda
 # torchivsion inputs are 3x227x227, mnist_resnet 1x227...
 # 0.1307, 0.3081 = mean, std dev mnist
 mnist_pre = Compose([
+    ToTensor(),
     AddUniformNoise(0., 1.),
     Resize((c.img_size[0], c.img_size[0])),
-    ToTensor(),
-    Normalize((0.1307,), (0.3081,)),
+    Normalize((0.1307,), (0.3081,))
     ])
-
 
 if c.mnist:
     mnist_train = MNIST(root='./data', train=True, download=True, transform=mnist_pre)
