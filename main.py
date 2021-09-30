@@ -20,7 +20,7 @@ empty_cache() # free up memory for cuda
 # 0.1307, 0.3081 = mean, std dev mnist
 mnist_pre = Compose([
     ToTensor(),
-    AddUniformNoise(0., 1.),
+    AddUniformNoise(),
     Resize((c.img_size[0], c.img_size[0])),
     Normalize((0.1307,), (0.3081,))
     ])

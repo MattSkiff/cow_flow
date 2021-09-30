@@ -2,6 +2,7 @@ from torch import randn
 from tqdm import tqdm
 import numpy as np
 import config as c
+import torch
 
 # TODO extra args: plot = True, save=True,hist=True
 # TODO: don't shift computation over to cpu after sampling from model
@@ -26,7 +27,8 @@ def eval_mnist(model, validloader, trainloader,samples = 1):
             if labels.size: # triggers only if there is at least one annotation
                 
                 # Z shape: torch.Size([2, 4, 300, 400]) (batch size = 2)
-                dummy_z = (randn(c.batch_size, 4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True)).to(c.device)
+                # channels * 4 is a result of haar downsampling
+                dummy_z = (randn(c.batch_size, c.channels*4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True)).to(c.device)
                 
                 images = images.float().to(c.device)
                 dummy_z = dummy_z.float().to(c.device)
@@ -37,7 +39,16 @@ def eval_mnist(model, validloader, trainloader,samples = 1):
                 
                 for i in range(samples):
                     x, _ = model(images,dummy_z,rev=True) # TODO: investigate eval use for log det j?
-                    mean_preds = np.round(x.mean(dim = (1,2,3)).cpu().detach().numpy())
+                    
+                    if c.one_hot:
+                        x = x.argmax(-3).to(torch.float)
+                     
+                    dims = (1,2,3)
+                     
+                    if c.one_hot:
+                        dims = (1,2)
+                        
+                    mean_preds = np.round(x.mean(dim = dims).cpu().detach().numpy())
                     mean_array.append(mean_preds)
                 
                 # https://stackoverflow.com/questions/48199077/elementwise-aggregation-average-of-values-in-a-list-of-numpy-arrays-with-same
