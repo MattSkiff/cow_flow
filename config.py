@@ -32,7 +32,7 @@ elif feat_extractor == "none":
 # core hyper params
 weight_decay = 1e-5 # differnet: 1e-5
 lr_init = 2e-4
-n_coupling_blocks = 8
+n_coupling_blocks = 24
 batch_size = 100 # actual batch size is this value multiplied by n_transforms(_test)
 
 # total epochs = meta_epochs * sub_epochs

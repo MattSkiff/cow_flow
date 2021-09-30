@@ -14,6 +14,7 @@ import torch.nn.functional as F
 from torchvision.models.resnet import ResNet, BasicBlock
 
 import config as c # hyper params
+from utils import init_weights
 
 # FrEIA imports for invertible networks
 import FrEIA.framework as Ff
@@ -64,6 +65,8 @@ def sub_conv2d(dims_in,dims_out):
         nn.Conv2d(64, dims_out,kernel_size = 3,padding = 1)
         )
     
+    net.apply(init_weights)
+    
     return net
     
 def sub_fc(dims_in,dims_out,internal_size):
@@ -79,13 +82,6 @@ def sub_fc(dims_in,dims_out,internal_size):
         )
     
     return net
-
-# change default initialisation
-# https://stackoverflow.com/questions/49433936/how-to-initialize-weights-in-pytorch
-def init_weights(m):
-    if isinstance(m, nn.Conv2d):
-        torch.nn.init.xavier_uniform(m.weight)
-        m.bias.data.fill_(0.01)
 
 def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,mnist=False):
     
@@ -241,8 +237,9 @@ class MNISTFlow(nn.Module):
             print("concatenated and pooled feature size..")
             print(feats.size(),"\n")
         
-        if c.feat_extractor != "none":
-            feats = feats.unsqueeze(2).unsqueeze(3).expand(-1, -1, c.density_map_h // 2,c.density_map_w // 2)
+        if not rev:
+            if c.feat_extractor != "none":
+                feats = feats.unsqueeze(2).unsqueeze(3).expand(-1, -1, c.density_map_h // 2,c.density_map_w // 2)
         
         if c.debug:
             print("feats size..")
@@ -258,7 +255,7 @@ class MNISTFlow(nn.Module):
                 labels = labels.unsqueeze(2).unsqueeze(3).expand(-1, -1, c.density_map_h,c.density_map_w).to(torch.float)
             else:
                 labels = labels.unsqueeze(1).unsqueeze(2).unsqueeze(3).expand(-1, -1, c.density_map_h,c.density_map_w)
-
+        
         if c.debug: 
             print("expanded labels size")
             print(labels.size(),"\n") 

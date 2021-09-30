@@ -33,7 +33,7 @@ class AddGaussianNoise(object):
         return self.__class__.__name__ + '(mean={0}, std={1})'.format(self.mean, self.std)
     
 class AddUniformNoise(object):
-    def __init__(self, r1=0., r2=1.):
+    def __init__(self, r1=0., r2=1e-3):
         self.r1 = r1
         self.r2 = r2
         
@@ -45,7 +45,14 @@ class AddUniformNoise(object):
     def __repr__(self):
         return self.__class__.__name__ + '(r1={0}, r2={1})'.format(self.r1, self.r2)
 
-def reconstruct_density_map(model, validloader, plot = True, save=True,title = "",digit=None,hist=True,sampling="randn"):
+# change default initialisation
+# https://stackoverflow.com/questions/49433936/how-to-initialize-weights-in-pytorch
+def init_weights(m):
+    if isinstance(m, torch.nn.Conv2d):
+        torch.nn.init.xavier_uniform(m.weight)
+        m.bias.data.fill_(0.01)
+
+def reconstruct_density_map(model, validloader, plot = True, save=False,title = "",digit=None,hist=True,sampling="randn"):
     """
 
 
@@ -92,13 +99,12 @@ def reconstruct_density_map(model, validloader, plot = True, save=True,title = "
             
             # Z shape: torch.Size([2, 4, 300, 400]) (batch size = 2)
             
-            
             if sampling == 'randn':
-                dummy_z = (torch.ones(c.batch_size, 4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True).to(c.device))
+                dummy_z = (torch.ones(c.batch_size, c.channels*4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True).to(c.device))
             elif sampling == "ones":
-                dummy_z = torch.zeros(c.batch_size, 4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True).to(c.device)
+                dummy_z = torch.zeros(c.batch_size, c.channels*4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True).to(c.device)
             elif sampling == "":
-                dummy_z = (randn(c.batch_size, 4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True)).to(c.device)
+                dummy_z = (randn(c.batch_size, c.channels*4, c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True)).to(c.device)
             else:
                 ValueError("Invalid function arg (sampling). Try 'randn', 'zeros' or 'ones'.")
             
@@ -108,6 +114,10 @@ def reconstruct_density_map(model, validloader, plot = True, save=True,title = "
             model = model.to(c.device)
             
             x, log_det_jac = model(images,dummy_z,rev=True)
+            
+            if c.one_hot:
+                
+                x = x.argmax(-3).to(torch.float)
             
             dmap_rev_np = x[0].squeeze().cpu().detach().numpy()
             mean_pred = x[0].mean()
@@ -141,4 +151,81 @@ def reconstruct_density_map(model, validloader, plot = True, save=True,title = "
             
             break
         
-    return labels[0],dmap_rev_np, mean_pred
+    return labels[0],dmap_rev_np, mean_pred # x.size() #
+
+def get_likelihood(model, validloader, plot = True,save=False,digit=None,ood=False):
+    # TODO - more sophisticated ood test of likelihood
+    """"'ood' is simply magnifying the value of the image by 100 and checking the loglikelihood is lower"""
+    for i, data in enumerate(tqdm(validloader, disable=c.hide_tqdm_bar)):
+        
+        if c.mnist:
+            images,labels = data
+        else:
+            images,dmaps,labels = data
+            
+        if labels[0] != digit and c.mnist and digit is not None:
+            continue
+        
+        if labels.size: # triggers only if there is at least one annotation
+            
+            z = labels
+            
+            images = images.float().to(c.device)
+            z = z.float().to(c.device)
+            
+            model = model.to(c.device)
+            
+            x, log_det_jac = model(images,z,rev=False)
+            
+            if ood:
+                images_ood = images * 100
+                x_ood, log_det_jac_ood = model(images_ood,z,rev=False)
+                dmap_rev_np_ood = x_ood[0].squeeze().cpu().detach().numpy()
+                mean_ll_ood = x_ood[0].mean()
+
+            
+            dmap_rev_np = x[0].squeeze().cpu().detach().numpy()
+            
+            mean_ll = x[0].mean()
+            
+            if plot:
+                
+                if ood: 
+                    n_plots = 3 
+                else: 
+                    n_plots = 2
+                
+                fig, ax = plt.subplots(n_plots,1)
+                plt.ioff()
+                #fig.suptitle('{} \n mean reconstruction: {}'.format(title,mean_pred),y=1.0,fontsize=24)
+                fig.set_size_inches(8*1,12*1)
+                fig.set_dpi(100)
+                
+                if c.mnist:
+                    im = images[0].squeeze().cpu().numpy()
+                else:
+                    im = images[0].permute(1,2,0).cpu().numpy()
+                
+                if c.mnist:
+                    ax[0].imshow(im)
+                else:
+                    ax[0].imshow((im * 255).astype(np.uint8))
+                
+                ax[1].hist(dmap_rev_np.flatten(),bins = 30)
+                
+                if ood:
+                    ax[2].hist(dmap_rev_np_ood.flatten(),bins = 30)
+                
+                if save:
+                    if not os.path.exists(VIZ_DIR):
+                        os.makedirs(VIZ_DIR)
+                    plt.savefig("{}/{}.jpg".format(VIZ_DIR,c.modelname), bbox_inches='tight', pad_inches = 0)
+            
+            break
+        
+    if ood:
+        out = mean_ll,mean_ll_ood # z[0],x[0], images_ood[0],x_ood[0]
+    else:
+        out = mean_ll # z[0],x[0],
+        
+    return out # x.size() #
