@@ -21,6 +21,7 @@ import FrEIA.framework as Ff
 import FrEIA.modules as Fm
 
 import os # save model
+import collections
 import shutil
 import dill # solve error when trying to pickle lambda function in FrEIA
 
@@ -53,19 +54,27 @@ elif c.feat_extractor == "none":
     feat_extractor = NothingNet()
 
 def sub_conv2d(dims_in,dims_out):
+    # naming pytorch layers:
+    # https://stackoverflow.com/questions/66152766/how-to-assign-a-name-for-a-pytorch-layer/66162559#66162559
     net = nn.Sequential(
-        nn.Conv2d(dims_in, 32, kernel_size = 3,padding = 1), 
-        nn.BatchNorm2d(32),
-        nn.ReLU(),
-        # TODO batch norm
-        nn.Conv2d(32, 64, kernel_size = 3,padding = 1), 
-        nn.BatchNorm2d(64),
-        nn.ReLU(),
-        # TODO batch norm here
-        nn.Conv2d(64, dims_out,kernel_size = 3,padding = 1)
+            collections.OrderedDict(
+                [
+                    ("conv1", nn.Conv2d(dims_in, 32, kernel_size = 3,padding = 1)), 
+                    ('batchnorm1',nn.BatchNorm2d(32)),
+                    ("relu1", nn.ReLU()),
+                    ("conv2", nn.Conv2d(32, 64, kernel_size = 3,padding = 1)),
+                    ('batchnorm2',nn.BatchNorm2d(64)),
+                    ("relu2", nn.ReLU()),
+                    ("conv3", nn.Conv2d(64, dims_out,kernel_size = 3,padding = 1))
+                ]
         )
+    )
     
     net.apply(init_weights)
+    
+    # zero init last subnet weights as per glow, cINNs paper
+    net.conv3.weight = torch.nn.init.zeros_(net.conv3.weight)
+    net.conv3.bias.data.fill_(0.00)
     
     return net
     
@@ -91,7 +100,6 @@ def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,m
         # hence switch from linear to conv2d net
         net = sub_conv2d(dims_in,dims_out)
 
-        #net.apply(init_weights)
         if c.debug:
             print('dims in: {}, dims out: {}'.format(dims_in,dims_out))
         
@@ -157,9 +165,15 @@ class CowFlow(nn.Module):
         # torch.Size([batch_size, 256, 17, 24])
         
         if c.feat_extractor != "none":
-            feat_cat.append(torch.mean(feat_s,dim = (2,3))) 
+            
+            if c.gap:
+                feat_cat.append(torch.mean(feat_s,dim = (2,3))) 
+                dims = 1
+            else:
+                feat_cat.append(torch.mean(feat_s))
+                dims = (1,2,3)
         
-        feats = torch.cat(feat_cat,dim = 1) # concatenation (does nothing at single scale feature extraction)
+        feats = torch.cat(feat_cat,dim = dims) # concatenation (does nothing at single scale feature extraction)
         
         # adding spatial dimensions....
         # remove dimension of size one for concatenation in NF coupling layer - squeeze()
@@ -169,7 +183,9 @@ class CowFlow(nn.Module):
             print(feats.size(),"\n")
         
         if c.feat_extractor != "none":
-            feats = feats.unsqueeze(2).unsqueeze(3).expand(-1, -1, c.density_map_h // 2,c.density_map_w // 2)
+        
+            if c.gap:
+                feats = feats.unsqueeze(2).unsqueeze(3).expand(-1, -1, c.density_map_h // 2,c.density_map_w // 2)
         
         if c.debug: 
             print("reshaped feature size with spatial dims..")
@@ -224,11 +240,13 @@ class MNISTFlow(nn.Module):
         # torch.Size([batch_size, 256, 17, 24])
         
         if c.feat_extractor != "none":
-            feat_cat.append(torch.mean(feat_s,dim = (2,3))) 
-        else:
-            feat_cat.append(feat_s) 
             
-        feats = torch.cat(feat_cat,dim = 1) # concatenation
+            if c.gap:
+                feat_cat.append(torch.mean(feat_s,dim = (2,3))) 
+            else:
+                feat_cat.append(feat_s)
+                
+        feats = torch.cat(feat_cat,dim = 1) # concatenation (does nothing at single scale feature extraction)
         
         # adding spatial dimensions....
         # remove dimension of size one for concatenation in NF coupling layer - squeeze()
@@ -239,7 +257,8 @@ class MNISTFlow(nn.Module):
         
         if not rev:
             if c.feat_extractor != "none":
-                feats = feats.unsqueeze(2).unsqueeze(3).expand(-1, -1, c.density_map_h // 2,c.density_map_w // 2)
+                if c.gap:
+                    feats = feats.unsqueeze(2).unsqueeze(3).expand(-1, -1, c.density_map_h // 2,c.density_map_w // 2)
         
         if c.debug:
             print("feats size..")
@@ -248,7 +267,10 @@ class MNISTFlow(nn.Module):
         if c.debug:
             print('labels size...')
             print(labels.size())   
-         
+        
+        if not c.gap and c.feat_extractor == 'none' and not c.one_hot:
+            labels = labels.unsqueeze(2).unsqueeze(3).expand(-1, -1, c.density_map_h * 2,c.density_map_h * 2)
+        
         if not rev:
             if c.one_hot:
                 labels = F.one_hot(labels.to(torch.int64),num_classes=10)

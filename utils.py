@@ -52,6 +52,8 @@ def init_weights(m):
         torch.nn.init.xavier_uniform(m.weight)
         m.bias.data.fill_(0.01)
 
+        
+
 def reconstruct_density_map(model, validloader, plot = True, save=False,title = "",digit=None,hist=True,sampling="randn"):
     """
 
