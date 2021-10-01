@@ -17,7 +17,8 @@ test_run = False # use only a small fraction of data to check everything works
 validation = False
 joint_optim = False
 pretrained = True
-feat_extractor = "none" # alexnet, vgg16_bn, 
+feat_extractor = "alexnet" # alexnet, vgg16_bn, none
+gap = False # global average pooling
 scheduler = 'exponential'
 # TODO resnet18, mnist_resnet,
 
@@ -32,7 +33,7 @@ elif feat_extractor == "none":
 # core hyper params
 weight_decay = 1e-5 # differnet: 1e-5
 lr_init = 2e-4
-n_coupling_blocks = 24
+n_coupling_blocks = 8
 batch_size = 100 # actual batch size is this value multiplied by n_transforms(_test)
 
 # total epochs = meta_epochs * sub_epochs
@@ -57,13 +58,18 @@ img_dims = [3] + list(img_size)
 filter_size = 15 # as per single image mcnn paper
 sigma = 4.0 # "   -----    "
 
+# TODO: rename this parameter
 if not mnist:
     density_map_h = img_size[1]
     density_map_w = img_size[0]
+elif mnist and feat_extractor != "none":
+    if gap:
+        density_map_h = img_size[1] * 2
+        density_map_w = img_size[0] * 2
+    else:
+        density_map_h = 6 * 2
+        density_map_w = 6 * 2 # feature size x2 (account for downsampling)
 elif mnist and feat_extractor == "none":
-    density_map_h = img_size[1] * 2
-    density_map_w = img_size[0] * 2
-elif mnist:
     density_map_h = 4
     density_map_w = 4
 
