@@ -7,6 +7,7 @@ import config as c
 
 from eval import eval_mnist, eval_model
 from utils import get_loss, reconstruct_density_map, t2np
+from torch.nn.utils import clip_grad_value_
 from torch.optim.lr_scheduler import ExponentialLR
 from model import CowFlow, MNISTFlow, save_model, save_weights
 
@@ -123,6 +124,7 @@ def train(train_loader,valid_loader): #def train(train_loader, test_loader):
                 
                 train_loss.append(loss_t)
                 loss.backward()
+                clip_grad_value_(model.parameters(), c.clip_value)
                 optimizer.step()
                 
                 
