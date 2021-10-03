@@ -6,6 +6,7 @@
 **/weights
 *.png
 **/cstates
+**/schema
 **/MNIST
 **/viz
 **/.ipynb_checkpoints

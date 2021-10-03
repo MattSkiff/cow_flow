@@ -19,7 +19,8 @@ joint_optim = False
 pretrained = True
 feat_extractor = "alexnet" # alexnet, vgg16_bn, none
 gap = False # global average pooling
-scheduler = 'exponential'
+clip_value = 1 # gradient clipping
+scheduler = 'exponential' # exponential, none
 # TODO resnet18, mnist_resnet,
 
 # unused: n_scales = 1 #3 # number of scales at which features are extracted, img_size is the highest - others are //2, //4,...
@@ -32,9 +33,9 @@ elif feat_extractor == "none":
 
 # core hyper params
 weight_decay = 1e-5 # differnet: 1e-5
-lr_init = 2e-4
+lr_init = 2e-5
 n_coupling_blocks = 8
-batch_size = 100 # actual batch size is this value multiplied by n_transforms(_test)
+batch_size = 200 # actual batch size is this value multiplied by n_transforms(_test)
 
 # total epochs = meta_epochs * sub_epochs
 # evaluation after <sub_epochs> epochs
@@ -99,7 +100,7 @@ else:
 
 # network hyperparameters
 # edited: cows counting - only one scale for now
-clamp_alpha = 3 # see paper equation 2 for explanation
+clamp_alpha = 1.9 # see paper equation 2 for explanation
 
 #fc_internal = 2048/2 # number of neurons in hidden layers of s-t-networks
 #dropout = 0.0 # dropout in s-t-networks
@@ -121,7 +122,7 @@ checkpoints = False
 if debug:
     schema = 'schema/debug'
 else:
-    schema = 'schema/debug'
+    schema = 'schema/no_ft_one_hot_no_GAP_clamp1.9'
     
 pc = os.uname().nodename
 modelname = "_".join(["LOC",pc,

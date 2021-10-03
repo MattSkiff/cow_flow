@@ -106,7 +106,7 @@ def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,m
         return net
     
     # include batch size as extra dimension here? data is batched along extra dimension
-    # input = density maps
+    # input = density maps / mnist labels 
     nodes = [Ff.InputNode(c.channels,input_dim[0],input_dim[1],name='input')] 
     
     # haar downsampling to resolves input data only having a single channel (from unsqueezed singleton dimension)
