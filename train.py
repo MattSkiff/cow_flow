@@ -6,7 +6,7 @@ import time
 import config as c
 
 from eval import eval_mnist, eval_model
-from utils import get_loss, reconstruct_density_map, t2np
+from utils import get_loss, plot_preds, t2np
 from torch.nn.utils import clip_grad_value_
 from torch.optim.lr_scheduler import ExponentialLR
 from model import CowFlow, MNISTFlow, save_model, save_weights
@@ -218,6 +218,7 @@ def train(train_loader,valid_loader): #def train(train_loader, test_loader):
                     'image height':c.density_map_h,
                     'image width':c.density_map_w,
                     'mnist?':c.mnist,
+                    'pretrained?':c.pretrained,
                     'test run?':c.test_run,
                     'proportion of data':c.data_prop,
                     'clamp alpha':c.clamp_alpha,
@@ -237,7 +238,7 @@ def train(train_loader,valid_loader): #def train(train_loader, test_loader):
     # post training: visualise a random reconstruction
     if c.dmap_viz:
     
-        reconstruct_density_map(model, valid_loader, plot = True)
+        plot_preds(model, valid_loader, plot = True ,mnist = c.mnist)
     
     # broken # todo
     if c.save_model:

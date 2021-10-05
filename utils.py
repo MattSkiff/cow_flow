@@ -54,7 +54,7 @@ def init_weights(m):
 
         
 
-def reconstruct_density_map(model, validloader, plot = True, save=False,title = "",digit=None,hist=True,sampling="randn",mnist=True):
+def plot_preds(model, validloader, plot = True, save=False,title = "",digit=None,hist=True,sampling="randn",mnist=True):
     """
 
 
