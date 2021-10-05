@@ -10,6 +10,8 @@ def eval_mnist(model, validloader, trainloader,samples = 1):
 
     k = 0
     
+    model.eval()
+    
     for loader in [validloader,trainloader]:
         
         n_correct = 0

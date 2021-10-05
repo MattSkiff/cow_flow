@@ -312,11 +312,13 @@ def save_model(model, filename):
     if not os.path.exists(MODEL_DIR):
         os.makedirs(MODEL_DIR)
     torch.save(model, os.path.join(MODEL_DIR,filename), pickle_module=dill)
+    print("model {} saved".format(filename))
     save_cstate(cdir=C_DIR,config_file="config.py")
     
 def load_model(filename):
     path = os.path.join(MODEL_DIR, filename)
     model = torch.load(path, pickle_module=dill)
+    print("model {} loaded".format(filename))
     return model
     
 def save_weights(model, filename):
