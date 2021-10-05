@@ -51,7 +51,7 @@ if c.mnist:
     if c.verbose:
         print("Training using {} train samples and {} validation samples...".format(len(train_loader)*c.batch_size,len(valid_loader)*c.batch_size))
         
-    model = train(train_loader,valid_loader)
+    model = train(train_loader,valid_loader,lr_init=c.lr_init)
 else:
     # instantiate class
     transformed_dataset = CowObjectsDataset(root_dir=c.proj_dir,transform = dmaps_pre,
@@ -96,4 +96,4 @@ else:
                             num_workers=0,collate_fn=transformed_dataset.custom_collate_density,
                             pin_memory=True,sampler=valid_sampler)
     
-    model = train(train_loader,valid_loader) 
+    model = train(train_loader,valid_loader,lr_init=c.lr_init) 
