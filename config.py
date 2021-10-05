@@ -6,7 +6,7 @@ proj_dir = "/home/matthew/Desktop/laptop_desktop/clones/cow_flow/data"
 data_prop = 1 # proportion of the full dataset to use 
 fixed_indices = True # turn this off for actual experiments
 annotations_only = False # whether to only use image patches that have annotations
-mnist = False 
+mnist = True 
 
 if mnist:
     one_hot = True # only for MNIST
@@ -22,7 +22,7 @@ test_run = False # use only a small fraction of data to check everything works
 validation = False
 joint_optim = False
 pretrained = True
-feat_extractor = "vgg16_bn" # alexnet, vgg16_bn, none
+feat_extractor = "alexnet" # alexnet, vgg16_bn, none
 gap = False # global average pooling
 clip_value = 1 # gradient clipping
 scheduler = 'exponential' # exponential, none
@@ -38,14 +38,14 @@ elif feat_extractor == "none":
 
 # core hyper params
 weight_decay = 1e-5 # differnet: 1e-5
-lr_init = 2e-5
+lr_init = [2e-2,2e-3,2e-4,2e-5,2e-6,2e-7]
 n_coupling_blocks = 8
-batch_size = 4 # actual batch size is this value multiplied by n_transforms(_test)
+batch_size = 200 # actual batch size is this value multiplied by n_transforms(_test)
 
 # total epochs = meta_epochs * sub_epochs
 # evaluation after <sub_epochs> epochs
-meta_epochs = 15
-sub_epochs = 3
+meta_epochs = 1
+sub_epochs = 1
 
 # data settings
 #dataset_path = "mnist_toy"
@@ -127,7 +127,7 @@ checkpoints = False
 if debug:
     schema = 'schema/debug'
 else:
-    schema = 'schema/test_multiple_haar'
+    schema = 'schema/lri_battery'
     
 pc = os.uname().nodename
 modelname = "_".join(["LOC",pc,
