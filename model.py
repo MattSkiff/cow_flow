@@ -112,13 +112,23 @@ def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,m
     # haar downsampling to resolves input data only having a single channel (from unsqueezed singleton dimension)
     # affine coupling performs channel wise split
     # https://github.com/VLL-HD/FrEIA/issues/8
-    nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling'))
+    if c.mnist:
+        nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling'))
+    else:
+        nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling1'))
+        nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling2'))
+        nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling3'))
+        nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling4'))
+        nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling5'))
     
     # 'Because of the construction of the conditional coupling blocks, the condition must have the same spatial dimensions as the data'
     # https://github.com/VLL-HD/FrEIA/issues/9
     
     # condition = exacted image features
-    condition = Ff.ConditionNode(condition_dim,input_dim[0] // 2,input_dim[1] // 2, name = 'condition')
+    if c.mnist:
+        condition = Ff.ConditionNode(condition_dim,input_dim[0] // 2,input_dim[1] // 2, name = 'condition') 
+    else:
+        condition = Ff.ConditionNode(condition_dim,18,25, name = 'condition') 
         
     for k in range(c.n_coupling_blocks):
         if c.verbose:
@@ -162,18 +172,17 @@ class CowFlow(nn.Module):
         # global average pooling as described in paper:
         # h x w x d -> 1 x 1 x d
         # see: https://alexisbcook.github.io/2017/global-average-pooling-layers-for-object-localization/
-        # torch.Size([batch_size, 256, 17, 24])
+        # (alexnet) torch.Size([batch_size, 256, 17, 24])
+        # (vgg16-bn) torch.Size([4, 512, 18, 25]) 
         
         if c.feat_extractor != "none":
             
             if c.gap:
                 feat_cat.append(torch.mean(feat_s,dim = (2,3))) 
-                dims = 1
             else:
-                feat_cat.append(torch.mean(feat_s))
-                dims = (1,2,3)
+                feat_cat.append(feat_s)
         
-        feats = torch.cat(feat_cat,dim = dims) # concatenation (does nothing at single scale feature extraction)
+        feats = torch.cat(feat_cat) # concatenation (does nothing at single scale feature extraction)
         
         # adding spatial dimensions....
         # remove dimension of size one for concatenation in NF coupling layer - squeeze()

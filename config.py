@@ -3,10 +3,15 @@ import os
 
 # custom config settings
 proj_dir = "/home/matthew/Desktop/laptop_desktop/clones/cow_flow/data"
-data_prop = 0.1 # proportion of the full dataset to use 
+data_prop = 1 # proportion of the full dataset to use 
+fixed_indices = True # turn this off for actual experiments
 annotations_only = False # whether to only use image patches that have annotations
-mnist = True 
-one_hot = True # only for MNIST
+mnist = False 
+
+if mnist:
+    one_hot = True # only for MNIST
+else:
+    one_hot = False
 
 if one_hot:
     channels = 10 # onehot 1 num -> 0,0,0,1 etc
@@ -17,7 +22,7 @@ test_run = False # use only a small fraction of data to check everything works
 validation = False
 joint_optim = False
 pretrained = True
-feat_extractor = "alexnet" # alexnet, vgg16_bn, none
+feat_extractor = "vgg16_bn" # alexnet, vgg16_bn, none
 gap = False # global average pooling
 clip_value = 1 # gradient clipping
 scheduler = 'exponential' # exponential, none
@@ -35,11 +40,11 @@ elif feat_extractor == "none":
 weight_decay = 1e-5 # differnet: 1e-5
 lr_init = 2e-5
 n_coupling_blocks = 8
-batch_size = 200 # actual batch size is this value multiplied by n_transforms(_test)
+batch_size = 4 # actual batch size is this value multiplied by n_transforms(_test)
 
 # total epochs = meta_epochs * sub_epochs
 # evaluation after <sub_epochs> epochs
-meta_epochs = 3
+meta_epochs = 15
 sub_epochs = 3
 
 # data settings
@@ -61,8 +66,8 @@ sigma = 4.0 # "   -----    "
 
 # TODO: rename this parameter
 if not mnist:
-    density_map_h = img_size[1]
-    density_map_w = img_size[0]
+    density_map_h = 576 #img_size[1]
+    density_map_w = 800 #img_size[0]
 elif mnist and feat_extractor != "none":
     if gap:
         density_map_h = img_size[1] * 2
@@ -122,7 +127,7 @@ checkpoints = False
 if debug:
     schema = 'schema/debug'
 else:
-    schema = 'schema/no_ft_one_hot_no_GAP_clamp1.9'
+    schema = 'schema/test_multiple_haar'
     
 pc = os.uname().nodename
 modelname = "_".join(["LOC",pc,

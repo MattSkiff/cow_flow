@@ -54,7 +54,7 @@ def init_weights(m):
 
         
 
-def reconstruct_density_map(model, validloader, plot = True, save=False,title = "",digit=None,hist=True,sampling="randn"):
+def reconstruct_density_map(model, validloader, plot = True, save=False,title = "",digit=None,hist=True,sampling="randn",mnist=True):
     """
 
 
@@ -94,21 +94,34 @@ def reconstruct_density_map(model, validloader, plot = True, save=False,title = 
         else:
             images,dmaps,labels = data
             
-        if labels[0] != digit and c.mnist and digit is not None:
-            continue
+        lb_idx = 0
+            
+        if not mnist:
+            
+            # check annotations in batch aren't empty
+            for j in range(validloader.batch_size):
+                if len(labels[j]) !=0:
+                    lb_idx = j
+                    break
+                
+            if lb_idx == 0:
+                continue  
         
-        if labels.size: # triggers only if there is at least one annotation
+        if (mnist and labels.size) or not mnist: # triggers only if there is at least one annotation
             
             # Z shape: torch.Size([2, 4, 300, 400]) (batch size = 2)
             
-            if sampling == 'randn':
-                dummy_z = (torch.ones(c.batch_size, c.channels*4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True).to(c.device))
-            elif sampling == "ones":
-                dummy_z = torch.zeros(c.batch_size, c.channels*4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True).to(c.device)
-            elif sampling == "":
-                dummy_z = (randn(c.batch_size, c.channels*4, c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True)).to(c.device)
+            if not mnist:
+                dummy_z = (randn(c.batch_size, 1024,17,24, requires_grad=True)).to(c.device)
             else:
-                ValueError("Invalid function arg (sampling). Try 'randn', 'zeros' or 'ones'.")
+                if sampling == 'ones':
+                    dummy_z = (torch.ones(c.batch_size, c.channels*4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True).to(c.device))
+                elif sampling == "zeros":
+                    dummy_z = torch.zeros(c.batch_size, c.channels*4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True).to(c.device)
+                elif sampling == "randn":
+                    dummy_z = (randn(c.batch_size, c.channels*4, c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True)).to(c.device)
+                else:
+                    ValueError("Invalid function arg (sampling). Try 'randn', 'zeros' or 'ones'.")
             
             images = images.float().to(c.device)
             dummy_z = dummy_z.float().to(c.device)
@@ -121,30 +134,42 @@ def reconstruct_density_map(model, validloader, plot = True, save=False,title = 
                 
                 x = x.argmax(-3).to(torch.float)
             
-            dmap_rev_np = x[0].squeeze().cpu().detach().numpy()
-            mean_pred = x[0].mean()
+            dmap_rev_np = x[lb_idx].squeeze().cpu().detach().numpy()
+            mean_pred = x[lb_idx].mean()
+            sum_pred = x[lb_idx].sum()
             
             if plot:
                 
-                fig, ax = plt.subplots(3,1)
+                n_plots = 3+hist-mnist
+                    
+                    
+                fig, ax = plt.subplots(n_plots,1)
                 plt.ioff()
-                fig.suptitle('{} \n mean reconstruction: {}'.format(title,mean_pred),y=1.0,fontsize=24)
+                if mnist:
+                    fig.suptitle('{} \n mean reconstruction: {:.2f}'.format(title,mean_pred),y=1.0,fontsize=24)
+                else:
+
+                    fig.suptitle('{} \n Predicted count: {:.2f}'.format(title,sum_pred),y=1.0,fontsize=24)
                 fig.set_size_inches(8*1,12*1)
                 fig.set_dpi(100)
                 
                 if c.mnist:
-                    im = images[0].squeeze().cpu().numpy()
+                    im = images[lb_idx].squeeze().cpu().numpy()
                 else:
-                    im = images[0].permute(1,2,0).cpu().numpy()
+                    im = 255-images[lb_idx].permute(1,2,0).cpu().numpy()
                     
                 ax[0].imshow(dmap_rev_np, cmap='viridis', interpolation='nearest')
                 
                 if c.mnist:
                     ax[1].imshow(im)
+                    if hist:
+                        ax[2].hist(dmap_rev_np.flatten(),bins = 30)
                 else:
                     ax[1].imshow((im * 255).astype(np.uint8))
-                
-                ax[2].hist(dmap_rev_np.flatten(),bins = 30)
+                    ax[2].imshow(dmaps[lb_idx])
+                    if hist:
+                        ax[3].hist(dmap_rev_np.flatten(),bins = 30)
+                    
                 
                 if save:
                     if not os.path.exists(VIZ_DIR):
@@ -152,8 +177,13 @@ def reconstruct_density_map(model, validloader, plot = True, save=False,title = 
                     plt.savefig("{}/{}.jpg".format(VIZ_DIR,c.modelname), bbox_inches='tight', pad_inches = 0)
             
             break
+
+    if mnist:
+        out = labels[lb_idx],dmap_rev_np, mean_pred 
+    else:
+        out = dmaps[lb_idx].sum(),dmap_rev_np, sum_pred
         
-    return labels[0],dmap_rev_np, mean_pred # x.size() #
+    return out
 
 def get_likelihood(model, validloader, plot = True,save=False,digit=None,ood=False):
     # TODO - more sophisticated ood test of likelihood

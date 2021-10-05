@@ -9,10 +9,11 @@ from torch.utils.data.sampler import SubsetRandomSampler # RandomSampling
 # from torchvision import transforms
 
 import config as c
+import pickle 
 from train import train
 
 #from utils import load_datasets, make_dataloaders
-from data_loader import CowObjectsDataset, CustToTensor, train_valid_split
+from data_loader import CowObjectsDataset, CustToTensor, CustCrop, train_valid_split
 
 empty_cache() # free up memory for cuda
 
@@ -24,6 +25,11 @@ mnist_pre = Compose([
     Resize((c.img_size[0], c.img_size[0])),
     Normalize((0.1307,), (0.3081,))
     ])
+
+dmaps_pre = Compose([
+            CustToTensor(),
+            CustCrop()
+        ])
 
 if c.mnist:
     mnist_train = MNIST(root='./data', train=True, download=True, transform=mnist_pre)
@@ -42,16 +48,31 @@ if c.mnist:
         valid_loader = DataLoader(mnist_test,batch_size = c.batch_size,pin_memory=True,
                               shuffle=True)
     
+    if c.verbose:
+        print("Training using {} train samples and {} validation samples...".format(len(train_loader)*c.batch_size,len(valid_loader)*c.batch_size))
+        
     model = train(train_loader,valid_loader)
 else:
     # instantiate class
-    transformed_dataset = CowObjectsDataset(root_dir=c.proj_dir,transform = CustToTensor(),
+    transformed_dataset = CowObjectsDataset(root_dir=c.proj_dir,transform = dmaps_pre,
                                             convert_to_points=True,generate_density=True)
     
     # create test train split
-    train_indices, valid_indices = train_valid_split(dataset = transformed_dataset, train_percent = 70,annotations_only = c.annotations_only)
-    
-    # TODO: code to save this file (train and valid indices)
+    # save/load indices as they take a while to gen
+    # https://stackoverflow.com/questions/27745500/how-to-save-a-list-to-a-file-and-read-it-as-a-list-type
+    if not c.fixed_indices:
+        train_indices, valid_indices = train_valid_split(dataset = transformed_dataset, train_percent = 70,annotations_only = c.annotations_only)
+        
+        with open("train_indices.txt", "wb") as fp:   # Pickling
+            pickle.dump(train_indices, fp)
+        with open("valid_indices.txt", "wb") as fp:   # Pickling
+            pickle.dump(valid_indices, fp)
+
+    else:
+        with open("train_indices.txt", "rb") as fp:   # Unpickling
+            train_indices = pickle.load(fp)
+        with open("valid_indices.txt", "rb") as fp:   # Unpickling
+            valid_indices = pickle.load(fp)
     
     # Creating data samplers and loaders:
     # only train part for dev purposes 
