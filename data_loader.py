@@ -404,6 +404,26 @@ class CustToTensor(object):
             sample['labels'] = torch.from_numpy(sample['labels'])
         
         return sample
+    
+class CustCrop(object):
+    """Crop images to match vgg feature sizes."""
+
+    def __call__(self, sample):
+             
+        image = sample['image']
+        image = image[:,0:c.density_map_h-1,0:c.density_map_w-1]
+        
+        sample['image'] =  image
+        
+        if 'density' in sample.keys():
+            density = sample['density']
+            density = density[0:c.density_map_h-1,0:c.density_map_w-1]
+            sample['density'] = density
+        else:
+            sample['annotations'] = sample['annotations']
+            sample['labels'] = sample['labels']
+        
+        return sample
 
 # Need to create lists of test and train indices
 # Dataset is highly imbalanced, want test set to mirror train set imbalance
