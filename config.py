@@ -6,7 +6,7 @@ proj_dir = "/home/matthew/Desktop/laptop_desktop/clones/cow_flow/data"
 data_prop = 1 # proportion of the full dataset to use 
 fixed_indices = True # turn this off for actual experiments
 annotations_only = False # whether to only use image patches that have annotations
-mnist = True 
+mnist = False 
 
 if mnist:
     one_hot = True # only for MNIST
@@ -38,9 +38,11 @@ elif feat_extractor == "none":
 
 # core hyper params
 weight_decay = 1e-5 # differnet: 1e-5
-lr_init = [1e-3,3e-3] #[2e-2,2e-3,2e-4,2e-5,2e-6,2e-7]
-n_coupling_blocks = 7
-batch_size = [100,200] # actual batch size is this value multiplied by n_transforms(_test)
+n_coupling_blocks = 8
+
+# vectorised params must always be passed as lists
+lr_init = [1e-4] #[2e-2,2e-3,2e-4,2e-5,2e-6,2e-7]
+batch_size = [20] # actual batch size is this value multiplied by n_transforms(_test)
 
 # total epochs = meta_epochs * sub_epochs
 # evaluation after <sub_epochs> epochs

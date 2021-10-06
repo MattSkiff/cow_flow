@@ -39,14 +39,14 @@ if c.mnist:
     
     if len(c.batch_size) == 1:
         if c.test_run:
-            train_loader = DataLoader(mnist_train,batch_size = c.batch_size,pin_memory=True,
+            train_loader = DataLoader(mnist_train,batch_size = c.batch_size[0],pin_memory=True,
                                       shuffle=False,sampler=toy_sampler)
-            valid_loader = DataLoader(mnist_test,batch_size = c.batch_size,pin_memory=True,
+            valid_loader = DataLoader(mnist_test,batch_size = c.batch_size[0],pin_memory=True,
                                       shuffle=False,sampler=toy_sampler)
         else:
-            train_loader = DataLoader(mnist_train,batch_size = c.batch_size,pin_memory=True,
+            train_loader = DataLoader(mnist_train,batch_size = c.batch_size[0],pin_memory=True,
                                   shuffle=True)
-            valid_loader = DataLoader(mnist_test,batch_size = c.batch_size,pin_memory=True,
+            valid_loader = DataLoader(mnist_test,batch_size = c.batch_size[0],pin_memory=True,
                                   shuffle=True)
             
         model = train_battery([train_loader],[valid_loader],lr_i=c.lr_init)
@@ -98,12 +98,12 @@ else:
     if c.verbose:
         print("Training using {} train samples and {} validation samples...".format(len(train_sampler)*c.batch_size,len(valid_sampler)*c.batch_size))
     
-    train_loader = DataLoader(transformed_dataset, batch_size=c.batch_size,shuffle=False, 
+    train_loader = DataLoader(transformed_dataset, batch_size=c.batch_size[0],shuffle=False, 
                             num_workers=0,collate_fn=transformed_dataset.custom_collate_density,
                             pin_memory=True,sampler=train_sampler)
     
-    valid_loader = DataLoader(transformed_dataset, batch_size=c.batch_size,shuffle=False, 
+    valid_loader = DataLoader(transformed_dataset, batch_size=c.batch_size[0],shuffle=False, 
                             num_workers=0,collate_fn=transformed_dataset.custom_collate_density,
                             pin_memory=True,sampler=valid_sampler)
     
-    model = train(train_loader,valid_loader,lr_init=c.lr_init) 
+    model = train(train_loader,valid_loader,lr_i=c.lr_init) 
