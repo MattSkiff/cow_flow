@@ -112,14 +112,14 @@ def plot_preds(model, validloader, plot = True, save=False,title = "",digit=None
             # Z shape: torch.Size([2, 4, 300, 400]) (batch size = 2)
             
             if not mnist:
-                dummy_z = (randn(c.batch_size, 1024,17,24, requires_grad=True)).to(c.device)
+                dummy_z = (randn(c.batch_size[0], 1024,17,24, requires_grad=True)).to(c.device)
             else:
                 if sampling == 'ones':
-                    dummy_z = (torch.ones(c.batch_size, c.channels*4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True).to(c.device))
+                    dummy_z = (torch.ones(c.batch_size[0], c.channels*4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True).to(c.device))
                 elif sampling == "zeros":
-                    dummy_z = torch.zeros(c.batch_size, c.channels*4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True).to(c.device)
+                    dummy_z = torch.zeros(c.batch_size[0], c.channels*4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True).to(c.device)
                 elif sampling == "randn":
-                    dummy_z = (randn(c.batch_size, c.channels*4, c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True)).to(c.device)
+                    dummy_z = (randn(c.batch_size[0], c.channels*4, c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True)).to(c.device)
                 else:
                     ValueError("Invalid function arg (sampling). Try 'randn', 'zeros' or 'ones'.")
             
