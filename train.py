@@ -37,7 +37,7 @@ def train_battery(train_loader,valid_loader,lr_i = c.lr_init):
                     train(train_loader=tl,
                           valid_loader=vl,
                           battery = True,
-                          lr_i = param,
+                          lr_i = [param],
                           writer = writer)
             
         else:
@@ -64,9 +64,9 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                 optimizer = torch.optim.Adam([
                             {'params': model.nf.parameters()},
                             {'params': model.feature_extractor.parameters(), 'lr_init': 1e-3,'betas':(0.9,0.999),'eps':1e-08, 'weight_decay':0}
-                        ], lr=lr_i, betas=(0.8, 0.8), eps=1e-04, weight_decay=c.weight_decay )
+                        ], lr=lr_i[0], betas=(0.8, 0.8), eps=1e-04, weight_decay=c.weight_decay )
             else:
-                optimizer = torch.optim.Adam(model.nf.parameters(), lr=lr_i, betas=(0.8, 0.8), eps=1e-04, weight_decay=c.weight_decay)
+                optimizer = torch.optim.Adam(model.nf.parameters(), lr=lr_i[0], betas=(0.8, 0.8), eps=1e-04, weight_decay=c.weight_decay)
             
             
             # add scheduler to improve stability further into training
@@ -250,8 +250,8 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                 print(valid_accuracy,l)
                 
                 # add param tensorboard scalars
-                writer.add_hparams(hparam_dict = {'learning rate init.':lr_i,
-                            'batch size':valid_loader.batch_Sizer,
+                writer.add_hparams(hparam_dict = {'learning rate init.':lr_i[0],
+                            'batch size':valid_loader.batch_size,
                             'image height':c.density_map_h,
                             'image width':c.density_map_w,
                             'mnist?':c.mnist,
