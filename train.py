@@ -32,7 +32,7 @@ def train_battery(train_loader,valid_loader,lr_i = c.lr_init):
                     battery_string = 'battery_'+str(j)
                     bt_id = 'runs/'+c.schema+'/'+battery_string
                     print('beginning: {}\n'.format(bt_id))
-                    writer = SummaryWriter(log_dir=bt_id)
+                    writer = SummaryWriter(log_dir=bt_id+"_"+c.model_name)
                         
                     train(train_loader=tl,
                           valid_loader=vl,
