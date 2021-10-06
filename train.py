@@ -17,7 +17,6 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 from torch.utils.tensorboard import SummaryWriter
 
 def train_battery(train_loader,valid_loader,lr_i = c.lr_init):
-
     
         if len(lr_i) >= 1 or type(train_loader) == list and type(valid_loader) == list:
             
