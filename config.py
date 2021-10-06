@@ -20,8 +20,8 @@ else:
 
 test_run = False # use only a small fraction of data to check everything works
 validation = False
-joint_optim = False
-pretrained = True
+joint_optim = True
+pretrained = False
 feat_extractor = "alexnet" # alexnet, vgg16_bn, none
 gap = False # global average pooling
 clip_value = 1 # gradient clipping
@@ -38,9 +38,9 @@ elif feat_extractor == "none":
 
 # core hyper params
 weight_decay = 1e-5 # differnet: 1e-5
-lr_init = [2e-2,2e-3,2e-4,2e-5,2e-6,2e-7]
-n_coupling_blocks = 8
-batch_size = 200 # actual batch size is this value multiplied by n_transforms(_test)
+lr_init = [1e-3,3e-3] #[2e-2,2e-3,2e-4,2e-5,2e-6,2e-7]
+n_coupling_blocks = 7
+batch_size = [100,200] # actual batch size is this value multiplied by n_transforms(_test)
 
 # total epochs = meta_epochs * sub_epochs
 # evaluation after <sub_epochs> epochs
@@ -127,7 +127,7 @@ checkpoints = False
 if debug:
     schema = 'schema/debug'
 else:
-    schema = 'schema/lri_battery'
+    schema = 'schema/mnist_high_acc'
     
 pc = os.uname().nodename
 modelname = "_".join(["LOC",pc,
