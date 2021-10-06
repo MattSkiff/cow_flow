@@ -60,7 +60,7 @@ def eval_mnist(model, validloader, trainloader,samples = 1):
 #                if plot:
 #                    pass
                 
-        accuracies.append(round(tally/(len(loader.dataset))*100,2))
+            accuracies.append(round(tally/(len(loader.dataset))*100,2))
 
     return  accuracies[0], accuracies[1] # train, valid
 
