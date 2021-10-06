@@ -16,18 +16,44 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 # tensorboard
 from torch.utils.tensorboard import SummaryWriter
 
-def train(train_loader,valid_loader,lr_init): #def train(train_loader, test_loader):
+def train_battery(train_loader,valid_loader,lr_i = c.lr_init):
+
     
-    if len(lr_init) >= 1:
-        for lr_i in lr_init:
+        if len(lr_i) >= 1 or type(train_loader) == list and type(valid_loader) == list:
             
-            if len(lr_init) > 1:
-                battery_string = 'lr_init_battery_'+str(lr_i)
-                bt_id = 'runs/'+c.schema+'/'+battery_string
-                print('beginning: {}\n'.format(bt_id))
-                writer = SummaryWriter(log_dir=bt_id)
-            else:
+            j = 0
+            
+            for tl, vl in zip(train_loader,valid_loader):
+            
+                for param in lr_i:
+                    
+                    j = j+1
+                    
+                    battery_string = 'battery_'+str(j)
+                    bt_id = 'runs/'+c.schema+'/'+battery_string
+                    print('beginning: {}\n'.format(bt_id))
+                    writer = SummaryWriter(log_dir=bt_id)
+                        
+                    train(train_loader=tl,
+                          valid_loader=vl,
+                          battery = True,
+                          lr_i = param,
+                          writer = writer)
+            
+        else:
+            ValueError("lr_i must have more than one value, or the dataloaders must be supplied as lists")
+                
+
+def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None): #def train(train_loader, test_loader):
+            
+            if c.verbose:
+                print("Training using {} train samples and {} validation samples...".format(len(train_loader)*train_loader.batch_size,
+                                                                                            len(valid_loader)*valid_loader.batch_size))
+    
+            if not battery:
                 writer = SummaryWriter(log_dir='runs/'+c.schema+'/'+c.modelname)
+            else:
+                writer = writer
         
             if c.mnist:
                 model = MNISTFlow()    
@@ -212,10 +238,11 @@ def train(train_loader,valid_loader,lr_init): #def train(train_loader, test_load
                 else:
                     valid_accuracy, training_accuracy = eval_model(model,valid_loader,train_loader)
                 
-                if c.save_model and c.checkpoints:
+                if (c.save_model or battery) and c.checkpoints:
                     model.to('cpu')
                     save_model(model,str(l)+"_"+c.modelname)
                     save_weights(model,str(l)+"_"+c.modelname)
+                    model.to(c.device)
                 
                 writer.add_scalar('accuracy/training',training_accuracy, l)
                 print(training_accuracy,l)
@@ -224,7 +251,7 @@ def train(train_loader,valid_loader,lr_init): #def train(train_loader, test_load
                 
                 # add param tensorboard scalars
                 writer.add_hparams(hparam_dict = {'learning rate init.':lr_i,
-                            'batch size':c.batch_size,
+                            'batch size':valid_loader.batch_Sizer,
                             'image height':c.density_map_h,
                             'image width':c.density_map_w,
                             'mnist?':c.mnist,
@@ -249,11 +276,11 @@ def train(train_loader,valid_loader,lr_init): #def train(train_loader, test_load
             
                 plot_preds(model, valid_loader, plot = True,mnist = c.mnist)
             
-            # broken # todo
-            if c.save_model:
+            if c.save_model or battery:
                 model.to('cpu')
                 save_model(model,c.modelname)
                 save_weights(model, c.modelname)
+                model.to(c.device)
             
-            if len(lr_init) == 1:
+            if not battery:
                 return model

@@ -10,7 +10,7 @@ from torch.utils.data.sampler import SubsetRandomSampler # RandomSampling
 
 import config as c
 import pickle 
-from train import train
+from train import train, train_battery
 
 #from utils import load_datasets, make_dataloaders
 from data_loader import CowObjectsDataset, CustToTensor, CustCrop, train_valid_split
@@ -37,21 +37,31 @@ if c.mnist:
     
     toy_sampler = SubsetRandomSampler(range(100))
     
-    if c.test_run:
-        train_loader = DataLoader(mnist_train,batch_size = c.batch_size,pin_memory=True,
-                                  shuffle=False,sampler=toy_sampler)
-        valid_loader = DataLoader(mnist_test,batch_size = c.batch_size,pin_memory=True,
-                                  shuffle=False,sampler=toy_sampler)
+    if len(c.batch_size) == 1:
+        if c.test_run:
+            train_loader = DataLoader(mnist_train,batch_size = c.batch_size,pin_memory=True,
+                                      shuffle=False,sampler=toy_sampler)
+            valid_loader = DataLoader(mnist_test,batch_size = c.batch_size,pin_memory=True,
+                                      shuffle=False,sampler=toy_sampler)
+        else:
+            train_loader = DataLoader(mnist_train,batch_size = c.batch_size,pin_memory=True,
+                                  shuffle=True)
+            valid_loader = DataLoader(mnist_test,batch_size = c.batch_size,pin_memory=True,
+                                  shuffle=True)
+            
+        model = train_battery([train_loader],[valid_loader],lr_i=c.lr_init)
     else:
-        train_loader = DataLoader(mnist_train,batch_size = c.batch_size,pin_memory=True,
-                              shuffle=True)
-        valid_loader = DataLoader(mnist_test,batch_size = c.batch_size,pin_memory=True,
-                              shuffle=True)
-    
-    if c.verbose:
-        print("Training using {} train samples and {} validation samples...".format(len(train_loader)*c.batch_size,len(valid_loader)*c.batch_size))
+        tls,vls = [],[]
         
-    model = train(train_loader,valid_loader,lr_init=c.lr_init)
+        for bs in c.batch_size:
+            tls.append(DataLoader(mnist_train,batch_size = bs,pin_memory=True,
+                                      shuffle=False))
+            vls.append(DataLoader(mnist_test,batch_size = bs,pin_memory=True,
+                                      shuffle=False))
+            
+            model = train_battery(tls,vls,lr_i=c.lr_init)
+    
+   
 else:
     # instantiate class
     transformed_dataset = CowObjectsDataset(root_dir=c.proj_dir,transform = dmaps_pre,
