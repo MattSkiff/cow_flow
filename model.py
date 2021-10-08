@@ -25,6 +25,10 @@ import collections
 import shutil
 import dill # solve error when trying to pickle lambda function in FrEIA
 
+WEIGHT_DIR = './weights'
+MODEL_DIR = './models'
+C_DIR = './cstates'
+
 # https://zablo.net/blog/post/using-resnet-for-mnist-in-pytorch-tutorial/
 class MnistResNet(ResNet):
     def __init__(self):
@@ -37,10 +41,6 @@ class MnistResNet(ResNet):
 class NothingNet():
     def __init__(self):
         self.features = torch.nn.Identity()
-
-WEIGHT_DIR = './weights'
-MODEL_DIR = './models'
-C_DIR = './cstates'
 
 if c.feat_extractor == "alexnet":
     feat_extractor = alexnet(pretrained=c.pretrained,progress=False).to(c.device)
@@ -115,6 +115,7 @@ def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,m
     if c.mnist:
         nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling'))
     else:
+        # downsamples density maps
         nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling1'))
         nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling2'))
         nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling3'))

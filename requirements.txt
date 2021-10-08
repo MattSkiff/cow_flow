@@ -1,14 +1,11 @@
-conda create -n cows python=3.7  -y -q 
-conda activate cows 
-conda install pytorch torchvision torchaudio cudatoolkit=10.2 -c pytorch
-conda install ipywidgets -y -q
-conda install scikit-image -y -q
-conda install pandas -y -q
-conda install dill -y -q
-conda install matplotlib -y -q
-conda install scipy -y -q
-conda install torchvision -y -q
-conda install tqdm -y -q
-conda install tensorboard
-# conda install spyder
-pip install git+https://github.com/VLL-HD/FrEIA.git -q
+dill==0.3.4
+scipy==1.6.2
+scikit_image==0.18.1
+tqdm==4.59.0
+pandas==1.2.4
+matplotlib==3.3.4
+numpy==1.20.1
+Pillow==8.3.2
+skimage==0.0
+torch==1.9.1
+torchvision==0.10.1

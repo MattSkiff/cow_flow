@@ -35,29 +35,27 @@ if c.mnist:
     mnist_train = MNIST(root='./data', train=True, download=True, transform=mnist_pre)
     mnist_test = MNIST(root='./data', train=False, download=True, transform=mnist_pre)
     
-    toy_sampler = SubsetRandomSampler(range(100))
+    if c.test_run:
+        toy_sampler = SubsetRandomSampler(range(200))
+    else:
+        toy_sampler = None
     
     if len(c.batch_size) == 1:
-        if c.test_run:
+
             train_loader = DataLoader(mnist_train,batch_size = c.batch_size[0],pin_memory=True,
                                       shuffle=False,sampler=toy_sampler)
             valid_loader = DataLoader(mnist_test,batch_size = c.batch_size[0],pin_memory=True,
                                       shuffle=False,sampler=toy_sampler)
-        else:
-            train_loader = DataLoader(mnist_train,batch_size = c.batch_size[0],pin_memory=True,
-                                  shuffle=True)
-            valid_loader = DataLoader(mnist_test,batch_size = c.batch_size[0],pin_memory=True,
-                                  shuffle=True)
             
-        model = train_battery([train_loader],[valid_loader],lr_i=c.lr_init)
+            model = train_battery([train_loader],[valid_loader],lr_i=c.lr_init)
     else:
         tls,vls = [],[]
         
         for bs in c.batch_size:
             tls.append(DataLoader(mnist_train,batch_size = bs,pin_memory=True,
-                                      shuffle=False))
+                                      shuffle=False,sampler=toy_sampler))
             vls.append(DataLoader(mnist_test,batch_size = bs,pin_memory=True,
-                                      shuffle=False))
+                                      shuffle=False,sampler=toy_sampler))
             
             model = train_battery(tls,vls,lr_i=c.lr_init)
     

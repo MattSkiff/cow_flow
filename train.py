@@ -28,10 +28,13 @@ def train_battery(train_loader,valid_loader,lr_i = c.lr_init):
                     
                     j = j+1
                     
-                    battery_string = 'battery_'+str(j)
-                    bt_id = 'runs/'+c.schema+'/'+battery_string
-                    print('beginning: {}\n'.format(bt_id))
-                    writer = SummaryWriter(log_dir=bt_id+"_"+c.modelname)
+                    if  not c.debug:
+                        battery_string = 'battery_'+str(j)
+                        bt_id = 'runs/'+c.schema+'/'+battery_string
+                        print('beginning: {}\n'.format(bt_id))
+                        writer = SummaryWriter(log_dir=bt_id+"_"+c.modelname)
+                    else:
+                        writer = None
                         
                     train(train_loader=tl,
                           valid_loader=vl,
@@ -49,7 +52,7 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                 print("Training using {} train samples and {} validation samples...".format(len(train_loader)*train_loader.batch_size,
                                                                                             len(valid_loader)*valid_loader.batch_size))
     
-            if not battery:
+            if not battery and not c.debug:
                 writer = SummaryWriter(log_dir='runs/'+c.schema+'/'+c.modelname)
             else:
                 writer = writer
@@ -154,7 +157,8 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                         
                         loss_t = t2np(loss)
                         
-                        writer.add_scalar('loss/training_minibatch',loss, k)
+                        if writer != None:
+                            writer.add_scalar('loss/training_minibatch',loss, k)
                         
                         train_loss.append(loss_t)
                         loss.backward()
@@ -163,7 +167,7 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                         
                         
                         mean_train_loss = np.mean(train_loss)
-                        
+                        # todo fix
                         t2 = time.perf_counter()
                         est_total_train = ((t2-t1) * len(train_loader) * c.sub_epochs * c.meta_epochs) // 60
                         
@@ -182,7 +186,8 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                     if c.scheduler != "none":
                         scheduler.step()
                     
-                    writer.add_scalar('loss/training_subpeoch',mean_train_loss, j)
+                    if writer != None:
+                        writer.add_scalar('loss/training_subpeoch',mean_train_loss, j)
                     
                     if c.verbose:
                         t_e2 = time.perf_counter()
@@ -227,7 +232,9 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                                 print('Sub Epoch: {:d} \t valid_loss: {:4f}'.format(sub_epoch,valid_loss))
                         
                         j += 1
-                        writer.add_scalar('loss/valid_subpeoch',valid_loss, j)
+                        
+                        if writer != None:
+                            writer.add_scalar('loss/valid_subpeoch',valid_loss, j)
                 
 
                 l += 1
@@ -243,13 +250,17 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                     save_weights(model,str(l)+"_"+c.modelname)
                     model.to(c.device)
                 
-                writer.add_scalar('accuracy/training',training_accuracy, l)
+                if writer != None:
+                    writer.add_scalar('accuracy/training',training_accuracy, l)
+                    writer.add_scalar('accuracy/valid',valid_accuracy, l)
+                
                 print(training_accuracy,l)
-                writer.add_scalar('accuracy/valid',valid_accuracy, l)
                 print(valid_accuracy,l)
                 
                 # add param tensorboard scalars
-                writer.add_hparams(hparam_dict = {'learning rate init.':lr_i[0],
+                writer.add_hparams(
+                            hparam_dict = {
+                            'learning rate init.':lr_i[0],
                             'batch size':valid_loader.batch_size,
                             'image height':c.density_map_h,
                             'image width':c.density_map_w,
@@ -261,9 +272,12 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                             'epochs':c.meta_epochs*c.sub_epochs,
                             'no. of coupling blocks':c.n_coupling_blocks,
                             'feat vec length':c.n_feat},
-                           metric_dict = {'accuracy/valid':valid_accuracy,
-                                          'accuracy/training':training_accuracy},
-                           run_name = c.modelname)
+                           metric_dict = {
+                            'accuracy/valid':valid_accuracy,
+                            'accuracy/training':training_accuracy
+                                          },
+                           run_name = c.modelname
+                           )
             
             
                 writer.flush()
@@ -275,7 +289,8 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
             
                 plot_preds(model, valid_loader, plot = True,mnist = c.mnist)
             
-            if c.save_model or battery:
+            # save final model, unless models are being saved at end of every meta peoch
+            if c.save_model and not c.checkpoints:
                 model.to('cpu')
                 save_model(model,c.modelname)
                 save_weights(model, c.modelname)
