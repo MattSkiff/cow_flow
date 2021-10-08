@@ -3,7 +3,7 @@ import os
 from datetime import datetime
 
 # custom config settings
-proj_dir = "/home/matthew/Desktop/laptop_desktop/clones/cow_flow/data"
+proj_dir = "/home/matthew/Desktop/clones/cow_flow/data"
 data_prop = 1 # proportion of the full dataset to use 
 fixed_indices = True # turn this off for actual experiments
 annotations_only = False # whether to only use image patches that have annotations
@@ -21,7 +21,7 @@ else:
 
 test_run = False # use only a small fraction of data to check everything works
 validation = False
-joint_optim = True
+joint_optim = False
 pretrained = True
 feat_extractor = "alexnet" # alexnet, vgg16_bn, none
 gap = False # global average pooling
@@ -39,16 +39,16 @@ elif feat_extractor == "none":
 
 # core hyper params
 weight_decay = 1e-5 # differnet: 1e-5
-n_coupling_blocks = 2
+n_coupling_blocks = 8
 
 # vectorised params must always be passed as lists
-lr_init = [1e-1] #[2e-2,2e-3,2e-4,2e-5,2e-6,2e-7]
-batch_size = [200] # actual batch size is this value multiplied by n_transforms(_test)
+lr_init = [2e-3,2e-2]
+batch_size = [100,200] # actual batch size is this value multiplied by n_transforms(_test)
 
 # total epochs = meta_epochs * sub_epochs
 # evaluation after <sub_epochs> epochs
-meta_epochs = 15
-sub_epochs = 2
+meta_epochs = 2
+sub_epochs = 5
 
 # data settings
 #dataset_path = "mnist_toy"
@@ -124,7 +124,7 @@ verbose = False
 report_freq = 200 # nth minibatch to report on (1 = always)
 dmap_viz = False
 hide_tqdm_bar = False
-save_model = True # also saves a copy of the config file with the name of the model
+save_model = False # also saves a copy of the config file with the name of the model
 checkpoints = False
 
 if debug:
@@ -147,4 +147,4 @@ modelname = "_".join(["LOC",pc,
                       "WD",str(weight_decay),
                       "FE",str(feat_extractor),
                       "LRS",str(scheduler),
-                      "TIME",str(now.strftime("%d/%m/%Y %H:%M:%S"))])
+                      "TIME",str(now.strftime("%d_%m_%Y_%H_%M_%S"))])
