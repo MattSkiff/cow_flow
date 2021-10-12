@@ -13,7 +13,7 @@ import pickle
 from train import train, train_battery
 
 #from utils import load_datasets, make_dataloaders
-from data_loader import CowObjectsDataset, CustToTensor, CustCrop, train_valid_split
+from data_loader import CowObjectsDataset, CustToTensor,CustNormalize, CustCrop, train_valid_split
 
 empty_cache() # free up memory for cuda
 
@@ -28,6 +28,7 @@ mnist_pre = Compose([
 
 dmaps_pre = Compose([
             CustToTensor(),
+            CustNormalize(),
             CustCrop()
         ])
 

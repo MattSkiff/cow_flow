@@ -28,7 +28,7 @@ def train_battery(train_loader,valid_loader,lr_i = c.lr_init):
                     
                     j = j+1
                     
-                    if  not c.debug:
+                    if  c.tb:
                         battery_string = 'battery_'+str(j)
                         bt_id = 'runs/'+c.schema+'/'+battery_string
                         print('beginning: {}\n'.format(bt_id))
@@ -52,7 +52,7 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                 print("Training using {} train samples and {} validation samples...".format(len(train_loader)*train_loader.batch_size,
                                                                                             len(valid_loader)*valid_loader.batch_size))
     
-            if not battery and not c.debug:
+            if not battery and c.tb:
                 writer = SummaryWriter(log_dir='runs/'+c.schema+'/'+c.modelname)
             else:
                 writer = writer
@@ -250,37 +250,38 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                     save_weights(model,str(l)+"_"+c.modelname)
                     model.to(c.device)
                 
+                if c.verbose:
+                    print(training_accuracy,l)
+                    print(valid_accuracy,l)
+                
                 if writer != None:
                     writer.add_scalar('accuracy/training',training_accuracy, l)
                     writer.add_scalar('accuracy/valid',valid_accuracy, l)
                 
-                print(training_accuracy,l)
-                print(valid_accuracy,l)
+                    # add param tensorboard scalars
+                    writer.add_hparams(
+                                hparam_dict = {
+                                'learning rate init.':lr_i[0],
+                                'batch size':valid_loader.batch_size,
+                                'image height':c.density_map_h,
+                                'image width':c.density_map_w,
+                                'mnist?':c.mnist,
+                                'test run?':c.test_run,
+                                'prop. of data':c.data_prop,
+                                'clamp alpha':c.clamp_alpha,
+                                'weight decay':c.weight_decay,
+                                'epochs':c.meta_epochs*c.sub_epochs,
+                                'no. of coupling blocks':c.n_coupling_blocks,
+                                'feat vec length':c.n_feat},
+                               metric_dict = {
+                                'accuracy/valid':valid_accuracy,
+                                'accuracy/training':training_accuracy
+                                              },
+                               run_name = c.modelname
+                               )
                 
-                # add param tensorboard scalars
-                writer.add_hparams(
-                            hparam_dict = {
-                            'learning rate init.':lr_i[0],
-                            'batch size':valid_loader.batch_size,
-                            'image height':c.density_map_h,
-                            'image width':c.density_map_w,
-                            'mnist?':c.mnist,
-                            'test run?':c.test_run,
-                            'prop. of data':c.data_prop,
-                            'clamp alpha':c.clamp_alpha,
-                            'weight decay':c.weight_decay,
-                            'epochs':c.meta_epochs*c.sub_epochs,
-                            'no. of coupling blocks':c.n_coupling_blocks,
-                            'feat vec length':c.n_feat},
-                           metric_dict = {
-                            'accuracy/valid':valid_accuracy,
-                            'accuracy/training':training_accuracy
-                                          },
-                           run_name = c.modelname
-                           )
-            
-            
-                writer.flush()
+                
+                    writer.flush()
             
             
             

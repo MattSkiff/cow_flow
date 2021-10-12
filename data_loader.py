@@ -18,6 +18,7 @@ import matplotlib.patches as patches
 import scipy
 
 from torch.utils.data import Dataset, DataLoader
+import torchvision.transforms.functional as TF
 
 # transforms = todo
 #from torchvision import transforms
@@ -395,7 +396,7 @@ class CustToTensor(object):
         # torch image: C x H x W
         image = image.transpose((2, 0, 1))
         
-        sample['image'] =  torch.from_numpy(image)
+        sample['image'] =  torch.from_numpy(image).float()
         
         if 'density' in sample.keys():
             sample['density'] = torch.from_numpy(sample['density'])
@@ -403,6 +404,17 @@ class CustToTensor(object):
             sample['annotations'] = torch.from_numpy(sample['annotations'])
             sample['labels'] = torch.from_numpy(sample['labels'])
         
+        return sample
+    
+class CustNormalize(object):
+    """Call Normalize transform only on images ."""
+
+    def __call__(self, sample):
+            
+        sample['image'] = TF.normalize(sample['image'], 
+                                       mean =[0.485, 0.456, 0.406],
+                                       std=[0.229, 0.224, 0.225])
+ 
         return sample
     
 class CustCrop(object):
