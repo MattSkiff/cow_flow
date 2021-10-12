@@ -109,4 +109,4 @@ else:
                             num_workers=0,collate_fn=transformed_dataset.custom_collate_density,
                             pin_memory=True,sampler=valid_sampler)
     
-    model = train(train_loader,valid_loader,lr_i=c.lr_init) 
+    #model = train(train_loader,valid_loader,lr_i=c.lr_init) 
