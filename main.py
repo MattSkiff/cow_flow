@@ -13,7 +13,7 @@ import pickle
 from train import train, train_battery
 
 #from utils import load_datasets, make_dataloaders
-from data_loader import CowObjectsDataset, CustToTensor,CustNormalize, CustCrop, train_valid_split
+from data_loader import CowObjectsDataset, CustToTensor,AerialNormalize, DmapAddUniformNoise, CustCrop, train_valid_split
 
 empty_cache() # free up memory for cuda
 
@@ -28,7 +28,8 @@ mnist_pre = Compose([
 
 dmaps_pre = Compose([
             CustToTensor(),
-            CustNormalize(),
+            DmapAddUniformNoise(),
+            AerialNormalize(),
             CustCrop()
         ])
 
@@ -42,13 +43,15 @@ if c.mnist:
         toy_sampler = None
     
     if len(c.batch_size) == 1:
-
-            train_loader = DataLoader(mnist_train,batch_size = c.batch_size[0],pin_memory=True,
+        train_loader = DataLoader(mnist_train,batch_size = c.batch_size[0],pin_memory=True,
                                       shuffle=False,sampler=toy_sampler)
-            valid_loader = DataLoader(mnist_test,batch_size = c.batch_size[0],pin_memory=True,
+        valid_loader = DataLoader(mnist_test,batch_size = c.batch_size[0],pin_memory=True,
                                       shuffle=False,sampler=toy_sampler)
-            
-            model = train_battery([train_loader],[valid_loader],lr_i=c.lr_init)
+        if len(c.lr_init) == 1:
+                model = train(train_loader,valid_loader,lr_i=c.lr_init)
+        else:
+                model = train_battery([train_loader],[valid_loader],lr_i=c.lr_init)
+                
     else:
         tls,vls = [],[]
         
@@ -64,7 +67,8 @@ if c.mnist:
 else:
     # instantiate class
     transformed_dataset = CowObjectsDataset(root_dir=c.proj_dir,transform = dmaps_pre,
-                                            convert_to_points=True,generate_density=True)
+                                            convert_to_points=True,generate_density=True,
+                                            count = c.counts)
     
     # create test train split
     # save/load indices as they take a while to gen
