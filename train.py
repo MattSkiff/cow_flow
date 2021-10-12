@@ -2,6 +2,7 @@ import numpy as np
 import torch
 from tqdm import tqdm # progress bar
 import time 
+from datetime import datetime 
 
 import config as c
 
@@ -17,6 +18,10 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 from torch.utils.tensorboard import SummaryWriter
 
 def train_battery(train_loader,valid_loader,lr_i = c.lr_init):
+        
+        print("Starting battery: ",str(datetime.now().strftime("%d/%m/%Y %H:%M:%S")))
+        t1 = time.perf_counter()
+        
     
         if len(lr_i) >= 1 or type(train_loader) == list and type(valid_loader) == list:
             
@@ -44,10 +49,16 @@ def train_battery(train_loader,valid_loader,lr_i = c.lr_init):
             
         else:
             ValueError("lr_i must have more than one value, or the dataloaders must be supplied as lists")
+            
+        t2 = time.perf_counter()
+        print("Battery finished. Time Elapsed (hours): ",round((t2-t1) / 60*60 ,2),"| Datetime:",str(datetime.now().strftime("%d/%m/%Y %H:%M:%S")))
                 
 
 def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None): #def train(train_loader, test_loader):
             
+            run_start = time.perf_counter()
+            print("Starting run: ",str(datetime.now().strftime("%d/%m/%Y %H:%M:%S")))
+    
             if c.verbose:
                 print("Training using {} train samples and {} validation samples...".format(len(train_loader)*train_loader.batch_size,
                                                                                             len(valid_loader)*valid_loader.batch_size))
@@ -85,9 +96,6 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
             for meta_epoch in range(c.meta_epochs):
                 
                 model.train()
-                
-                if c.verbose:
-                    print(F'\nTrain meta epoch {meta_epoch}',"\n")
                 
                 for sub_epoch in range(c.sub_epochs):
                     
@@ -165,26 +173,31 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                         clip_grad_value_(model.parameters(), c.clip_value)
                         optimizer.step()
                         
+                        if c.scheduler != "none":
+                            scheduler.step()
                         
                         mean_train_loss = np.mean(train_loss)
-                        # todo fix
-                        t2 = time.perf_counter()
-                        est_total_train = ((t2-t1) * len(train_loader) * c.sub_epochs * c.meta_epochs) // 60
                         
-                        if i % c.report_freq == 0 and c.verbose:
-                                print('Mini-Batch Time: {:f}, Mini-Batch: {:d}, Mini-Batch train loss: {:.4f}'.format(t2-t1,i, mean_train_loss))
+                        t2 = time.perf_counter()
+                        
+                        # todo: account for validation iterations
+                        total_iter = len(train_loader) * c.sub_epochs * c.meta_epochs + (len(valid_loader) * c.meta_epochs)
+                        #passed_iter = len(train_loader) * j + (len(valid_loader) * j / c.sub_epochs) + i
+                        est_total_train = round(((t2-t1) * (total_iter-k)) / 60,2)
+                        
+                        if k % c.report_freq == 0 and c.verbose and k != 0:
+                                print('Mini-Batch Time: {:f}, Mini-Batch: {:d}, Mini-Batch train loss: {:.4f}'.format(t2-t1,i+1, mean_train_loss))
                                 print('Meta Epoch: {:d}, Sub Epoch: {:d}'.format(meta_epoch, sub_epoch))
                                 print('{:d} Mini-Batches in sub-epoch remaining'.format(len(train_loader)-i))
-                                print('Est Total Training Time (minutes): {:f}'.format(est_total_train))
+                                print('Total Iterations: ',total_iter)
+                                print('Passed Iterations: ',k)
+                                print('Est Total Training Time (mins): {:f}'.format(est_total_train))
                         
                         if c.debug and not c.mnist:
                             print("number of elements in density maps list:")
                             print(len(dmaps)) # images
                             print("number of images in image tensor:")
-                            print(len(images)) # features
-                    
-                    if c.scheduler != "none":
-                        scheduler.step()
+                            print(len(images)) # features                
                     
                     if writer != None:
                         writer.add_scalar('loss/training_subpeoch',mean_train_loss, j)
@@ -224,6 +237,7 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                                     print('count: {:f}'.format(dmaps.sum()))
             
                             loss = get_loss(z, log_det_jac)
+                            k += 1
                             valid_loss.append(t2np(loss))
                              
                         valid_loss = np.mean(np.array(valid_loss))
@@ -231,12 +245,10 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                         if c.verbose:
                                 print('Sub Epoch: {:d} \t valid_loss: {:4f}'.format(sub_epoch,valid_loss))
                         
-                        j += 1
-                        
                         if writer != None:
                             writer.add_scalar('loss/valid_subpeoch',valid_loss, j)
-                
-
+                            
+                    j += 1
                 l += 1
                 
                 if c.mnist:
@@ -250,9 +262,9 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                     save_weights(model,str(l)+"_"+c.modelname)
                     model.to(c.device)
                 
-                if c.verbose:
-                    print(training_accuracy,l)
-                    print(valid_accuracy,l)
+                print("\n")
+                print("Training Accuracy: ", training_accuracy,"| Epoch: ",l)
+                print("Valid Accuracy: ",valid_accuracy,"| Epoch: ",l)
                 
                 if writer != None:
                     writer.add_scalar('accuracy/training',training_accuracy, l)
@@ -297,5 +309,7 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                 save_weights(model, c.modelname)
                 model.to(c.device)
             
+            run_end = time.perf_counter()
+            print("Run finished. Time Elapsed (mins): ",round((run_end-run_start)/60,2),"| Datetime:",str(datetime.now().strftime("%d/%m/%Y %H:%M:%S")))
             if not battery:
                 return model

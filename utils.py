@@ -6,6 +6,7 @@ from tqdm import tqdm
 import os
 import torch
 import numpy as np
+import random
 
 VIZ_DIR = './viz'
 
@@ -52,9 +53,24 @@ def init_weights(m):
         torch.nn.init.xavier_uniform(m.weight)
         m.bias.data.fill_(0.01)
 
-        
+class UnNormalize(object):
+    def __init__(self, mean, std):
+        self.mean = mean
+        self.std = std
 
-def plot_preds(model, validloader, plot = True, save=False,title = "",digit=None,hist=True,sampling="randn",mnist=True):
+    def __call__(self, tensor):
+        """
+        Args:
+            tensor (Tensor): Tensor image of size (C, H, W) to be normalized.
+        Returns:
+            Tensor: Normalized image.
+        """
+        for t, m, s in zip(tensor, self.mean, self.std):
+            t.mul_(s).add_(m)
+            # The normalize code -> t.sub_(m).div_(s)
+        return tensor      
+
+def plot_preds(model, loader, plot = True, save=False,title = "",digit=None,hist=True,sampling="randn",mnist=True,plot_n=None):
     """
 
 
@@ -62,10 +78,10 @@ def plot_preds(model, validloader, plot = True, save=False,title = "",digit=None
     ----------
     model
         A saved model, either MNISTFlow or CowFlow
-    validloader
-        A dataloader of validation samples.
+    loader
+        A dataloader of samples.
     plot : Bool, optional
-        Plots the digit that is being predicted. The default is True.
+        Whether to return a plot or not
     save : TYPE, optional
         DESCRIPTION. The default is True.
     title : TYPE, optional
@@ -76,6 +92,8 @@ def plot_preds(model, validloader, plot = True, save=False,title = "",digit=None
         Plot histogram of predictions. The default is True.
     sampling : TYPE, optional
         Three options: zeros, ones or randn (i.e. ~N(0,1) ). The default is "randn".
+    digit: 
+        If 'None' and plot_n == 'None', a random digits will be plotted, else the digit specified will be plotted
 
     Returns
     -------
@@ -87,103 +105,141 @@ def plot_preds(model, validloader, plot = True, save=False,title = "",digit=None
 
     """
     
-    for i, data in enumerate(tqdm(validloader, disable=c.hide_tqdm_bar)):
+    if plot_n != None and digit != None:
+        print("Warning: plot_n argument will be ignored")
+    elif plot_n == None and digit == None:
+        print("Plotting a random digit")
+    elif plot_n != None:
+        print("Plotting first {} digits".format(plot_n))
+    
+    def inner_func(model=model):
         
-        if c.mnist:
-            images,labels = data
-        else:
-            images,dmaps,labels = data
-            
-        lb_idx = 0
-            
-        if not mnist:
-            
-            # check annotations in batch aren't empty
-            for j in range(validloader.batch_size):
-                if len(labels[j]) !=0:
-                    lb_idx = j
-                    break
-                
-            if lb_idx == 0:
-                continue  
+        idx = random.randint(0,len(loader)-1)
         
-        if (mnist and labels.size) or not mnist: # triggers only if there is at least one annotation
-            
-            # Z shape: torch.Size([2, 4, 300, 400]) (batch size = 2)
-            
-            if not mnist:
-                dummy_z = (randn(c.batch_size[0], 1024,17,24, requires_grad=True)).to(c.device)
+        k = 0
+        
+        for i, data in enumerate(tqdm(loader, disable=c.hide_tqdm_bar)):
+     
+            if mnist:
+                images,labels = data
             else:
-                if sampling == 'ones':
-                    dummy_z = (torch.ones(c.batch_size[0], c.channels*4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True).to(c.device))
-                elif sampling == "zeros":
-                    dummy_z = torch.zeros(c.batch_size[0], c.channels*4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True).to(c.device)
-                elif sampling == "randn":
-                    dummy_z = (randn(c.batch_size[0], c.channels*4, c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True)).to(c.device)
-                else:
-                    ValueError("Invalid function arg (sampling). Try 'randn', 'zeros' or 'ones'.")
+                images,dmaps,labels = data
             
-            images = images.float().to(c.device)
-            dummy_z = dummy_z.float().to(c.device)
-            
-            model = model.to(c.device)
-            
-            x, log_det_jac = model(images,dummy_z,rev=True)
-            
-            if c.one_hot:
+            lb_idx = random.randint(0,3)
                 
-                x = x.argmax(-3).to(torch.float)
-            
-            dmap_rev_np = x[lb_idx].squeeze().cpu().detach().numpy()
-            mean_pred = x[lb_idx].mean()
-            sum_pred = x[lb_idx].sum()
-            
-            if plot:
+            if not mnist:
                 
-                n_plots = 3+hist-mnist
+                # check annotations in batch aren't empty
+                lb_idx = 0
+                for j in range(loader.batch_size):
+                    if len(labels[j]) !=0:
+                        lb_idx = j
+                        break
                     
-                    
-                fig, ax = plt.subplots(n_plots,1)
-                plt.ioff()
-                if mnist:
-                    fig.suptitle('{} \n mean reconstruction: {:.2f}'.format(title,mean_pred),y=1.0,fontsize=24)
-                else:
-
-                    fig.suptitle('{} \n Predicted count: {:.2f}'.format(title,sum_pred),y=1.0,fontsize=24)
-                fig.set_size_inches(8*1,12*1)
-                fig.set_dpi(100)
-                
-                if c.mnist:
-                    im = images[lb_idx].squeeze().cpu().numpy()
-                else:
-                    im = 255-images[lb_idx].permute(1,2,0).cpu().numpy()
-                    
-                ax[0].imshow(dmap_rev_np, cmap='viridis', interpolation='nearest')
-                
-                if c.mnist:
-                    ax[1].imshow(im)
-                    if hist:
-                        ax[2].hist(dmap_rev_np.flatten(),bins = 30)
-                else:
-                    ax[1].imshow((im * 255).astype(np.uint8))
-                    ax[2].imshow(dmaps[lb_idx])
-                    if hist:
-                        ax[3].hist(dmap_rev_np.flatten(),bins = 30)
-                    
-                
-                if save:
-                    if not os.path.exists(VIZ_DIR):
-                        os.makedirs(VIZ_DIR)
-                    plt.savefig("{}/{}.jpg".format(VIZ_DIR,c.modelname), bbox_inches='tight', pad_inches = 0)
+                if lb_idx == 0:
+                    continue  
             
-            break
-
-    if mnist:
-        out = labels[lb_idx],dmap_rev_np, mean_pred 
-    else:
-        out = dmaps[lb_idx].sum(),dmap_rev_np, sum_pred
+            if i != idx and plot_n == None and digit == None:
+                continue
+            
+            if (mnist and labels.size) or not mnist: # triggers only if there is at least one annotation
+                # Z shape: torch.Size([2, 4, 300, 400]) (batch size = 2)
+                
+                if not mnist:
+                    dummy_z = (randn(c.batch_size[0], 1024,17,24, requires_grad=True)).to(c.device)
+                else:
+                    if sampling == 'ones':
+                        dummy_z = (torch.ones(loader.batch_size, c.channels*4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True).to(c.device))
+                    elif sampling == "zeros":
+                        dummy_z = torch.zeros(loader.batch_size, c.channels*4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True).to(c.device)
+                    elif sampling == "randn":
+                        dummy_z = (randn(loader.batch_size, c.channels*4, c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True)).to(c.device)
+                    else:
+                        ValueError("Invalid function arg (sampling). Try 'randn', 'zeros' or 'ones'.")
+                
+                images = images.float().to(c.device)
+                dummy_z = dummy_z.float().to(c.device)
+                
+                model = model.to(c.device)
+                
+                x, log_det_jac = model(images,dummy_z,rev=True)
+                
+                if c.one_hot:
+                    
+                    x = x.argmax(-3).to(torch.float)
+                
+                if  plot_n != None:
+                    lb_idx = range(loader.batch_size)
+                else:
+                    lb_idx = [lb_idx]
+                
+                for lb_idx in lb_idx:
+                
+                    dmap_rev_np = x[lb_idx].squeeze().cpu().detach().numpy()
+                    mean_pred = x[lb_idx].mean()
+                    sum_pred = x[lb_idx].sum()
+                    
+                    if plot:
+                        
+                        n_plots = 3+hist-mnist
+                               
+                        fig, ax = plt.subplots(n_plots,1)
+                        plt.ioff()
+                        if mnist:
+                            fig.suptitle('{} \n mean reconstruction: {:.2f}'.format(title,mean_pred),y=1.0,fontsize=24)
+                        else:
+        
+                            fig.suptitle('{} \n Predicted count: {:.2f}'.format(title,sum_pred),y=1.0,fontsize=24)
+                        fig.set_size_inches(8*1,12*1)
+                        fig.set_dpi(100)
+                        
+                        if c.mnist:
+                            im = images[lb_idx].squeeze().cpu().numpy()
+                        else:
+                            im = UnNormalize(im, 
+                                             mean =[0.485, 0.456, 0.406],
+                                             std=[0.229, 0.224, 0.225])
+                            
+                            im = 255-images[lb_idx].permute(1,2,0).cpu().numpy()
+                            
+                        ax[0].imshow(dmap_rev_np, cmap='viridis', interpolation='nearest')
+                        
+                        if c.mnist:
+                            ax[1].imshow(im)
+                            if hist:
+                                ax[2].hist(dmap_rev_np.flatten(),bins = 30)
+                        else:
+                            ax[1].imshow((im * 255).astype(np.uint8))
+                            ax[2].imshow(dmaps[lb_idx])
+                            if hist:
+                                ax[3].hist(dmap_rev_np.flatten(),bins = 30)
+                            
+                        
+                        if save:
+                            if not os.path.exists(VIZ_DIR):
+                                os.makedirs(VIZ_DIR)
+                            plt.savefig("{}/{}.jpg".format(VIZ_DIR,c.modelname), bbox_inches='tight', pad_inches = 0)
+                        
+                        if mnist:
+                            out = labels[lb_idx],dmap_rev_np, mean_pred 
+                        else:
+                            out = dmaps[lb_idx].sum(),dmap_rev_np, sum_pred
+                        
+                        if digit != None and labels[idx] == digit:
+                            return out 
+                        
+                        if plot_n != None:
+                            k = k+1
+                            if k >= plot_n:
+                                lb_idx = lb_idx
+                                return out
+                        else:
+                            return out
+                            
+    out = inner_func()       
         
     return out
+
 
 def get_likelihood(model, validloader, plot = True,save=False,digit=None,ood=False):
     # TODO - more sophisticated ood test of likelihood
