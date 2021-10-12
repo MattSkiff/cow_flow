@@ -1,13 +1,12 @@
 from torch import randn
 from tqdm import tqdm
-import numpy as np
-from scipy import stats
 import config as c
+import numpy as np
 import torch
 
 # TODO extra args: plot = True, save=True,hist=True
 # TODO: don't shift computation over to cpu after sampling from model
-def eval_mnist(model, validloader, trainloader,samples = 1,confusion = False): 
+def eval_mnist(model, validloader, trainloader,samples = 1,confusion = False, preds = False): 
     ''' currently the confusion matrix is calculated across both train and validation splits'''
     model.eval()
     accuracies = []
@@ -38,24 +37,29 @@ def eval_mnist(model, validloader, trainloader,samples = 1,confusion = False):
                 
                 if c.one_hot:
                     x = x.argmax(-3).to(torch.float)
-                 
+                    
                 dims = (1,2,3)
                  
                 if c.one_hot:
                     dims = (1,2)
-                    
-                mean_preds = np.round(x.mean(dim = dims).cpu().detach().numpy())
-                mean_array.append(mean_preds)
+                
+                x = torch.reshape(x,(loader.batch_size,c.density_map_h ** 2)) # torch.Size([200, 12, 12])
+                raw_preds = x  # torch.Size([200, 144])
+                x = torch.mode(x,dim = 1).values.cpu().detach().numpy() #print(x.shape) (200,)
+                
+                #mean_preds = np.round(x.mean(dim = dims).cpu().detach().numpy()) # calculate using mean of preds, not mode
+                mean_array.append(x) # mean_preds
             
             # https://stackoverflow.com/questions/48199077/elementwise-aggregation-average-of-values-in-a-list-of-numpy-arrays-with-same
-            mean_preds = np.mean(mean_array,axis=0)
+            #mean_preds = np.mean(mean_array,axis=0)
                 
             labels = labels.cpu().detach().numpy()
             
-            tally += (labels == mean_preds).sum()
+            tally += (labels == x).sum() # mean_preds
+            #print(tally)
             
             if confusion:
-                p.append(mean_preds)
+                p.append(x)
                 l.append(labels)
         
         accuracies.append(round(tally/(len(loader.dataset))*100,2))
@@ -73,6 +77,9 @@ def eval_mnist(model, validloader, trainloader,samples = 1,confusion = False):
             cmt[tl, pl] = cmt[tl, pl] + 1
         
         out = out + (cmt,) 
+    
+    if preds:
+        out = out + (raw_preds,)
 
     return  out # train, valid
 

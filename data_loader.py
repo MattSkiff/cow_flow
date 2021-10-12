@@ -29,6 +29,7 @@ from torchvision import utils
 from skimage import io
 from PIL import Image
 
+from utils import AddUniformNoise
 import config as c
 
 proj_dir = c.proj_dir
@@ -41,7 +42,7 @@ mk_size = 25
 class CowObjectsDataset(Dataset):
     """Cow Objects dataset."""
 
-    def __init__(self, root_dir,transform=None,convert_to_points=False,generate_density=False):
+    def __init__(self, root_dir,transform=None,convert_to_points=False,generate_density=False,count=False):
         """
         Args:
             root_dir (string): Directory with the following structure:
@@ -60,6 +61,7 @@ class CowObjectsDataset(Dataset):
         self.transform = transform
         self.points = convert_to_points
         self.density = generate_density
+        self.count = count
         
         names = []
         with open(os.path.join(self.root_dir,"object.names")) as f:
@@ -164,14 +166,21 @@ class CowObjectsDataset(Dataset):
                     if c.debug:
                         print(base_map.sum())
                         print(density_map.sum())
+                         
+                    if self.count:
+                        count = density_map.sum()
+                        
                 
         labels = np.array(labels) # list into default collate function produces empty tensors
         
         if not self.density:
             sample = {'image': image, 'annotations': annotations}
             
-        if self.density:  
+        if self.density and not self.count:  
             sample = {'image': image, 'density': density_map, 'labels': labels}
+            
+        if self.density and self.count:
+            sample = {'image': image, 'density': density_map, 'labels': labels,'count':count}
 
         if self.transform:
             sample = self.transform(sample)
@@ -406,7 +415,7 @@ class CustToTensor(object):
         
         return sample
     
-class CustNormalize(object):
+class AerialNormalize(object):
     """Call Normalize transform only on images ."""
 
     def __call__(self, sample):
@@ -416,6 +425,16 @@ class CustNormalize(object):
                                        std=[0.229, 0.224, 0.225])
  
         return sample
+
+class DmapAddUniformNoise(object):
+    
+    def __call__(self, sample):
+            
+        sample['density'] = AddUniformNoise(sample['density'])
+        
+        return sample
+    
+    
     
 class CustCrop(object):
     """Crop images to match vgg feature sizes."""
