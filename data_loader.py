@@ -428,13 +428,16 @@ class AerialNormalize(object):
 
 class DmapAddUniformNoise(object):
     
+    def __init__(self, r1=0., r2=1e-3):
+        self.r1 = r1
+        self.r2 = r2
+    
     def __call__(self, sample):
-            
-        sample['density'] = AddUniformNoise(sample['density'])
+        # uniform tensor in pytorch: 
+        # https://stackoverflow.com/questions/44328530/how-to-get-a-uniform-distribution-in-a-range-r1-r2-in-pytorch
+        sample['density'] = sample['density'] + torch.FloatTensor(sample['density'].size()).uniform_(self.r1, self.r2)
         
         return sample
-    
-    
     
 class CustCrop(object):
     """Crop images to match vgg feature sizes."""

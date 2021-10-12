@@ -70,9 +70,9 @@ class UnNormalize(object):
             # The normalize code -> t.sub_(m).div_(s)
         return tensor      
 
-def plot_preds(model, loader, plot = True, save=False,title = "",digit=None,hist=True,sampling="randn",mnist=True,plot_n=None):
+# TODO split into minst and non mnist funcs
+def plot_preds(model, loader, plot = True, save=False,title = "",digit=None,hist=True,sampling="randn",plot_n=None):
     """
-
 
     Parameters
     ----------
@@ -81,7 +81,7 @@ def plot_preds(model, loader, plot = True, save=False,title = "",digit=None,hist
     loader
         A dataloader of samples.
     plot : Bool, optional
-        Whether to return a plot or not
+        Whether to return a plot or not. If not MNISt, will cycle through data loader until an item with an annotation is found.
     save : TYPE, optional
         DESCRIPTION. The default is True.
     title : TYPE, optional
@@ -94,6 +94,8 @@ def plot_preds(model, loader, plot = True, save=False,title = "",digit=None,hist
         Three options: zeros, ones or randn (i.e. ~N(0,1) ). The default is "randn".
     digit: 
         If 'None' and plot_n == 'None', a random digits will be plotted, else the digit specified will be plotted
+    plot_n:
+        Plots n plots from the loader sequentially. If not MNIST, plots null-labelled data.
 
     Returns
     -------
@@ -105,18 +107,28 @@ def plot_preds(model, loader, plot = True, save=False,title = "",digit=None,hist
 
     """
     
-    if plot_n != None and digit != None:
-        print("Warning: plot_n argument will be ignored")
-    elif plot_n == None and digit == None:
-        print("Plotting a random digit")
-    elif plot_n != None:
-        print("Plotting first {} digits".format(plot_n))
+    if str(type(model)) == "<class 'model.CowFlow'>":
+        mnist = False
+    
+    if not mnist and digit != None:
+        print('Digit argument ignored for non-MNIST models')
+    
+    if mnist:
+        if plot_n != None and digit != None:
+            print("Warning: plot_n argument will be ignored")
+        elif plot_n == None and digit == None:
+            print("Plotting a random digit")
+        elif plot_n != None:
+            print("Plotting first {} digits".format(plot_n))
     
     def inner_func(model=model):
         
+ 
         idx = random.randint(0,len(loader)-1)
         
         k = 0
+        # TODO: better var name
+        z = 0 
         
         for i, data in enumerate(tqdm(loader, disable=c.hide_tqdm_bar)):
      
@@ -130,16 +142,21 @@ def plot_preds(model, loader, plot = True, save=False,title = "",digit=None,hist
             if not mnist:
                 
                 # check annotations in batch aren't empty
-                lb_idx = 0
+                lb_idx = None
+                 
                 for j in range(loader.batch_size):
-                    if len(labels[j]) !=0:
+                    z = z+1
+                    if z >= len(loader)*loader.batch_size:
+                        raise ValueError("Loader has no labelled data!")
+                        
+                    if len(labels[j]) != 0:
                         lb_idx = j
                         break
                     
-                if lb_idx == 0:
+                if lb_idx == None:
                     continue  
             
-            if i != idx and plot_n == None and digit == None:
+            if i != idx and plot_n == None and digit == None and mnist:
                 continue
             
             if (mnist and labels.size) or not mnist: # triggers only if there is at least one annotation
@@ -159,10 +176,11 @@ def plot_preds(model, loader, plot = True, save=False,title = "",digit=None,hist
                 
                 images = images.float().to(c.device)
                 dummy_z = dummy_z.float().to(c.device)
-                
                 model = model.to(c.device)
-                
                 x, log_det_jac = model(images,dummy_z,rev=True)
+                
+                if lb_idx == None:
+                    lb_idx = 0
                 
                 if c.one_hot:
                     
@@ -185,22 +203,25 @@ def plot_preds(model, loader, plot = True, save=False,title = "",digit=None,hist
                                
                         fig, ax = plt.subplots(n_plots,1)
                         plt.ioff()
+                        
                         if mnist:
                             fig.suptitle('{} \n mean reconstruction: {:.2f}'.format(title,mean_pred),y=1.0,fontsize=24)
                         else:
         
                             fig.suptitle('{} \n Predicted count: {:.2f}'.format(title,sum_pred),y=1.0,fontsize=24)
+                            
                         fig.set_size_inches(8*1,12*1)
                         fig.set_dpi(100)
                         
                         if c.mnist:
                             im = images[lb_idx].squeeze().cpu().numpy()
                         else:
-                            im = UnNormalize(im, 
-                                             mean =[0.485, 0.456, 0.406],
-                                             std=[0.229, 0.224, 0.225])
+                            unnorm = UnNormalize(mean =(0.485, 0.456, 0.406),
+                                                 std=(0.229, 0.224, 0.225))
                             
-                            im = 255-images[lb_idx].permute(1,2,0).cpu().numpy()
+                            im = unnorm(images[lb_idx])
+                            
+                            im = 255-im.permute(1,2,0).cpu().numpy()
                             
                         ax[0].imshow(dmap_rev_np, cmap='viridis', interpolation='nearest')
                         
@@ -237,7 +258,7 @@ def plot_preds(model, loader, plot = True, save=False,title = "",digit=None,hist
                             return out
                             
     out = inner_func()       
-        
+
     return out
 
 
