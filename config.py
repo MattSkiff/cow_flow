@@ -2,12 +2,12 @@
 import os
 from datetime import datetime
 
-# custom config settings
-proj_dir = "/home/matthew/Desktop/clones/cow_flow/data"
+proj_dir = "/home/mks29/clones/cow_flow/data"
 data_prop = 0.1 # proportion of the full dataset to use 
 fixed_indices = True # turn this off for actual experiments
 annotations_only = False # whether to only use image patches that have annotations
-mnist = False 
+counts = True
+mnist = True 
 
 if mnist:
     one_hot = True # only for MNIST
@@ -23,7 +23,7 @@ test_run = False # use only a small fraction of data to check everything works
 validation = False
 joint_optim = False
 pretrained = True
-feat_extractor = "vgg16_bn" # alexnet, vgg16_bn, none
+feat_extractor = "alexnet" # alexnet, vgg16_bn, none
 gap = False # global average pooling
 clip_value = 1 # gradient clipping
 scheduler = 'exponential' # exponential, none
@@ -39,16 +39,16 @@ elif feat_extractor == "none":
 
 # core hyper params
 weight_decay = 1e-5 # differnet: 1e-5
-n_coupling_blocks = 2
+n_coupling_blocks = 7
 
 # vectorised params must always be passed as lists
-lr_init = [2e-4]
-batch_size = [1] # actual batch size is this value multiplied by n_transforms(_test)
+lr_init = [5e-2,2e-3,5e-4]
+batch_size = [100,200,400] # actual batch size is this value multiplied by n_transforms(_test)
 
 # total epochs = meta_epochs * sub_epochs
 # evaluation after <sub_epochs> epochs
-meta_epochs = 1
-sub_epochs = 1
+meta_epochs = 2
+sub_epochs = 5
 
 # data settings
 #dataset_path = "mnist_toy"
@@ -120,9 +120,9 @@ n_transforms_test = 64 # number of transformations per sample in testing
 
 # output settings
 debug = False
-tb = False
+tb = True
 verbose = False
-report_freq = 200 # nth minibatch to report on (1 = always)
+report_freq = 50 # nth minibatch to report on (1 = always)
 dmap_viz = False
 hide_tqdm_bar = False
 save_model = False # also saves a copy of the config file with the name of the model
@@ -131,7 +131,7 @@ checkpoints = False
 if debug:
     schema = 'schema/debug'
 else:
-    schema = 'schema/debug'
+    schema = 'schema/bs_lr'
   
 now = datetime.now() 
   
