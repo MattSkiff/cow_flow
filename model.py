@@ -303,7 +303,7 @@ class MNISTFlow(nn.Module):
         z = self.nf(x_or_z = labels,c = feats,rev=rev)
         return z
 
-def save_cstate(cdir,config_file):
+def save_cstate(cdir,modelname,config_file):
     ''' saves a snapshot of the config file before running and saving model '''
     if not os.path.exists(C_DIR):
         os.makedirs(C_DIR)
@@ -313,7 +313,7 @@ def save_cstate(cdir,config_file):
     if c.verbose:
         'Config file copied to {}'.format(C_DIR)
     
-    new_name = os.path.join(cdir, base+"_"+c.modelname+".txt")
+    new_name = os.path.join(cdir, base+"_"+modelname+".txt")
     
     shutil.copy(config_file, new_name)
 
@@ -322,7 +322,7 @@ def save_model(model, filename):
         os.makedirs(MODEL_DIR)
     torch.save(model, os.path.join(MODEL_DIR,filename), pickle_module=dill)
     print("model {} saved".format(filename))
-    save_cstate(cdir=C_DIR,config_file="config.py")
+    save_cstate(cdir=C_DIR,modelname="",config_file="config.py")
     
 def load_model(filename):
     path = os.path.join(MODEL_DIR, filename)

@@ -55,6 +55,45 @@ def train_battery(train_loader,valid_loader,lr_i = c.lr_init):
                 
 
 def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None): #def train(train_loader, test_loader):
+    
+            now = datetime.now() 
+            modelname = "_".join([
+                               c.schema,c.pc,
+                              "JO",str(c.joint_optim),
+                              "PT",str(c.pretrained),
+                              "BS",str(train_loader.batch_size),
+                              "NC",str(c.n_coupling_blocks),
+                              "E",str(c.meta_epochs*c.sub_epochs),
+                              "CT",str(c.counts),
+                              "DIM",str(c.density_map_h),
+                              "LR_I",str(lr_i),
+                              "MNIST",str(c.mnist),
+                              "WD",str(c.weight_decay),
+                              "FE",str(c.feat_extractor),
+                              #"LRS",str(c.scheduler), # only one LR scheduler currently
+                               str(now.strftime("%d_%m_%Y_%H_%M_%S"))
+                      ])
+    
+            print("Training Model: ",modelname)
+    
+            model_hparam_dict = {'learning rate init.':lr_i[0],
+                                'batch size':valid_loader.batch_size,
+                                'image height':c.density_map_h,
+                                'image width':c.density_map_w,
+                                'joint optimisation?':c.joint_optim,
+                                'annotations only?':c.annotations_only,
+                                'pretrained?':c.pretrained,
+                                'mnist?':c.mnist,
+                                'counts?':c.counts,
+                                'test run?':c.test_run,
+                                'prop. of data':c.data_prop,
+                                'clamp alpha':c.clamp_alpha,
+                                'weight decay':c.weight_decay,
+                                'epochs':c.meta_epochs*c.sub_epochs,
+                                'no. of coupling blocks':c.n_coupling_blocks,
+                                'filter size':c.filter_size,
+                                'filter sigma':c.sigma,
+                                'feat vec length':c.n_feat}
             
             run_start = time.perf_counter()
             print("Starting run: ",str(datetime.now().strftime("%d/%m/%Y %H:%M:%S")))
@@ -273,18 +312,17 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                 
                 if c.mnist:
                     valid_accuracy, training_accuracy = eval_mnist(model,valid_loader,train_loader)
+                    print("\n")
+                    print("Training Accuracy: ", training_accuracy,"| Epoch: ",l)
+                    print("Valid Accuracy: ",valid_accuracy,"| Epoch: ",l)
                 else:
                     valid_accuracy, training_accuracy = eval_model(model,valid_loader,train_loader) # does nothing for now
                 
                 if (c.save_model or battery) and c.checkpoints:
                     model.to('cpu')
-                    save_model(model,str(l)+"_"+c.modelname)
-                    save_weights(model,str(l)+"_"+c.modelname)
+                    save_model(model,"checkpoint_"+str(l)+"_"+modelname)
+                    #save_weights(model,"checkpoint_"+str(l)+"_"+modelname) # currently have no use for saving weights
                     model.to(c.device)
-                
-                print("\n")
-                print("Training Accuracy: ", training_accuracy,"| Epoch: ",l)
-                print("Valid Accuracy: ",valid_accuracy,"| Epoch: ",l)
                 
                 if writer != None:
                     writer.add_scalar('accuracy/training',training_accuracy, l)
@@ -293,29 +331,12 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                     # add param tensorboard scalars
                     # TODO: write this to text file and store once per run (instead of cstate copy)
                     writer.add_hparams(
-                                hparam_dict = {
-                                'learning rate init.':lr_i[0],
-                                'batch size':valid_loader.batch_size,
-                                'image height':c.density_map_h,
-                                'image width':c.density_map_w,
-                                'joint optimisation?':c.joint_optim,
-                                'pretrained?':c.pretrained,
-                                'mnist?':c.mnist,
-                                'counts?':c.counts,
-                                'test run?':c.test_run,
-                                'prop. of data':c.data_prop,
-                                'clamp alpha':c.clamp_alpha,
-                                'weight decay':c.weight_decay,
-                                'epochs':c.meta_epochs*c.sub_epochs,
-                                'no. of coupling blocks':c.n_coupling_blocks,
-                                'filter size':c.filter_size,
-                                'filter sigma':c.sigma,
-                                'feat vec length':c.n_feat},
+                               hparam_dict = model_hparam_dict,
                                metric_dict = {
                                 'accuracy/valid':valid_accuracy,
                                 'accuracy/training':training_accuracy
                                               },
-                               run_name = c.modelname
+                               run_name = modelname
                                )
                 
                 
@@ -330,12 +351,20 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
             
             # save final model, unless models are being saved at end of every meta peoch
             if c.save_model and not c.checkpoints:
+                
+                filename = "models/"+"final_"+modelname+".txt"
+                
+                # could switch to using json and print params on model reload
+                with open(filename, 'w') as f:
+                    print(model_hparam_dict, file=f)
+                
                 model.to('cpu')
-                save_model(model,c.modelname)
-                save_weights(model, c.modelname)
+                save_model(model,"final_"+modelname)
+                #save_weights(model, c.modelname) # currently have no use for saving weights
                 model.to(c.device)
             
             run_end = time.perf_counter()
+            print("Finished Model: ",modelname)
             print("Run finished. Time Elapsed (mins): ",round((run_end-run_start)/60,2),"| Datetime:",str(datetime.now().strftime("%d/%m/%Y %H:%M:%S")))
             if not battery:
                 return model

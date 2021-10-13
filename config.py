@@ -1,6 +1,5 @@
 '''This file configures the training procedure'''
 import os
-from datetime import datetime
 
 proj_dir = "/home/matthew/Desktop/laptop_desktop/clones/cow_flow/data"
 data_prop = 0.1 # proportion of the full dataset to use 
@@ -13,7 +12,7 @@ if annotations_only:
 else:
     fixed_indices = True # turn this off for actual experiments, on to speed up code
     
-counts = True
+counts = False
 mnist = False 
 
 if mnist:
@@ -100,7 +99,7 @@ elif mnist and feat_extractor == "none":
 # device settings
 import torch
 
-gpu = True
+gpu = False
 
 if not gpu:
     device = 'cpu' 
@@ -139,26 +138,13 @@ report_freq = 50 # nth minibatch to report on (1 = always)
 dmap_viz = False
 hide_tqdm_bar = False
 save_model = True # also saves a copy of the config file with the name of the model
-checkpoints = True
+checkpoints = False
 
 if debug:
     schema = 'schema/debug'
 else:
-    schema = 'schema/aerial_count_test'
-  
-now = datetime.now() 
+    schema = 'saving_models_test'
   
 pc = os.uname().nodename
-modelname = "_".join(["LOC",pc,
-                      "J-O",str(joint_optim),
-                      "Pre-T",str(pretrained),
-                      "BS",str(batch_size),
-                      "NC",str(n_coupling_blocks),
-                      "EPOCHS",str(meta_epochs*sub_epochs),
-                      "DIM",str(density_map_h),
-                      "LR_I",str(lr_init),
-                      "MNIST",str(mnist),
-                      "WD",str(weight_decay),
-                      "FE",str(feat_extractor),
-                      "LRS",str(scheduler),
-                      "TIME",str(now.strftime("%d_%m_%Y_%H_%M_%S"))])
+
+    

@@ -171,7 +171,7 @@ def plot_preds(model, loader, plot = True, save=False,title = "",digit=None,hist
                     if loader.dataset.count:
                         dummy_z = (randn(c.batch_size[0], 4,18,24, requires_grad=True)).to(c.device)
                     else:
-                        dummy_z = (randn(c.batch_size[0], 1024,17,24, requires_grad=True)).to(c.device)
+                        dummy_z = (randn(c.batch_size[0], 1024,18,24, requires_grad=True)).to(c.device)
                 else:
                     if sampling == 'ones':
                         dummy_z = (torch.ones(loader.batch_size, c.channels*4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True).to(c.device))
@@ -214,8 +214,9 @@ def plot_preds(model, loader, plot = True, save=False,title = "",digit=None,hist
                         
                         if mnist:
                             fig.suptitle('{} \n mean reconstruction: {:.2f}'.format(title,mean_pred),y=1.0,fontsize=24)
+                        elif loader.dataset.count:   
+                            fig.suptitle('{} \n Predicted count: {:.2f}'.format(title,mean_pred),y=1.0,fontsize=24)
                         else:
-        
                             fig.suptitle('{} \n Predicted count: {:.2f}'.format(title,sum_pred),y=1.0,fontsize=24)
                             
                         fig.set_size_inches(8*1,12*1)
