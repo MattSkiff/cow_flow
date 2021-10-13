@@ -113,8 +113,10 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                         
                         optimizer.zero_grad()
                         
-                        if not c.mnist:
+                        if not c.mnist and not c.counts:
                             images,dmaps,labels = data
+                        elif not c.mnist:
+                            images,dmaps,labels,counts = data
                         else:
                             images,labels = data
                         
@@ -124,29 +126,40 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                             
                         images = images.float().to(c.device)
                         
-                        if not c.mnist:
+                        if not c.mnist and not c.counts:
                             dmaps = dmaps.float().to(c.device)
+                        elif not c.mnist:
+                            counts = counts.float().to(c.device)
                         else: 
                             labels = labels.float().to(c.device)
                         
-                        if c.debug and not c.mnist:
+                        if c.debug and not c.mnist and not c.counts:
                             print("density maps from data batch size, device..")
                             print(dmaps.size())
                             print(dmaps.device,"\n")
                             
+                        elif c.debug and not c.mnist:
+                            print("counts from data batch size, device..")
+                            print(counts.size())
+                            print(counts.device,"\n")
+                            
+                        if c.debug:    
                             print("images from data batch size, device..")
                             print(images.size())
                             print(images.device,"\n")
                         
-                            # z is the probability density under the latent normal distribution
-                            print("output of model - two elements: y (z), jacobian")
+                        # z is the probability density under the latent normal distribution
+                        # output of model - two elements: y (z), jacobian
                           
-                        if not c.mnist:
-                            z, log_det_jac = model(images,dmaps) # inputs features,dmaps
+                        if not c.mnist and not c.counts:
+                            input_data = (images,dmaps) # inputs features,dmaps
+                        elif not c.mnist:
+                            input_data = (images,counts) 
                         else:
-                            z, log_det_jac = model(images,labels)
+                            input_data = (images,labels)
                             
-                        
+                        z, log_det_jac = model(*input_data)
+                            
                         # x: inputs (i.e. 'x-side' when rev is False, 'z-side' when rev is True) [FrEIA]
                         # i.e. what y (output) is depends on direction of flow
                         if c.debug:
@@ -183,15 +196,15 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                         # todo: account for validation iterations
                         total_iter = len(train_loader) * c.sub_epochs * c.meta_epochs + (len(valid_loader) * c.meta_epochs)
                         #passed_iter = len(train_loader) * j + (len(valid_loader) * j / c.sub_epochs) + i
-                        est_total_train = round(((t2-t1) * (total_iter-k)) / 60,2)
+                        est_total_time = round(((t2-t1) * (total_iter-k)) / 60,2)
+                        est_remain_time = round(((t2-t1) * (total_iter-k)) / 60,2)
                         
                         if k % c.report_freq == 0 and c.verbose and k != 0:
                                 print('Mini-Batch Time: {:f}, Mini-Batch: {:d}, Mini-Batch train loss: {:.4f}'.format(t2-t1,i+1, mean_train_loss))
-                                print('Meta Epoch: {:d}, Sub Epoch: {:d}'.format(meta_epoch, sub_epoch))
+                                print('Meta Epoch: {:d}, Sub Epoch: {:d}, | Epoch {:d} out of {:d} Total Epochs'.format(meta_epoch, sub_epoch,meta_epoch*c.sub_epochs + sub_epoch,c.meta_epochs*c.sub_epochs))
                                 print('{:d} Mini-Batches in sub-epoch remaining'.format(len(train_loader)-i))
-                                print('Total Iterations: ',total_iter)
-                                print('Passed Iterations: ',k)
-                                print('Est Total Training Time (mins): {:f}'.format(est_total_train))
+                                print('Total Iterations: ',total_iter,'| Passed Iterations: ',k)
+                                print('Total Training Time (mins): {:f3} | Remaining Time (mins): {:f3}'.format(est_total_time,est_remain_time))
                         
                         if c.debug and not c.mnist:
                             print("number of elements in density maps list:")
@@ -217,13 +230,20 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                             for i, data in enumerate(tqdm(valid_loader, disable=c.hide_tqdm_bar)):
                                 
                                 # validation
-                                if not c.mnist:
+                                if not c.mnist and not c.counts:
                                      images,dmaps,labels = data
                                      dmaps = dmaps.float().to(c.device)
                                      images = images.float().to(c.device)
                                      z, log_det_jac = model(images,dmaps)
                                      
                                      valid_counts.append(dmaps.sum())
+                                elif not c.mnist: 
+                                     images,dmaps,labels,counts = data
+                                     counts = counts.float().to(c.device)
+                                     images = images.float().to(c.device)
+                                     z, log_det_jac = model(images,counts)
+                                     
+                                     valid_counts.append(counts.mean())
                                 else:
                                     images,labels = data
                                     labels = torch.Tensor([labels]).to(c.device)
@@ -254,7 +274,7 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                 if c.mnist:
                     valid_accuracy, training_accuracy = eval_mnist(model,valid_loader,train_loader)
                 else:
-                    valid_accuracy, training_accuracy = eval_model(model,valid_loader,train_loader)
+                    valid_accuracy, training_accuracy = eval_model(model,valid_loader,train_loader) # does nothing for now
                 
                 if (c.save_model or battery) and c.checkpoints:
                     model.to('cpu')
@@ -271,19 +291,25 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                     writer.add_scalar('accuracy/valid',valid_accuracy, l)
                 
                     # add param tensorboard scalars
+                    # TODO: write this to text file and store once per run (instead of cstate copy)
                     writer.add_hparams(
                                 hparam_dict = {
                                 'learning rate init.':lr_i[0],
                                 'batch size':valid_loader.batch_size,
                                 'image height':c.density_map_h,
                                 'image width':c.density_map_w,
+                                'joint optimisation?':c.joint_optim,
+                                'pretrained':c.pre_trained,
                                 'mnist?':c.mnist,
+                                'counts?':c.counts,
                                 'test run?':c.test_run,
                                 'prop. of data':c.data_prop,
                                 'clamp alpha':c.clamp_alpha,
                                 'weight decay':c.weight_decay,
                                 'epochs':c.meta_epochs*c.sub_epochs,
                                 'no. of coupling blocks':c.n_coupling_blocks,
+                                'filter size':c.filter_size,
+                                'filter sigma':c.sigma,
                                 'feat vec length':c.n_feat},
                                metric_dict = {
                                 'accuracy/valid':valid_accuracy,
