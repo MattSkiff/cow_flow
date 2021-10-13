@@ -100,7 +100,7 @@ elif mnist and feat_extractor == "none":
 # device settings
 import torch
 
-gpu = False
+gpu = True
 
 if not gpu:
     device = 'cpu' 
@@ -133,8 +133,8 @@ n_transforms_test = 64 # number of transformations per sample in testing
 
 # output settings
 debug = False
-tb = True
-verbose = False
+tb = False
+verbose = True
 report_freq = 50 # nth minibatch to report on (1 = always)
 dmap_viz = False
 hide_tqdm_bar = False
