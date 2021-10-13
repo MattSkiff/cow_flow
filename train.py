@@ -204,7 +204,7 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                                 print('Meta Epoch: {:d}, Sub Epoch: {:d}, | Epoch {:d} out of {:d} Total Epochs'.format(meta_epoch, sub_epoch,meta_epoch*c.sub_epochs + sub_epoch,c.meta_epochs*c.sub_epochs))
                                 print('{:d} Mini-Batches in sub-epoch remaining'.format(len(train_loader)-i))
                                 print('Total Iterations: ',total_iter,'| Passed Iterations: ',k)
-                                print('Total Training Time (mins): {:f3} | Remaining Time (mins): {:f3}'.format(est_total_time,est_remain_time))
+                                print('Total Training Time (mins): {:.2f} | Remaining Time (mins): {:.2f}'.format(est_total_time,est_remain_time))
                         
                         if c.debug and not c.mnist:
                             print("number of elements in density maps list:")
@@ -299,7 +299,7 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                                 'image height':c.density_map_h,
                                 'image width':c.density_map_w,
                                 'joint optimisation?':c.joint_optim,
-                                'pretrained':c.pre_trained,
+                                'pretrained?':c.pretrained,
                                 'mnist?':c.mnist,
                                 'counts?':c.counts,
                                 'test run?':c.test_run,
