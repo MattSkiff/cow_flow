@@ -3,9 +3,16 @@ import os
 from datetime import datetime
 
 proj_dir = "/home/matthew/Desktop/laptop_desktop/clones/cow_flow/data"
-data_prop = 1 # proportion of the full dataset to use 
-fixed_indices = True # turn this off for actual experiments
+data_prop = 0.1 # proportion of the full dataset to use 
+test_train_split = 70 # percentage of data to allocate to train set
 annotations_only = False # whether to only use image patches that have annotations
+
+if annotations_only:
+    fixed_indices = False # must be off for annotations only runs
+    assert not fixed_indices
+else:
+    fixed_indices = True # turn this off for actual experiments, on to speed up code
+    
 counts = True
 mnist = False 
 
@@ -39,7 +46,7 @@ elif feat_extractor == "none":
 
 # core hyper params
 weight_decay = 1e-5 # differnet: 1e-5
-n_coupling_blocks = 8
+n_coupling_blocks = 1
 
 # vectorised params must always be passed as lists
 lr_init = [2e-4]
@@ -47,8 +54,8 @@ batch_size = [4] # actual batch size is this value multiplied by n_transforms(_t
 
 # total epochs = meta_epochs * sub_epochs
 # evaluation after <sub_epochs> epochs
-meta_epochs = 4
-sub_epochs = 3
+meta_epochs = 1
+sub_epochs = 1
 
 # data settings
 #dataset_path = "mnist_toy"
@@ -93,7 +100,7 @@ elif mnist and feat_extractor == "none":
 # device settings
 import torch
 
-gpu = True
+gpu = False
 
 if not gpu:
     device = 'cpu' 

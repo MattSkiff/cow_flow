@@ -74,7 +74,7 @@ else:
     # save/load indices as they take a while to gen
     # https://stackoverflow.com/questions/27745500/how-to-save-a-list-to-a-file-and-read-it-as-a-list-type
     if not c.fixed_indices:
-        train_indices, valid_indices = train_valid_split(dataset = transformed_dataset, train_percent = 70,annotations_only = c.annotations_only)
+        train_indices, valid_indices = train_valid_split(dataset = transformed_dataset, train_percent = c.test_train_split,annotations_only = c.annotations_only)
         
         with open("train_indices.txt", "wb") as fp:   # Pickling
             pickle.dump(train_indices, fp)
