@@ -383,7 +383,9 @@ class CowObjectsDataset(Dataset):
         images = torch.stack(images,dim = 0)
         density = torch.stack(density,dim = 0)
         labels = np.array(labels, dtype=object)
-        counts = torch.stack(counts,dim = 0)
+        
+        if self.count:
+            counts = torch.stack(counts,dim = 0)
         
         if debug:
             print(type(density))
