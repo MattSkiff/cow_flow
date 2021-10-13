@@ -211,7 +211,7 @@ class CowFlow(nn.Module):
         if c.debug:
             print('label sizes: ',labels.size())
         
-        if c.counts:
+        if c.counts and not rev:
             # expand counts out to spatial dims of feats
             labels = labels.unsqueeze(2).unsqueeze(3).expand(-1,-1,feats.size()[2] * 2,feats.size()[3] * 2)
         

@@ -109,6 +109,8 @@ def plot_preds(model, loader, plot = True, save=False,title = "",digit=None,hist
     
     if str(type(model)) == "<class 'model.CowFlow'>":
         mnist = False
+    else:
+        mnist = True
     
     if not mnist and digit != None:
         print('Digit argument ignored for non-MNIST models')
@@ -134,6 +136,8 @@ def plot_preds(model, loader, plot = True, save=False,title = "",digit=None,hist
      
             if mnist:
                 images,labels = data
+            elif loader.dataset.count:
+                images,dmaps,labels,counts = data
             else:
                 images,dmaps,labels = data
             
@@ -163,7 +167,11 @@ def plot_preds(model, loader, plot = True, save=False,title = "",digit=None,hist
                 # Z shape: torch.Size([2, 4, 300, 400]) (batch size = 2)
                 
                 if not mnist:
-                    dummy_z = (randn(c.batch_size[0], 1024,17,24, requires_grad=True)).to(c.device)
+                    # TODO - remove hard coding dims here
+                    if loader.dataset.count:
+                        dummy_z = (randn(c.batch_size[0], 4,18,24, requires_grad=True)).to(c.device)
+                    else:
+                        dummy_z = (randn(c.batch_size[0], 1024,17,24, requires_grad=True)).to(c.device)
                 else:
                     if sampling == 'ones':
                         dummy_z = (torch.ones(loader.batch_size, c.channels*4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True).to(c.device))

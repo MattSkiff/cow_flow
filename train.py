@@ -299,7 +299,7 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                                 'image height':c.density_map_h,
                                 'image width':c.density_map_w,
                                 'joint optimisation?':c.joint_optim,
-                                'pretrained':c.pre_trained,
+                                'pretrained':c.pretrained,
                                 'mnist?':c.mnist,
                                 'counts?':c.counts,
                                 'test run?':c.test_run,
