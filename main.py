@@ -99,14 +99,34 @@ else:
         valid_sampler = SubsetRandomSampler(valid_indices)
     
     if c.verbose:
-        print("Training using {} train samples and {} validation samples...".format(len(train_sampler)*c.batch_size,len(valid_sampler)*c.batch_size))
+        # broken currently for batteries
+        print("Training using {} train samples and {} validation samples...".format(str(len(train_sampler)*int(c.batch_size[0])),str(len(valid_sampler)*int(c.batch_size[0]))))
     
-    train_loader = DataLoader(transformed_dataset, batch_size=c.batch_size[0],shuffle=False, 
+    
+    if len(c.batch_size) == 1:
+        train_loader = DataLoader(transformed_dataset, batch_size=c.batch_size[0],shuffle=False, 
                             num_workers=0,collate_fn=transformed_dataset.custom_collate_density,
                             pin_memory=True,sampler=train_sampler)
     
-    valid_loader = DataLoader(transformed_dataset, batch_size=c.batch_size[0],shuffle=False, 
+        valid_loader = DataLoader(transformed_dataset, batch_size=c.batch_size[0],shuffle=False, 
                             num_workers=0,collate_fn=transformed_dataset.custom_collate_density,
                             pin_memory=True,sampler=valid_sampler)
-    
-    #model = train(train_loader,valid_loader,lr_i=c.lr_init) 
+        
+        if len(c.lr_init) == 1:
+                model = train(train_loader,valid_loader,lr_i=c.lr_init)
+        else:
+                model = train_battery([train_loader],[valid_loader],lr_i=c.lr_init)
+                
+    else:
+        tls,vls = [],[]
+        
+        for bs in c.batch_size:
+            tls.append(DataLoader(transformed_dataset, batch_size=bs,shuffle=False, 
+                            num_workers=0,collate_fn=transformed_dataset.custom_collate_density,
+                            pin_memory=True,sampler=train_sampler))
+            
+            vls.append(DataLoader(transformed_dataset, batch_size=bs,shuffle=False, 
+                            num_workers=0,collate_fn=transformed_dataset.custom_collate_density,
+                            pin_memory=True,sampler=valid_sampler))
+            
+            model = train_battery(tls,vls,lr_i=c.lr_init)

@@ -39,11 +39,11 @@ elif feat_extractor == "none":
 
 # core hyper params
 weight_decay = 1e-5 # differnet: 1e-5
-n_coupling_blocks = 7
+n_coupling_blocks = 1
 
 # vectorised params must always be passed as lists
-lr_init = [2e-3]
-batch_size = [10] # actual batch size is this value multiplied by n_transforms(_test)
+lr_init = [2e-3,2e-4]
+batch_size = [2,4] # actual batch size is this value multiplied by n_transforms(_test)
 
 # total epochs = meta_epochs * sub_epochs
 # evaluation after <sub_epochs> epochs
@@ -120,7 +120,7 @@ n_transforms_test = 64 # number of transformations per sample in testing
 
 # output settings
 debug = False
-tb = True
+tb = False
 verbose = False
 report_freq = 50 # nth minibatch to report on (1 = always)
 dmap_viz = False
@@ -131,7 +131,7 @@ checkpoints = False
 if debug:
     schema = 'schema/debug'
 else:
-    schema = 'schema/bs_lr'
+    schema = 'schema/debug'
   
 now = datetime.now() 
   
