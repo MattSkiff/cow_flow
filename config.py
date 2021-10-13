@@ -6,7 +6,7 @@ proj_dir = "/home/matthew/Desktop/laptop_desktop/clones/cow_flow/data"
 data_prop = 1 # proportion of the full dataset to use 
 fixed_indices = True # turn this off for actual experiments
 annotations_only = False # whether to only use image patches that have annotations
-counts = False
+counts = True
 mnist = False 
 
 if mnist:
@@ -23,7 +23,7 @@ test_run = False # use only a small fraction of data to check everything works
 validation = False
 joint_optim = False
 pretrained = True
-feat_extractor = "alexnet" # alexnet, vgg16_bn, none
+feat_extractor = "vgg16_bn" # alexnet, vgg16_bn, none
 gap = False # global average pooling
 clip_value = 1 # gradient clipping
 scheduler = 'exponential' # exponential, none
@@ -39,16 +39,16 @@ elif feat_extractor == "none":
 
 # core hyper params
 weight_decay = 1e-5 # differnet: 1e-5
-n_coupling_blocks = 1
+n_coupling_blocks = 8
 
 # vectorised params must always be passed as lists
-lr_init = [2e-3,2e-4]
-batch_size = [2,4] # actual batch size is this value multiplied by n_transforms(_test)
+lr_init = [2e-4]
+batch_size = [4] # actual batch size is this value multiplied by n_transforms(_test)
 
 # total epochs = meta_epochs * sub_epochs
 # evaluation after <sub_epochs> epochs
-meta_epochs = 2
-sub_epochs = 5
+meta_epochs = 4
+sub_epochs = 3
 
 # data settings
 #dataset_path = "mnist_toy"
@@ -68,9 +68,14 @@ filter_size = 15 # as per single image mcnn paper
 sigma = 4.0 # "   -----    "
 
 # TODO: rename this parameter
-if not mnist:
+if not mnist and not counts:
+    # size of cropped dmaps
     density_map_h = 576 #img_size[1]
     density_map_w = 800 #img_size[0]
+elif not mnist:
+    # size of count expanded to map spatial feature dimensions
+    density_map_h = 18 * 2 # need at least 2 channels, expand x2, then downsample (haar)
+    density_map_w = 24 * 2
 elif mnist and feat_extractor != "none":
     if gap:
         density_map_h = img_size[1] * 2
@@ -79,6 +84,7 @@ elif mnist and feat_extractor != "none":
         density_map_h = 6 * 2
         density_map_w = 6 * 2 # feature size x2 (account for downsampling)
 elif mnist and feat_extractor == "none":
+    # minimum possible dimensionality of flow possible with coupling layers
     density_map_h = 4
     density_map_w = 4
 
@@ -87,7 +93,7 @@ elif mnist and feat_extractor == "none":
 # device settings
 import torch
 
-gpu = False
+gpu = True
 
 if not gpu:
     device = 'cpu' 
@@ -104,7 +110,7 @@ else:
     
 # nb: these are the same as the defaults specified for the pretrained pytorch
 # model zoo
-#norm_mean, norm_std = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225] 
+norm_mean, norm_std = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225] 
 
 # network hyperparameters
 # edited: cows counting - only one scale for now
@@ -120,18 +126,18 @@ n_transforms_test = 64 # number of transformations per sample in testing
 
 # output settings
 debug = False
-tb = False
+tb = True
 verbose = False
 report_freq = 50 # nth minibatch to report on (1 = always)
 dmap_viz = False
 hide_tqdm_bar = False
-save_model = False # also saves a copy of the config file with the name of the model
-checkpoints = False
+save_model = True # also saves a copy of the config file with the name of the model
+checkpoints = True
 
 if debug:
     schema = 'schema/debug'
 else:
-    schema = 'schema/debug'
+    schema = 'schema/aerial_count_test'
   
 now = datetime.now() 
   

@@ -112,10 +112,10 @@ def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,m
     # haar downsampling to resolves input data only having a single channel (from unsqueezed singleton dimension)
     # affine coupling performs channel wise split
     # https://github.com/VLL-HD/FrEIA/issues/8
-    if c.mnist:
+    if c.mnist or c.counts:
         nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling'))
-    else:
-        # downsamples density maps
+    elif not c.counts:
+        # downsamples density maps (not needed for counts)
         nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling1'))
         nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling2'))
         nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling3'))
@@ -126,9 +126,10 @@ def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,m
     # https://github.com/VLL-HD/FrEIA/issues/9
     
     # condition = exacted image features
-    if c.mnist:
+    if c.mnist or c.counts:
         condition = Ff.ConditionNode(condition_dim,input_dim[0] // 2,input_dim[1] // 2, name = 'condition') 
     else:
+        # TODO: avoid hardcoding feature spatial dimensions in
         condition = Ff.ConditionNode(condition_dim,18,25, name = 'condition') 
         
     for k in range(c.n_coupling_blocks):
@@ -155,7 +156,7 @@ class CowFlow(nn.Module):
         self.feature_extractor = feat_extractor
         self.nf = nf_head()   
 
-    def forward(self,images,dmaps,rev=False):
+    def forward(self,images,labels,rev=False): # label = dmaps or counts
         # no multi-scale architecture (yet) as per differnet paper
         
         if c.debug:
@@ -205,18 +206,25 @@ class CowFlow(nn.Module):
         # introduces singleton dimension
         # don't want to introduce this dimension when running z -> x
         if not rev:
-            dmaps = dmaps.unsqueeze(1) #.expand(-1,c.n_feat,-1, -1) 
+            labels = labels.unsqueeze(1) #.expand(-1,c.n_feat,-1, -1) 
+        
+        if c.debug:
+            print('label sizes: ',labels.size())
+        
+        if c.counts:
+            # expand counts out to spatial dims of feats
+            labels = labels.unsqueeze(2).unsqueeze(3).expand(-1,-1,feats.size()[2] * 2,feats.size()[3] * 2)
         
         if c.debug: 
-            print("expanded density map size")
-            print(dmaps.size(),"\n") 
+            print("expanded label (dmap/counts) map size")
+            print(labels.size(),"\n") 
         
         # second argument to NF is the condition - i.e. the features
         # first argument is the 'x' i.e. the data we are mapping to z (NF : x <--> z)
         # is also what we are trying to predict (in a sense we are using 'x' features to predict 'y' density maps)
         # hence ambiguity in notation
         
-        z = self.nf(x_or_z = dmaps,c = feats,rev=rev)
+        z = self.nf(x_or_z = labels,c = feats,rev=rev)
         return z
 
 class MNISTFlow(nn.Module):

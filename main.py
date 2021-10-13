@@ -105,11 +105,11 @@ else:
     
     if len(c.batch_size) == 1:
         train_loader = DataLoader(transformed_dataset, batch_size=c.batch_size[0],shuffle=False, 
-                            num_workers=0,collate_fn=transformed_dataset.custom_collate_density,
+                            num_workers=0,collate_fn=transformed_dataset.custom_collate_aerial,
                             pin_memory=True,sampler=train_sampler)
     
         valid_loader = DataLoader(transformed_dataset, batch_size=c.batch_size[0],shuffle=False, 
-                            num_workers=0,collate_fn=transformed_dataset.custom_collate_density,
+                            num_workers=0,collate_fn=transformed_dataset.custom_collate_aerial,
                             pin_memory=True,sampler=valid_sampler)
         
         if len(c.lr_init) == 1:
@@ -122,7 +122,7 @@ else:
         
         for bs in c.batch_size:
             tls.append(DataLoader(transformed_dataset, batch_size=bs,shuffle=False, 
-                            num_workers=0,collate_fn=transformed_dataset.custom_collate_density,
+                            num_workers=0,collate_fn=transformed_dataset.custom_collate_aerial,
                             pin_memory=True,sampler=train_sampler))
             
             vls.append(DataLoader(transformed_dataset, batch_size=bs,shuffle=False, 

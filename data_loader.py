@@ -29,7 +29,6 @@ from torchvision import utils
 from skimage import io
 from PIL import Image
 
-from utils import AddUniformNoise
 import config as c
 
 proj_dir = c.proj_dir
@@ -164,12 +163,8 @@ class CowObjectsDataset(Dataset):
                     labels.append(point[0])
                     
                     if c.debug:
-                        print(base_map.sum())
-                        print(density_map.sum())
-                         
-                    if self.count:
-                        count = density_map.sum()
-                        
+                        print("base map sum ",base_map.sum())
+                        print("density map sum ",density_map.sum())            
                 
         labels = np.array(labels) # list into default collate function produces empty tensors
         
@@ -180,7 +175,8 @@ class CowObjectsDataset(Dataset):
             sample = {'image': image, 'density': density_map, 'labels': labels}
             
         if self.density and self.count:
-            sample = {'image': image, 'density': density_map, 'labels': labels,'count':count}
+            count_tensor = torch.as_tensor(np.array(density_map.sum()).astype(float))
+            sample = {'image': image, 'density': density_map, 'labels': labels,'counts':count_tensor}
 
         if self.transform:
             sample = self.transform(sample)
@@ -366,29 +362,41 @@ class CowObjectsDataset(Dataset):
     
         return images,boxes,labels
 
-    def custom_collate_density(self,batch,debug = False):
+    def custom_collate_aerial(self,batch,debug = False):
         # only needed to collate annotations
 
         images = list()
         density = list()
         labels = list()
         
+        if self.count:
+            counts = list()
+        
         for b in batch:
             images.append(b['image'])
             density.append(b['density'])
             labels.append(b['labels'])
+            
+            if self.count:
+                counts.append(b['counts'])
 
         images = torch.stack(images,dim = 0)
         density = torch.stack(density,dim = 0)
         labels = np.array(labels, dtype=object)
+        counts = torch.stack(counts,dim = 0)
         
         if debug:
             print(type(density))
             print(type(labels))
             print(type(images))
             print(density)
+        
+        out = images,density,labels
+        
+        if self.count:
+            out = out + (counts,)
     
-        return images,density,labels
+        return out
 
 # Define transform to tensor
 # Rescale transform not needed as slices are all same size
@@ -421,8 +429,8 @@ class AerialNormalize(object):
     def __call__(self, sample):
             
         sample['image'] = TF.normalize(sample['image'], 
-                                       mean =[0.485, 0.456, 0.406],
-                                       std=[0.229, 0.224, 0.225])
+                                       mean =c.norm_mean,
+                                       std=c.norm_std)
  
         return sample
 
@@ -445,13 +453,13 @@ class CustCrop(object):
     def __call__(self, sample):
              
         image = sample['image']
-        image = image[:,0:c.density_map_h-1,0:c.density_map_w-1]
+        image = image[:,0:c.img_size[1]-1,0:c.img_size[0]-1]
         
         sample['image'] =  image
         
         if 'density' in sample.keys():
             density = sample['density']
-            density = density[0:c.density_map_h-1,0:c.density_map_w-1]
+            density = density[0:c.img_size[1]-1,0:c.img_size[0]-1]
             sample['density'] = density
         else:
             sample['annotations'] = sample['annotations']

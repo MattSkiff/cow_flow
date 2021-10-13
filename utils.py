@@ -216,8 +216,8 @@ def plot_preds(model, loader, plot = True, save=False,title = "",digit=None,hist
                         if c.mnist:
                             im = images[lb_idx].squeeze().cpu().numpy()
                         else:
-                            unnorm = UnNormalize(mean =(0.485, 0.456, 0.406),
-                                                 std=(0.229, 0.224, 0.225))
+                            unnorm = UnNormalize(mean =tuple(c.norm_mean),
+                                                 std=tuple(c.norm_std))
                             
                             im = unnorm(images[lb_idx])
                             
