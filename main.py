@@ -113,7 +113,8 @@ else:
                             pin_memory=True,sampler=valid_sampler)
         
         if len(c.lr_init) == 1:
-                model = train(train_loader,valid_loader,lr_i=c.lr_init)
+                pass
+                #model = train(train_loader,valid_loader,lr_i=c.lr_init)
         else:
                 model = train_battery([train_loader],[valid_loader],lr_i=c.lr_init)
                 
