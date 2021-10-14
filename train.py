@@ -37,7 +37,7 @@ def train_battery(train_loader,valid_loader,lr_i = c.lr_init):
                         battery_string = 'battery_'+str(j)
                         bt_id = 'runs/'+c.schema+'/'+battery_string
                         print('beginning: {}\n'.format(bt_id))
-                        writer = SummaryWriter(log_dir=bt_id+"_"+c.modelname)
+                        writer = SummaryWriter(log_dir=bt_id+"_"+modelname)
                     else:
                         writer = None
                         
@@ -103,7 +103,7 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                                                                                             len(valid_loader)*valid_loader.batch_size))
     
             if not battery and c.tb:
-                writer = SummaryWriter(log_dir='runs/'+c.schema+'/'+c.modelname)
+                writer = SummaryWriter(log_dir='runs/'+c.schema+'/'+modelname)
             else:
                 writer = writer
         
@@ -358,7 +358,7 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                 
                 model.to('cpu')
                 save_model(model,"final_"+modelname)
-                #save_weights(model, c.modelname) # currently have no use for saving weights
+                #save_weights(model, modelname) # currently have no use for saving weights
                 model.to(c.device)
             
             run_end = time.perf_counter()
