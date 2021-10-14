@@ -108,9 +108,9 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                 writer = writer
         
             if c.mnist:
-                model = MNISTFlow()    
+                model = MNISTFlow(modelname=modelname)    
             else:
-                model = CowFlow()
+                model = CowFlow(modelname=modelname)
                     
             if c.joint_optim:
                 optimizer = torch.optim.Adam([
@@ -341,8 +341,6 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                 
                 
                     writer.flush()
-            
-            
             
             # post training: visualise a random reconstruction
             if c.dmap_viz:
