@@ -45,7 +45,10 @@ class NothingNet():
 if c.feat_extractor == "alexnet":
     feat_extractor = alexnet(pretrained=c.pretrained,progress=False).to(c.device)
 elif c.feat_extractor == "resnet18":
-    feat_extractor = resnet18(pretrained=c.pretrained,progress=False).to(c.device)
+    # last but one layer of resnet -> features
+    modules=list(resnet18(pretrained=c.pretrained,progress=False).children())[:-2] # -1: 512x1 feature vec (pooled), -2: 
+    resnet18=nn.Sequential(*modules)
+    feat_extractor = resnet18
 elif c.feat_extractor == "vgg16_bn":
     feat_extractor = vgg16_bn(pretrained=c.pretrained,progress=False).to(c.device)
 elif c.feat_extractor == "mnist_resnet":
@@ -130,7 +133,14 @@ def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,m
         condition = Ff.ConditionNode(condition_dim,input_dim[0] // 2,input_dim[1] // 2, name = 'condition') 
     else:
         # TODO: avoid hardcoding feature spatial dimensions in
-        condition = Ff.ConditionNode(condition_dim,18,25, name = 'condition') 
+        if c.feat_extractor == 'resnet18':
+            ft_dims = (19,25)
+        elif c.feat_extractor == 'vgg16_bn' :
+            ft_dims = (18,25)
+        elif c.feat_extractor == 'alexnet':
+            ft_dims = (17,24)
+ 
+        condition = Ff.ConditionNode(condition_dim,ft_dims[0],ft_dims[1],name = 'condition') 
         
     for k in range(c.n_coupling_blocks):
         if c.verbose:
@@ -151,10 +161,18 @@ def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,m
         
 class CowFlow(nn.Module):
     
-    def __init__(self):
+    def __init__(self,modelname):
         super(CowFlow,self).__init__()
         self.feature_extractor = feat_extractor
         self.nf = nf_head()   
+        self.modelname = modelname
+        self.count = c.counts
+        self.gap = c.gap
+        self.n_coupling_blocks = c.n_coupling_blocks
+        self.joint_optim = c.joint_optim
+        self.pretrained = c.pretrained
+        self.scheduler = c.scheduler
+
 
     def forward(self,images,labels,rev=False): # label = dmaps or counts
         # no multi-scale architecture (yet) as per differnet paper
@@ -165,7 +183,11 @@ class CowFlow(nn.Module):
         
         # x = raw images, y = density maps
         feat_cat = list()
-        feat_s = self.feature_extractor.features(images) # extract features
+        
+        if self.feature_extractor.__class__.__name__ != 'Sequential':
+            feat_s = self.feature_extractor.features(images) # extract features
+        else:
+            feat_s = self.feature_extractor(images)
         
         if c.debug:
             print("raw feature size..")
@@ -229,10 +251,16 @@ class CowFlow(nn.Module):
 
 class MNISTFlow(nn.Module):
     
-    def __init__(self):
+    def __init__(self,modelname):
         super(MNISTFlow,self).__init__()
         self.feature_extractor = feat_extractor
         self.nf = nf_head(mnist=True)   
+        self.modelname = modelname
+        self.gap = c.gap
+        self.n_coupling_blocks = c.n_coupling_blocks
+        self.joint_optim = c.joint_optim
+        self.pretrained = c.pretrained
+        self.scheduler = c.scheduler
 
     def forward(self,images,labels,rev=False):
         
@@ -255,7 +283,11 @@ class MNISTFlow(nn.Module):
         # global average pooling as described in paper:
         # h x w x d -> 1 x 1 x d
         # see: https://alexisbcook.github.io/2017/global-average-pooling-layers-for-object-localization/
+        
+        # alex net
         # torch.Size([batch_size, 256, 17, 24])
+        # resnet
+        #torch.Size([4, 512, 19, 25])
         
         if c.feat_extractor != "none":
             

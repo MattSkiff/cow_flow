@@ -48,7 +48,8 @@ if c.mnist:
         valid_loader = DataLoader(mnist_test,batch_size = c.batch_size[0],pin_memory=True,
                                       shuffle=False,sampler=toy_sampler)
         if len(c.lr_init) == 1:
-                model = train(train_loader,valid_loader,lr_i=c.lr_init)
+                pass
+                #model = train(train_loader,valid_loader,lr_i=c.lr_init)
         else:
                 model = train_battery([train_loader],[valid_loader],lr_i=c.lr_init)
                 
@@ -99,7 +100,7 @@ else:
         valid_sampler = SubsetRandomSampler(valid_indices)
     
     if c.verbose:
-        # broken currently for batteries
+        # TODO - broken currently for batteries
         print("Training using {} train samples and {} validation samples...".format(str(len(train_sampler)*int(c.batch_size[0])),str(len(valid_sampler)*int(c.batch_size[0]))))
     
     
@@ -114,7 +115,7 @@ else:
         
         if len(c.lr_init) == 1:
                 pass
-                #model = train(train_loader,valid_loader,lr_i=c.lr_init)
+                model = train(train_loader,valid_loader,lr_i=c.lr_init)
         else:
                 model = train_battery([train_loader],[valid_loader],lr_i=c.lr_init)
                 

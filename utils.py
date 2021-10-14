@@ -171,7 +171,15 @@ def plot_preds(model, loader, plot = True, save=False,title = "",digit=None,hist
                     if loader.dataset.count:
                         dummy_z = (randn(c.batch_size[0], 4,18,24, requires_grad=True)).to(c.device)
                     else:
-                        dummy_z = (randn(c.batch_size[0], 1024,18,24, requires_grad=True)).to(c.device)
+                        
+                        if model.feature_extractor.__class__.__name__ != 'Sequential':
+                            ft_dims = (19,25)
+                        elif c.feat_extractor == 'vgg16_bn':
+                            ft_dims = (18,25)
+                        elif c.feat_extractor == 'alexnet':
+                            ft_dims = (17,25)
+                        
+                        dummy_z = (randn(c.batch_size[0], 1024,ft_dims[0],ft_dims[1], requires_grad=True)).to(c.device)
                 else:
                     if sampling == 'ones':
                         dummy_z = (torch.ones(loader.batch_size, c.channels*4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True).to(c.device))
@@ -203,6 +211,10 @@ def plot_preds(model, loader, plot = True, save=False,title = "",digit=None,hist
                 
                     dmap_rev_np = x[lb_idx].squeeze().cpu().detach().numpy()
                     mean_pred = x[lb_idx].mean()
+                    
+                    x_flat = torch.reshape(x,(loader.batch_size,c.density_map_h ** 2)) # torch.Size([200, 12, 12])
+                    mode = torch.mode(x_flat,dim = 1).values.cpu().detach().numpy()
+                    
                     sum_pred = x[lb_idx].sum()
                     
                     if plot:
@@ -213,7 +225,7 @@ def plot_preds(model, loader, plot = True, save=False,title = "",digit=None,hist
                         plt.ioff()
                         
                         if mnist:
-                            fig.suptitle('{} \n mean reconstruction: {:.2f}'.format(title,mean_pred),y=1.0,fontsize=24)
+                            fig.suptitle('{} \n mode of reconstruction: {}'.format(title,str(mode)),y=1.0,fontsize=24) # :.2f
                         elif loader.dataset.count:   
                             fig.suptitle('{} \n Predicted count: {:.2f}'.format(title,mean_pred),y=1.0,fontsize=24)
                         else:
@@ -248,7 +260,8 @@ def plot_preds(model, loader, plot = True, save=False,title = "",digit=None,hist
                         if save:
                             if not os.path.exists(VIZ_DIR):
                                 os.makedirs(VIZ_DIR)
-                            plt.savefig("{}/{}.jpg".format(VIZ_DIR,c.modelname), bbox_inches='tight', pad_inches = 0)
+                            plt.savefig("{}/{}.jpg".format(VIZ_DIR,model.modelname), bbox_inches='tight', pad_inches = 0)
+                            plt.closeflig()
                         
                         if mnist:
                             out = labels[lb_idx],dmap_rev_np, mean_pred 

@@ -29,17 +29,21 @@ test_run = False # use only a small fraction of data to check everything works
 validation = False
 joint_optim = False
 pretrained = True
-feat_extractor = "vgg16_bn" # alexnet, vgg16_bn, none
+feat_extractor = "resnet18" # alexnet, vgg16_bn,resnet18, none
 gap = False # global average pooling
 clip_value = 1 # gradient clipping
 scheduler = 'exponential' # exponential, none
 # TODO resnet18, mnist_resnet,
+
 
 # unused: n_scales = 1 #3 # number of scales at which features are extracted, img_size is the highest - others are //2, //4,...
 if feat_extractor == "alexnet":
     n_feat = 256 #* n_scales # do not change except you change the feature extractor
 elif feat_extractor == "vgg16_bn":
     n_feat = 512 #* n_scales # do not change except you change the feature extractor
+elif feat_extractor == "resnet18":
+    n_feat = 512
+
 elif feat_extractor == "none":
     n_feat = 1 
 
@@ -75,9 +79,18 @@ sigma = 4.0 # "   -----    "
 
 # TODO: rename this parameter
 if not mnist and not counts:
-    # size of cropped dmaps
-    density_map_h = 576 #img_size[1]
+    
     density_map_w = 800 #img_size[0]
+    
+    if feat_extractor == 'resnet18':
+        density_map_h = 608 #img_size[1]
+    elif feat_extractor == 'alexnet':
+         density_map_h = 544 #img_size[1]
+         density_map_w = 768
+    elif feat_extractor == 'vgg16_bn':
+        density_map_h = 576 #img_size[1]
+        
+
 elif not mnist:
     # size of count expanded to map spatial feature dimensions
     density_map_h = 18 * 2 # need at least 2 channels, expand x2, then downsample (haar)
@@ -131,7 +144,7 @@ n_transforms_test = 64 # number of transformations per sample in testing
 # batch_size_test = batch_size * n_transforms // n_transforms_test
 
 # output settings
-debug = False
+debug = True
 tb = False
 verbose = True
 report_freq = 50 # nth minibatch to report on (1 = always)

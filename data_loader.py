@@ -18,7 +18,9 @@ import matplotlib.patches as patches
 import scipy
 
 from torch.utils.data import Dataset, DataLoader
+
 import torchvision.transforms.functional as TF
+import torch.nn.functional as F
 
 # transforms = todo
 #from torchvision import transforms
@@ -455,13 +457,22 @@ class CustCrop(object):
     def __call__(self, sample):
              
         image = sample['image']
-        image = image[:,0:c.img_size[1]-1,0:c.img_size[0]-1]
+        #image = image[:,0:c.img_size[1]-1,0:c.img_size[0]-1]
         
         sample['image'] =  image
         
         if 'density' in sample.keys():
             density = sample['density']
-            density = density[0:c.img_size[1]-1,0:c.img_size[0]-1]
+            
+            pd = 0
+            
+            if c.feat_extractor == 'resnet18':
+                pd = 8
+            elif c.feat_extractor == 'alexnet':
+                density = density[:544,:768]
+
+            density = F.pad(input=density, pad=(0,0,pd,0), mode='constant', value=0)
+            # (padding_left,padding_right, padding, padding, padding_top,padding_bottom)
             sample['density'] = density
         else:
             sample['annotations'] = sample['annotations']
