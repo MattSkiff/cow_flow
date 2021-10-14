@@ -115,7 +115,7 @@ else:
         
         if len(c.lr_init) == 1:
                 pass
-                model = train(train_loader,valid_loader,lr_i=c.lr_init)
+                #model = train(train_loader,valid_loader,lr_i=c.lr_init)
         else:
                 model = train_battery([train_loader],[valid_loader],lr_i=c.lr_init)
                 

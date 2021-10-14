@@ -185,6 +185,31 @@ class CowObjectsDataset(Dataset):
 
         return sample
 
+    def get_annotations(self, idx):
+        """retrieve just the annotations associated with the sample"""
+        if torch.is_tensor(idx):
+            idx = idx.tolist()
+
+        img_path = os.path.join(self.root_dir,
+                                self.train_im_paths[idx])
+        
+        txt_path = img_path[:-3]+'txt'
+
+        # yolo object annotation columns
+        # <object-class> <x> <y> <width> <height>
+        
+        # check if annotations file is empty
+        header_list = ['class', 'x', 'y', 'width', 'height']
+        
+        if os.stat(txt_path).st_size == 0:
+            annotations = np.array([])
+        else:        
+            annotations = pd.read_csv(txt_path,names=header_list,delim_whitespace=True)
+            annotations = annotations.to_numpy()
+            
+        return annotations
+        
+        
     # Helper function to show a batch
     def show_annotations_batch(self,sample_batched,debug = False):
         
@@ -501,6 +526,9 @@ def train_valid_split(dataset,train_percent,balanced = False,annotations_only = 
      
      '''
     
+    if c.verbose:
+        print("Creating indicies...")
+    
     l = len(dataset)
     
     valid_indices = []
@@ -511,7 +539,7 @@ def train_valid_split(dataset,train_percent,balanced = False,annotations_only = 
     annotation_indices = []
     
     for i in range(l):
-        if len(dataset[i]['labels']) != 0:
+        if len(dataset.get_annotations(i)) != 0:
             annotation_indices.append(i)
         else:
             empty_indices.append(i)
@@ -519,6 +547,7 @@ def train_valid_split(dataset,train_percent,balanced = False,annotations_only = 
     if c.debug:
         print(len(annotation_indices))
         print(len(empty_indices))
+        
     # modify lists to be random
     np.random.shuffle(annotation_indices)
     np.random.shuffle(empty_indices)
@@ -526,6 +555,8 @@ def train_valid_split(dataset,train_percent,balanced = False,annotations_only = 
     split_e = round(train_percent * len(empty_indices) / 100)
     split_a = round(train_percent * len(annotation_indices) / 100)
     
+    if balanced:
+        split_e = split_e[:len(split_a)]
     
     if not annotations_only:
         train_indices.extend(empty_indices[:split_e])
@@ -539,7 +570,12 @@ def train_valid_split(dataset,train_percent,balanced = False,annotations_only = 
     
     np.random.shuffle(valid_indices)
     np.random.shuffle(train_indices)
-            
+    
+        
+    
+    if c.verbose:
+        print("Finished creating indicies")
+    
     return train_indices, valid_indices
 
 # TODO
