@@ -43,7 +43,7 @@ mk_size = 25
 class CowObjectsDataset(Dataset):
     """Cow Objects dataset."""
 
-    def __init__(self, root_dir,transform=None,convert_to_points=False,generate_density=False,count=False):
+    def __init__(self, root_dir,transform=None,convert_to_points=False,generate_density=False,count=False,classification=False):
         """
         Args:
             root_dir (string): Directory with the following structure:
@@ -63,6 +63,7 @@ class CowObjectsDataset(Dataset):
         self.points = convert_to_points
         self.density = generate_density
         self.count = count
+        self.classification = classification
         
         names = []
         with open(os.path.join(self.root_dir,"object.names")) as f:
@@ -121,7 +122,13 @@ class CowObjectsDataset(Dataset):
         # check if annotations file is empty
         header_list = ['class', 'x', 'y', 'width', 'height']
         
+        positive = True
+        
         if os.stat(txt_path).st_size == 0:
+            
+            if self.classification:
+                positive = False
+                
             annotations = np.array([])
             density_map = np.zeros((c.img_size[1], c.img_size[0]), dtype=np.uint8)
         else:        
@@ -170,16 +177,22 @@ class CowObjectsDataset(Dataset):
                 
         labels = np.array(labels) # list into default collate function produces empty tensors
         
+        sample = {'image': image}
+        
         if not self.density:
-            sample = {'image': image, 'annotations': annotations}
+             {'annotations': annotations}
             
         if self.density and not self.count:  
-            sample = {'image': image, 'density': density_map, 'labels': labels}
+            sample['density'] = density_map; sample['labels'] = labels
             
-        if self.density and self.count:
+        if self.count:
             count_tensor = torch.as_tensor(np.array(density_map.sum()).astype(float))
-            sample = {'image': image, 'density': density_map, 'labels': labels,'counts':count_tensor}
-
+            sample['counts'] = count_tensor
+        
+        if self.classification:
+            
+            sample['binary_labels'] = torch.tensor(positive).type(torch.LongTensor)
+        
         if self.transform:
             sample = self.transform(sample)
 
@@ -395,6 +408,7 @@ class CowObjectsDataset(Dataset):
         images = list()
         density = list()
         labels = list()
+        binary_labels = list()
         
         if self.count:
             counts = list()
@@ -406,6 +420,9 @@ class CowObjectsDataset(Dataset):
             
             if self.count:
                 counts.append(b['counts'])
+                
+            if self.classification:
+                 binary_labels.append(b['binary_labels'])
 
         images = torch.stack(images,dim = 0)
         density = torch.stack(density,dim = 0)
@@ -413,6 +430,9 @@ class CowObjectsDataset(Dataset):
         
         if self.count:
             counts = torch.stack(counts,dim = 0)
+            
+        if self.classification:
+            binary_labels = torch.stack(binary_labels,dim = 0)
         
         if debug:
             print(type(density))
@@ -424,6 +444,9 @@ class CowObjectsDataset(Dataset):
         
         if self.count:
             out = out + (counts,)
+            
+        if self.classification:
+            out = out + (binary_labels,)
     
         return out
 
@@ -552,11 +575,13 @@ def train_valid_split(dataset,train_percent,balanced = False,annotations_only = 
     np.random.shuffle(annotation_indices)
     np.random.shuffle(empty_indices)
     
+    if balanced:
+        empty_indices = empty_indices[:len(annotation_indices)]
+    
     split_e = round(train_percent * len(empty_indices) / 100)
     split_a = round(train_percent * len(annotation_indices) / 100)
     
-    if balanced:
-        split_e = split_e[:len(split_a)]
+
     
     if not annotations_only:
         train_indices.extend(empty_indices[:split_e])

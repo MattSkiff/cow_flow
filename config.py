@@ -2,15 +2,16 @@
 import os
 
 proj_dir = "/home/matthew/Desktop/laptop_desktop/clones/cow_flow/data"
-data_prop = 0.1 # proportion of the full dataset to use 
+data_prop = 1 # proportion of the full dataset to use 
 test_train_split = 70 # percentage of data to allocate to train set
+balanced = True # whether to have a 1:1 mixture of empty:annotated images
 annotations_only = False # whether to only use image patches that have annotations
 
 if annotations_only:
     fixed_indices = False # must be off for annotations only runs
     assert not fixed_indices
 else:
-    fixed_indices = True # turn this off for actual experiments, on to speed up code
+    fixed_indices = False # turn this off for actual experiments, on to speed up code
     
 counts = False
 mnist = False 
@@ -30,6 +31,8 @@ validation = False
 joint_optim = False
 pretrained = True
 feat_extractor = "resnet18" # alexnet, vgg16_bn,resnet18, none
+feat_extractor_epochs = 50
+train_feat_extractor = True
 gap = False # global average pooling
 clip_value = 1 # gradient clipping
 scheduler = 'exponential' # exponential, none
@@ -144,13 +147,13 @@ n_transforms_test = 64 # number of transformations per sample in testing
 # batch_size_test = batch_size * n_transforms // n_transforms_test
 
 # output settings
-debug = True
+debug = False
 tb = False
 verbose = True
 report_freq = 50 # nth minibatch to report on (1 = always)
 dmap_viz = False
 hide_tqdm_bar = False
-save_model = True # also saves a copy of the config file with the name of the model
+save_model = False # also saves a copy of the config file with the name of the model
 checkpoints = False
 
 if debug:

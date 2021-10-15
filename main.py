@@ -2,16 +2,13 @@
 from torchvision.datasets import MNIST
 from torchvision.transforms import Compose, ToTensor, Normalize, Resize
 from utils import AddUniformNoise #, AddGaussianNoise
-
 from torch.cuda import empty_cache
 from torch.utils.data import DataLoader # Dataset                                                                                                                                                                    
 from torch.utils.data.sampler import SubsetRandomSampler # RandomSampling
 # from torchvision import transforms
-
 import config as c
 import pickle 
 from train import train, train_battery
-
 #from utils import load_datasets, make_dataloaders
 from data_loader import CowObjectsDataset, CustToTensor,AerialNormalize, DmapAddUniformNoise, CustCrop, train_valid_split
 
@@ -48,8 +45,7 @@ if c.mnist:
         valid_loader = DataLoader(mnist_test,batch_size = c.batch_size[0],pin_memory=True,
                                       shuffle=False,sampler=toy_sampler)
         if len(c.lr_init) == 1:
-                pass
-                #model = train(train_loader,valid_loader,lr_i=c.lr_init)
+                model = train(train_loader,valid_loader,lr_i=c.lr_init)
         else:
                 model = train_battery([train_loader],[valid_loader],lr_i=c.lr_init)
                 
@@ -69,13 +65,16 @@ else:
     # instantiate class
     transformed_dataset = CowObjectsDataset(root_dir=c.proj_dir,transform = dmaps_pre,
                                             convert_to_points=True,generate_density=True,
-                                            count = c.counts)
+                                            count = c.counts,classification = c.train_feat_extractor)
     
     # create test train split
     # save/load indices as they take a while to gen
     # https://stackoverflow.com/questions/27745500/how-to-save-a-list-to-a-file-and-read-it-as-a-list-type
     if not c.fixed_indices:
-        train_indices, valid_indices = train_valid_split(dataset = transformed_dataset, train_percent = c.test_train_split,annotations_only = c.annotations_only)
+        train_indices, valid_indices = train_valid_split(dataset = transformed_dataset, 
+                                                         train_percent = c.test_train_split,
+                                                         annotations_only = c.annotations_only,
+                                                         balanced = c.balanced)
         
         with open("train_indices.txt", "wb") as fp:   # Pickling
             pickle.dump(train_indices, fp)
@@ -99,9 +98,9 @@ else:
         train_sampler = SubsetRandomSampler(train_indices)
         valid_sampler = SubsetRandomSampler(valid_indices)
     
-    if c.verbose:
+    if c.verbose: 
         # TODO - broken currently for batteries
-        print("Training using {} train samples and {} validation samples...".format(str(len(train_sampler)*int(c.batch_size[0])),str(len(valid_sampler)*int(c.batch_size[0]))))
+        print("BROKEN Training using {} train samples and {} validation samples...".format(str(len(train_sampler)*int(c.batch_size[0])),str(len(valid_sampler)*int(c.batch_size[0]))))
     
     
     if len(c.batch_size) == 1:
@@ -114,8 +113,7 @@ else:
                             pin_memory=True,sampler=valid_sampler)
         
         if len(c.lr_init) == 1:
-                pass
-                #model = train(train_loader,valid_loader,lr_i=c.lr_init)
+                model = train(train_loader,valid_loader,lr_i=c.lr_init)
         else:
                 model = train_battery([train_loader],[valid_loader],lr_i=c.lr_init)
                 

@@ -172,11 +172,11 @@ def plot_preds(model, loader, plot = True, save=False,title = "",digit=None,hist
                         dummy_z = (randn(c.batch_size[0], 4,18,24, requires_grad=True)).to(c.device)
                     else:
                         
-                        if model.feature_extractor.__class__.__name__ == 'Sequential':
+                        if model.feat_extractor.__class__.__name__ == 'Sequential':
                             ft_dims = (19,25)
-                        elif model.feature_extractor.__class__.__name__ == 'VGG':
+                        elif model.feat_extractor.__class__.__name__ == 'VGG':
                             ft_dims = (18,25)
-                        elif model.feature_extractor.__class__.__name__ == 'AlexNet':
+                        elif model.feat_extractor.__class__.__name__ == 'AlexNet':
                             ft_dims = (17,25)
                         
                         dummy_z = (randn(c.batch_size[0], 1024,ft_dims[0],ft_dims[1], requires_grad=True)).to(c.device)

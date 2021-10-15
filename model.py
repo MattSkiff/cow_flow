@@ -16,6 +16,9 @@ from torchvision.models.resnet import ResNet, BasicBlock
 import config as c # hyper params
 from utils import init_weights
 
+import train # train_feat_extractor
+# importing all fixes cyclical import 
+
 # FrEIA imports for invertible networks
 import FrEIA.framework as Ff
 import FrEIA.modules as Fm
@@ -42,19 +45,28 @@ class NothingNet():
     def __init__(self):
         self.features = torch.nn.Identity()
 
-if c.feat_extractor == "alexnet":
-    feat_extractor = alexnet(pretrained=c.pretrained,progress=False).to(c.device)
-elif c.feat_extractor == "resnet18":
-    # last but one layer of resnet -> features
-    modules=list(resnet18(pretrained=c.pretrained,progress=False).children())[:-2] # -1: 512x1 feature vec (pooled), -2: 
-    resnet18=nn.Sequential(*modules)
-    feat_extractor = resnet18
-elif c.feat_extractor == "vgg16_bn":
-    feat_extractor = vgg16_bn(pretrained=c.pretrained,progress=False).to(c.device)
-elif c.feat_extractor == "mnist_resnet":
-    feat_extractor = MnistResNet()
-elif c.feat_extractor == "none":
-    feat_extractor = NothingNet()
+def select_feat_extractor(feat_extractor,train_loader=None,valid_loader=None):
+
+    if c.feat_extractor == "alexnet":
+        feat_extractor = alexnet(pretrained=c.pretrained,progress=False).to(c.device)
+    elif c.feat_extractor == "resnet18":
+         # last but one layer of resnet -> features
+         feat_extractor = resnet18(pretrained=c.pretrained,progress=False)
+            
+    elif c.feat_extractor == "vgg16_bn":
+        feat_extractor = vgg16_bn(pretrained=c.pretrained,progress=False).to(c.device)
+    elif c.feat_extractor == "mnist_resnet":
+        feat_extractor = MnistResNet()
+    elif c.feat_extractor == "none":
+        feat_extractor = NothingNet()
+    
+    if c.train_feat_extractor:
+    # pretrain feature extractor with classification problem
+        num_ftrs = feat_extractor.fc.in_features
+        feat_extractor.fc = nn.Linear(num_ftrs, 2)
+        feat_extractor = train.train_feat_extractor(feat_extractor,train_loader,valid_loader)
+        
+    return feat_extractor
 
 def sub_conv2d(dims_in,dims_out):
     # naming pytorch layers:
@@ -161,12 +173,19 @@ def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,m
         
 class CowFlow(nn.Module):
     
-    def __init__(self,modelname):
+    def __init__(self,modelname,feat_extractor):
         super(CowFlow,self).__init__()
-        self.feature_extractor = feat_extractor
+        
+        if c.feat_extractor == 'resnet18':
+            modules = list(feat_extractor.children())[:-2]
+            self.feat_extractor=nn.Sequential(*modules)
+        else:
+            self.feat_extractor = feat_extractor
+            
         self.nf = nf_head()   
         self.modelname = modelname
         self.count = c.counts
+        self.mnist = False
         self.gap = c.gap
         self.n_coupling_blocks = c.n_coupling_blocks
         self.joint_optim = c.joint_optim
@@ -184,10 +203,10 @@ class CowFlow(nn.Module):
         # x = raw images, y = density maps
         feat_cat = list()
         
-        if self.feature_extractor.__class__.__name__ != 'Sequential':
-            feat_s = self.feature_extractor.features(images) # extract features
+        if self.feat_extractor.__class__.__name__ != 'Sequential':
+            feat_s = self.feat_extractor.features(images) # extract features
         else:
-            feat_s = self.feature_extractor(images)
+            feat_s = self.feat_extractor(images)
         
         if c.debug:
             print("raw feature size..")
@@ -251,10 +270,11 @@ class CowFlow(nn.Module):
 
 class MNISTFlow(nn.Module):
     
-    def __init__(self,modelname):
+    def __init__(self,modelname,feat_extractor):
         super(MNISTFlow,self).__init__()
-        self.feature_extractor = feat_extractor
-        self.nf = nf_head(mnist=True)   
+        self.feat_extractor = feat_extractor
+        self.nf = nf_head(mnist=True) 
+        self.mnist = True
         self.modelname = modelname
         self.gap = c.gap
         self.n_coupling_blocks = c.n_coupling_blocks
@@ -273,7 +293,7 @@ class MNISTFlow(nn.Module):
             print('preprocessed mnist imgs size')
             print(images.size(),"\n")
         
-        feat_s = self.feature_extractor.features(images) # extract features
+        feat_s = self.feat_extractor.features(images) # extract features
         
 
         if c.debug:
