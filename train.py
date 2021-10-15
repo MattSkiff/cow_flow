@@ -1,7 +1,9 @@
 import numpy as np
 import torch
+import torch.nn as nn
 from tqdm import tqdm # progress bar
 import time 
+import copy
 from datetime import datetime 
 
 import config as c
@@ -10,7 +12,8 @@ from eval import eval_mnist, eval_model
 from utils import get_loss, plot_preds, t2np
 from torch.nn.utils import clip_grad_value_
 from torch.optim.lr_scheduler import ExponentialLR
-from model import CowFlow, MNISTFlow, save_model, save_weights
+import model
+#from model import CowFlow, MNISTFlow, select_feat_extractor, save_model #, save_weights
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -37,7 +40,7 @@ def train_battery(train_loader,valid_loader,lr_i = c.lr_init):
                         battery_string = 'battery_'+str(j)
                         bt_id = 'runs/'+c.schema+'/'+battery_string
                         print('beginning: {}\n'.format(bt_id))
-                        writer = SummaryWriter(log_dir=bt_id+"_"+modelname)
+                        writer = SummaryWriter(log_dir=bt_id)
                     else:
                         writer = None
                         
@@ -55,7 +58,9 @@ def train_battery(train_loader,valid_loader,lr_i = c.lr_init):
                 
 
 def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None): #def train(train_loader, test_loader):
-    
+            
+            feat_extractor = model.select_feat_extractor(c.feat_extractor,train_loader,valid_loader)
+        
             now = datetime.now() 
             modelname = "_".join([
                                c.schema,c.pc,
@@ -108,14 +113,14 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                 writer = writer
         
             if c.mnist:
-                model = MNISTFlow(modelname=modelname)    
+                mdl = model.MNISTFlow(modelname=modelname,feat_extractor = feat_extractor)    
             else:
-                model = CowFlow(modelname=modelname)
+                mdl = model.CowFlow(modelname=modelname,feat_extractor = feat_extractor)
                     
             if c.joint_optim:
                 optimizer = torch.optim.Adam([
                             {'params': model.nf.parameters()},
-                            {'params': model.feature_extractor.parameters(), 'lr_init': 1e-3,'betas':(0.9,0.999),'eps':1e-08, 'weight_decay':0}
+                            {'params': model.feat_extractor.parameters(), 'lr_init': 1e-3,'betas':(0.9,0.999),'eps':1e-08, 'weight_decay':0}
                         ], lr=lr_i[0], betas=(0.8, 0.8), eps=1e-04, weight_decay=c.weight_decay )
             else:
                 optimizer = torch.optim.Adam(model.nf.parameters(), lr=lr_i[0], betas=(0.8, 0.8), eps=1e-04, weight_decay=c.weight_decay)
@@ -126,7 +131,7 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                 scheduler = ExponentialLR(optimizer, gamma=0.9)
         
             
-            model.to(c.device)
+            mdl.to(c.device)   
             
             k = 0 # track total mini batches
             j = 0 # track total sub epochs
@@ -134,7 +139,7 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
             
             for meta_epoch in range(c.meta_epochs):
                 
-                model.train()
+                mdl.train()
                 
                 for sub_epoch in range(c.sub_epochs):
                     
@@ -212,7 +217,7 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                             print(log_det_jac)
                         
                         # this loss needs to calc distance between predicted density and density map
-                        loss = get_loss(z, log_det_jac) # model.nf.jacobian(run_forward=False)
+                        loss = get_loss(z, log_det_jac) # mdl.nf.jacobian(run_forward=False)
                         k += 1
                         
                         loss_t = t2np(loss)
@@ -222,7 +227,7 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                         
                         train_loss.append(loss_t)
                         loss.backward()
-                        clip_grad_value_(model.parameters(), c.clip_value)
+                        clip_grad_value_(mdl.parameters(), c.clip_value)
                         optimizer.step()
                         
                         if c.scheduler != "none":
@@ -276,6 +281,7 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                                      z, log_det_jac = model(images,dmaps)
                                      
                                      valid_counts.append(dmaps.sum())
+                                     
                                 elif not c.mnist: 
                                      images,dmaps,labels,counts = data
                                      counts = counts.float().to(c.device)
@@ -283,6 +289,7 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                                      z, log_det_jac = model(images,counts)
                                      
                                      valid_counts.append(counts.mean())
+                                     
                                 else:
                                     images,labels = data
                                     labels = torch.Tensor([labels]).to(c.device)
@@ -319,10 +326,10 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                     valid_accuracy, training_accuracy = eval_model(model,valid_loader,train_loader) # does nothing for now
                 
                 if (c.save_model or battery) and c.checkpoints:
-                    model.to('cpu')
-                    save_model(model,"checkpoint_"+str(l)+"_"+modelname)
+                    mdl.to('cpu')
+                    model.save_model(mdl,"checkpoint_"+str(l)+"_"+modelname)
                     #save_weights(model,"checkpoint_"+str(l)+"_"+modelname) # currently have no use for saving weights
-                    model.to(c.device)
+                    mdl.to(c.device)
                 
                 if writer != None:
                     writer.add_scalar('accuracy/training',training_accuracy, l)
@@ -356,13 +363,88 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                 with open(filename, 'w') as f:
                     print(model_hparam_dict, file=f)
                 
-                model.to('cpu')
-                save_model(model,"final_"+modelname)
-                #save_weights(model, modelname) # currently have no use for saving weights
-                model.to(c.device)
+                mdl.to('cpu')
+                model.save_model(mdl,"final_"+modelname)
+                #model.save_weights(model, modelname) # currently have no use for saving weights
+                mdl.to(c.device)
             
             run_end = time.perf_counter()
             print("Finished Model: ",modelname)
             print("Run finished. Time Elapsed (mins): ",round((run_end-run_start)/60,2),"| Datetime:",str(datetime.now().strftime("%d/%m/%Y %H:%M:%S")))
             if not battery:
                 return model
+ 
+# from pytorch tutorial...           
+def train_feat_extractor(feat_extractor,trainloader,validloader,criterion = nn.CrossEntropyLoss(),writer=None):
+    
+    optimizer = torch.optim.Adam(feat_extractor.parameters(),lr=1e-3,betas=(0.9,0.999),eps=1e-08, weight_decay=0)
+    best_model_wts = copy.deepcopy(feat_extractor.state_dict())
+    best_acc = 0.0
+    
+    t_sz = len(trainloader)*trainloader.batch_size
+    v_sz = len(validloader)*validloader.batch_size
+    
+    dataset_sizes = {'train': t_sz,'val': v_sz}
+   
+    for phase in ['train', 'val']:
+        if phase == 'train':
+            feat_extractor.train()  
+        else:
+            feat_extractor.eval()        
+    
+    for epoch in range(c.feat_extractor_epochs):
+        
+        running_loss = 0.0; running_corrects = 0
+        
+        if c.verbose:
+            print('Feature Extractor Epoch {}/{}'.format(epoch, c.feat_extractor_epochs - 1))
+        for i, data in enumerate(tqdm(trainloader, disable=c.hide_tqdm_bar)):
+            
+            optimizer.zero_grad()
+            
+            images = data[0].to(c.device)
+            binary_labels = data[3].to(c.device)
+            
+            if c.debug:
+                print('feature extractor labels: ',binary_labels)
+            
+            with torch.set_grad_enabled(phase == 'train'):
+                outputs = feat_extractor(images)
+                _, preds = torch.max(outputs, 1)
+                
+                if c.debug:
+                    print('preds: ',preds)
+                    
+                loss = criterion(outputs,binary_labels)
+                            
+                if writer != None:
+                     writer.add_scalar('loss/training_minibatch',loss, epoch)
+                     
+            if phase == 'train':                 
+                loss.backward()
+                clip_grad_value_(feat_extractor.parameters(), c.clip_value)
+                optimizer.step()
+            
+            # statistics
+            running_loss += loss.item() * images.size(0)
+            
+            if c.debug:
+                print('binary_labels.data: ',binary_labels.data)
+                print('preds: ',preds)
+                print('running corrects: ',running_corrects)
+                
+            running_corrects += torch.sum(preds == binary_labels.data)
+            
+        epoch_loss = running_loss / dataset_sizes[phase]
+        epoch_acc = running_corrects.double() / dataset_sizes[phase]
+        
+        print('{} Loss: {:.4f} Acc: {:.4f}'.format(phase, epoch_loss, epoch_acc)) 
+        
+        # deep copy the model
+        if phase == 'val' and epoch_acc > best_acc:
+            best_acc = epoch_acc
+            best_model_wts = copy.deepcopy(feat_extractor.state_dict())
+        
+    feat_extractor.load_state_dict(best_model_wts)
+    
+    return feat_extractor
