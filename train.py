@@ -85,6 +85,7 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                               "MNIST",str(c.mnist),
                               "WD",str(c.weight_decay),
                               "FE",str(c.feat_extractor),
+                              'FT',str(c.train_feat_extractor),
                               #"LRS",str(c.scheduler), # only one LR scheduler currently
                                str(now.strftime("%d_%m_%Y_%H_%M_%S"))
                       ])
@@ -98,6 +99,7 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                                 'joint optimisation?':c.joint_optim,
                                 'annotations only?':c.annotations_only,
                                 'pretrained?':c.pretrained,
+                                'finetuned?':c.train_feat_extractor,
                                 'mnist?':c.mnist,
                                 'counts?':c.counts,
                                 'test run?':c.test_run,
@@ -171,7 +173,7 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                         if not c.mnist and not c.counts and not train_feat_extractor:
                             images,dmaps,labels = data
                         elif not c.mnist and not c.counts:
-                            images,dmaps,labels, _ = data # _ = binary_label
+                            images,dmaps,labels = data # _ = binary_label
                         elif not c.mnist:
                             images,dmaps,labels,counts = data
                         else:
@@ -385,10 +387,13 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
             print("Finished Model: ",modelname)
             print("Run finished. Time Elapsed (mins): ",round((run_end-run_start)/60,2),"| Datetime:",str(datetime.now().strftime("%d/%m/%Y %H:%M:%S")))
             if not battery:
-                return model
+                return mdl
  
 # from pytorch tutorial...           
 def train_feat_extractor(feat_extractor,trainloader,validloader,criterion = nn.CrossEntropyLoss()):
+    
+    if c.verbose:
+        print("Finetuning feature extractor...")
     
     now = datetime.now() 
     filename = "_".join([
@@ -481,6 +486,9 @@ def train_feat_extractor(feat_extractor,trainloader,validloader,criterion = nn.C
             if phase == 'val' and epoch_acc > best_acc:
                 best_acc = epoch_acc
                 best_model_wts = copy.deepcopy(feat_extractor.state_dict())
+                
+    if c.verbose:
+        print("Finetuning finished.")
         
     feat_extractor.load_state_dict(best_model_wts)
     model.save_model(model=feat_extractor,filename=filename,loc=FEAT_MOD_DIR)
