@@ -63,7 +63,7 @@ def select_feat_extractor(feat_extractor,train_loader=None,valid_loader=None):
     if c.train_feat_extractor:
     # pretrain feature extractor with classification problem
         num_ftrs = feat_extractor.fc.in_features
-        feat_extractor.fc = nn.Linear(num_ftrs, 2)
+        feat_extractor.fc = nn.Linear(num_ftrs, 2)  
         feat_extractor = train.train_feat_extractor(feat_extractor,train_loader,valid_loader)
         
     return feat_extractor
@@ -369,25 +369,25 @@ def save_cstate(cdir,modelname,config_file):
     
     shutil.copy(config_file, new_name)
 
-def save_model(model, filename):
-    if not os.path.exists(MODEL_DIR):
-        os.makedirs(MODEL_DIR)
-    torch.save(model, os.path.join(MODEL_DIR,filename), pickle_module=dill)
-    print("model {} saved".format(filename))
+def save_model(model,filename,loc=MODEL_DIR):
+    if not os.path.exists(loc):
+        os.makedirs(loc)
+    torch.save(model, os.path.join(loc,filename), pickle_module=dill)
+    print("model {} saved to {}".format(filename,loc))
     save_cstate(cdir=C_DIR,modelname="",config_file="config.py")
     
-def load_model(filename):
-    path = os.path.join(MODEL_DIR, filename)
+def load_model(filename,loc=MODEL_DIR):
+    path = os.path.join(loc, filename)
     model = torch.load(path, pickle_module=dill)
-    print("model {} loaded".format(filename))
+    print("model {} loaded from {}".format(filename,loc))
     return model
     
-def save_weights(model, filename):
-    if not os.path.exists(WEIGHT_DIR):
-        os.makedirs(WEIGHT_DIR)
-    torch.save(model.state_dict(),os.path.join(WEIGHT_DIR,filename), pickle_module=dill)
+def save_weights(model,filename,loc=WEIGHT_DIR):
+    if not os.path.exists(loc):
+        os.makedirs(loc)
+    torch.save(model.state_dict(),os.path.join(loc,filename), pickle_module=dill)
         
-def load_weights(model, filename):
-    path = os.path.join(WEIGHT_DIR, filename)
+def load_weights(model, filename,loc=WEIGHT_DIR):
+    path = os.path.join(loc, filename)
     model.load_state_dict(torch.load(path,pickle_module=dill))
     return model
