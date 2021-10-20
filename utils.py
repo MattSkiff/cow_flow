@@ -71,7 +71,7 @@ class UnNormalize(object):
         return tensor      
 
 # TODO split into minst and non mnist funcs
-def plot_preds(model, loader, plot = True, save=False,title = "",digit=None,hist=True,sampling="randn",plot_n=None):
+def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=True,sampling="randn",plot_n=None):
     """
 
     Parameters
@@ -106,16 +106,11 @@ def plot_preds(model, loader, plot = True, save=False,title = "",digit=None,hist
         The mean reconstruction
 
     """
-    
-    if str(type(model)) == "<class 'model.CowFlow'>":
-        mnist = False
-    else:
-        mnist = True
-    
-    if not mnist and digit != None:
+      
+    if not mdl.mnist and digit != None:
         print('Digit argument ignored for non-MNIST models')
     
-    if mnist:
+    if mdl.mnist:
         if plot_n != None and digit != None:
             print("Warning: plot_n argument will be ignored")
         elif plot_n == None and digit == None:
@@ -123,7 +118,7 @@ def plot_preds(model, loader, plot = True, save=False,title = "",digit=None,hist
         elif plot_n != None:
             print("Plotting first {} digits".format(plot_n))
     
-    def inner_func(model=model):
+    def inner_func(mdl=mdl):
         
  
         idx = random.randint(0,len(loader)-1)
@@ -133,50 +128,52 @@ def plot_preds(model, loader, plot = True, save=False,title = "",digit=None,hist
         z = 0 
         
         for i, data in enumerate(tqdm(loader, disable=c.hide_tqdm_bar)):
-     
-            if mnist:
+            
+            if mdl.mnist:
                 images,labels = data
-            elif loader.dataset.count:
+            elif loader.dataset.count: # model.dataset.count
                 images,dmaps,labels,counts = data
             else:
                 images,dmaps,labels = data
             
-            lb_idx = random.randint(0,3)
+            lb_idx = random.randint(0,loader.batch_size)
                 
-            if not mnist:
-                
+            if not mdl.mnist and mdl.count:
+
                 # check annotations in batch aren't empty
                 lb_idx = None
                  
-                for j in range(loader.batch_size):
+                for count in counts:
+                    j = 0
                     z = z+1
                     if z >= len(loader)*loader.batch_size:
-                        raise ValueError("Loader has no labelled data!")
-                        
-                    if len(labels[j]) != 0:
+                        print("Loader has no labelled data!")
+                    if count != 0:
                         lb_idx = j
                         break
+                    else:
+                        j = j + 1
                     
                 if lb_idx == None:
                     continue  
             
-            if i != idx and plot_n == None and digit == None and mnist:
+            if i != idx and plot_n == None and digit == None and mdl.mnist:
                 continue
             
-            if (mnist and labels.size) or not mnist: # triggers only if there is at least one annotation
+            if (mdl.mnist and labels.size) or not mdl.mnist: # triggers only if there is at least one annotation
                 # Z shape: torch.Size([2, 4, 300, 400]) (batch size = 2)
                 
-                if not mnist:
+                if not mdl.mnist:
                     # TODO - remove hard coding dims here
                     if loader.dataset.count:
-                        dummy_z = (randn(c.batch_size[0], 4,18,24, requires_grad=True)).to(c.device)
+                        dummy_z = (randn(c.batch_size[0],c.channels*4,c.density_map_h // 2,c.density_map_w // 2, requires_grad=True)).to(c.device)
                     else:
                         
-                        if model.feat_extractor.__class__.__name__ == 'Sequential':
+                        if mdl.feat_extractor.__class__.__name__ == 'Sequential': # feat_extractor
                             ft_dims = (19,25)
-                        elif model.feat_extractor.__class__.__name__ == 'VGG':
+                        elif mdl.feat_extractor.__class__.__name__ == 'VGG':
                             ft_dims = (18,25)
-                        elif model.feat_extractor.__class__.__name__ == 'AlexNet':
+                        elif mdl.feat_extractor.__class__.__name__ == 'AlexNet':
                             ft_dims = (17,25)
                         
                         dummy_z = (randn(c.batch_size[0], 1024,ft_dims[0],ft_dims[1], requires_grad=True)).to(c.device)
@@ -192,8 +189,8 @@ def plot_preds(model, loader, plot = True, save=False,title = "",digit=None,hist
                 
                 images = images.float().to(c.device)
                 dummy_z = dummy_z.float().to(c.device)
-                model = model.to(c.device)
-                x, log_det_jac = model(images,dummy_z,rev=True)
+                mdl = mdl.to(c.device)
+                x, log_det_jac = mdl(images,dummy_z,rev=True)
                 
                 if lb_idx == None:
                     lb_idx = 0
@@ -212,20 +209,20 @@ def plot_preds(model, loader, plot = True, save=False,title = "",digit=None,hist
                     dmap_rev_np = x[lb_idx].squeeze().cpu().detach().numpy()
                     mean_pred = x[lb_idx].mean()
                     
-                    if False: #model.count or model.mnist:
-                        x_flat = torch.reshape(x,(loader.batch_size,c.density_map_h ** 2)) # torch.Size([200, 12, 12])
+                    if mdl.count or mdl.mnist:
+                        x_flat = torch.reshape(x,(loader.batch_size,c.density_map_h * c.density_map_w)) # torch.Size([200, 12, 12])
                         mode = torch.mode(x_flat,dim = 1).values.cpu().detach().numpy()
                     
                     sum_pred = x[lb_idx].sum()
                     
                     if plot:
                         
-                        n_plots = 3+hist-mnist
+                        n_plots = 3+hist-mdl.mnist
                                
                         fig, ax = plt.subplots(n_plots,1)
                         plt.ioff()
                         
-                        if mnist:
+                        if mdl.mnist:
                             fig.suptitle('{} \n mode of reconstruction: {}'.format(title,str(mode)),y=1.0,fontsize=24) # :.2f
                         elif loader.dataset.count:   
                             fig.suptitle('{} \n Predicted count: {:.2f}'.format(title,mean_pred),y=1.0,fontsize=24)
@@ -247,23 +244,29 @@ def plot_preds(model, loader, plot = True, save=False,title = "",digit=None,hist
                             
                         ax[0].imshow(dmap_rev_np, cmap='viridis', interpolation='nearest')
                         
-                        if c.mnist:
-                            ax[1].imshow(im)
+                        if mdl.count:
+                            ax[1].imshow((im * 255).astype(np.uint8))
                             if hist:
                                 ax[2].hist(dmap_rev_np.flatten(),bins = 30)
                         else:
-                            ax[1].imshow((im * 255).astype(np.uint8))
-                            ax[2].imshow(dmaps[lb_idx])
-                            if hist:
-                                ax[3].hist(dmap_rev_np.flatten(),bins = 30)
+                        
+                            if c.mnist:
+                                ax[1].imshow(im)
+                                if hist:
+                                    ax[2].hist(dmap_rev_np.flatten(),bins = 30)
+                            else:
+                                ax[1].imshow((im * 255).astype(np.uint8))
+                                ax[2].imshow(dmaps[lb_idx])
+                                if hist:
+                                    ax[3].hist(dmap_rev_np.flatten(),bins = 30)
                             
                         
                         if save:
                             if not os.path.exists(VIZ_DIR):
                                 os.makedirs(VIZ_DIR)
-                            plt.savefig("{}/{}.jpg".format(VIZ_DIR,model.modelname), bbox_inches='tight', pad_inches = 0)
+                            plt.savefig("{}/{}.jpg".format(VIZ_DIR,mdl.modelname), bbox_inches='tight', pad_inches = 0)
                         
-                        if mnist:
+                        if mdl.mnist:
                             out = labels[lb_idx],dmap_rev_np, mean_pred 
                         else:
                             out = dmaps[lb_idx].sum(),dmap_rev_np, sum_pred
@@ -284,7 +287,7 @@ def plot_preds(model, loader, plot = True, save=False,title = "",digit=None,hist
     return out
 
 
-def get_likelihood(model, validloader, plot = True,save=False,digit=None,ood=False):
+def get_likelihood(mdl, validloader, plot = True,save=False,digit=None,ood=False):
     # TODO - more sophisticated ood test of likelihood
     """"'ood' is simply magnifying the value of the image by 100 and checking the loglikelihood is lower"""
     for i, data in enumerate(tqdm(validloader, disable=c.hide_tqdm_bar)):
@@ -304,13 +307,13 @@ def get_likelihood(model, validloader, plot = True,save=False,digit=None,ood=Fal
             images = images.float().to(c.device)
             z = z.float().to(c.device)
             
-            model = model.to(c.device)
+            mdl = mdl.to(c.device)
             
-            x, log_det_jac = model(images,z,rev=False)
+            x, log_det_jac = mdl(images,z,rev=False)
             
             if ood:
                 images_ood = images * 100
-                x_ood, log_det_jac_ood = model(images_ood,z,rev=False)
+                x_ood, log_det_jac_ood = mdl(images_ood,z,rev=False)
                 dmap_rev_np_ood = x_ood[0].squeeze().cpu().detach().numpy()
                 mean_ll_ood = x_ood[0].mean()
 
@@ -350,7 +353,7 @@ def get_likelihood(model, validloader, plot = True,save=False,digit=None,ood=Fal
                 if save:
                     if not os.path.exists(VIZ_DIR):
                         os.makedirs(VIZ_DIR)
-                    plt.savefig("{}/{}.jpg".format(VIZ_DIR,c.modelname), bbox_inches='tight', pad_inches = 0)
+                    plt.savefig("{}/{}.jpg".format(VIZ_DIR,mdl.modelname), bbox_inches='tight', pad_inches = 0)
             
             break
         

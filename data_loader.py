@@ -414,9 +414,14 @@ class CowObjectsDataset(Dataset):
             counts = list()
         
         for b in batch:
+                  
             images.append(b['image'])
-            density.append(b['density'])
-            labels.append(b['labels'])
+              
+            if 'density' in b.keys():
+                density.append(b['density'])
+            
+            if 'labels' in b.keys():
+                labels.append(b['labels'])
             
             if self.count:
                 counts.append(b['counts'])
@@ -425,8 +430,11 @@ class CowObjectsDataset(Dataset):
                  binary_labels.append(b['binary_labels'])
 
         images = torch.stack(images,dim = 0)
-        density = torch.stack(density,dim = 0)
-        labels = np.array(labels, dtype=object)
+        
+        if 'density' in b.keys():
+            density = torch.stack(density,dim = 0)
+        if 'labels' in b.keys():
+            labels = np.array(labels, dtype=object)
         
         if self.count:
             counts = torch.stack(counts,dim = 0)
@@ -469,8 +477,9 @@ class CustToTensor(object):
         
         if 'density' in sample.keys():
             sample['density'] = torch.from_numpy(sample['density'])
-        else:
+        if 'annotations' in sample.keys():
             sample['annotations'] = torch.from_numpy(sample['annotations'])
+        if 'labels' in sample.keys():
             sample['labels'] = torch.from_numpy(sample['labels'])
         
         return sample
@@ -487,7 +496,7 @@ class AerialNormalize(object):
         return sample
 
 class DmapAddUniformNoise(object):
-    
+    """Add uniform noise to Dmaps to stabilise training."""
     def __init__(self, r1=0., r2=1e-3):
         self.r1 = r1
         self.r2 = r2
@@ -495,7 +504,8 @@ class DmapAddUniformNoise(object):
     def __call__(self, sample):
         # uniform tensor in pytorch: 
         # https://stackoverflow.com/questions/44328530/how-to-get-a-uniform-distribution-in-a-range-r1-r2-in-pytorch
-        sample['density'] = sample['density'] + torch.FloatTensor(sample['density'].size()).uniform_(self.r1, self.r2)
+        if 'density' in sample.keys():
+            sample['density'] = sample['density'] + torch.FloatTensor(sample['density'].size()).uniform_(self.r1, self.r2)
         
         return sample
     
@@ -522,9 +532,6 @@ class CustCrop(object):
             density = F.pad(input=density, pad=(0,0,pd,0), mode='constant', value=0)
             # (padding_left,padding_right, padding, padding, padding_top,padding_bottom)
             sample['density'] = density
-        else:
-            sample['annotations'] = sample['annotations']
-            sample['labels'] = sample['labels']
         
         return sample
 

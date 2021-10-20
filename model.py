@@ -190,6 +190,7 @@ class CowFlow(nn.Module):
         self.n_coupling_blocks = c.n_coupling_blocks
         self.joint_optim = c.joint_optim
         self.pretrained = c.pretrained
+        self.finetuned = c.train_feat_extractor
         self.scheduler = c.scheduler
 
 

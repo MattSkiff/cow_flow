@@ -4,11 +4,11 @@ proj_dir = "/home/matthew/Desktop/laptop_desktop/clones/cow_flow/data"
 # device settings
 import torch
 
-gpu = True
+gpu = False
 
 ## Data Options ------
 mnist = False 
-counts = False
+counts = True
 balanced = True # whether to have a 1:1 mixture of empty:annotated images
 annotations_only = False # whether to only use image patches that have annotations
 data_prop = 1 # proportion of the full dataset to use 
@@ -16,7 +16,7 @@ test_train_split = 70 # percentage of data to allocate to train set
 
 ## Density Map Options ------
 filter_size = 15 # as per single image mcnn paper
-sigma = 4.0 # "   -----    "
+sigma = 4.0 # "   -----    " 
 
 test_run = False # use only a small fraction of data to check everything works
 validation = False
@@ -25,9 +25,10 @@ validation = False
 joint_optim = False
 pretrained = True
 feat_extractor = "resnet18" # alexnet, vgg16_bn,resnet18, none # TODO mnist_resnet, efficient net
-feat_extractor_epochs = 20
-train_feat_extractor = True
-load_feat_extractor_str = '' # '' to train from scratch
+feat_extractor_epochs = 50
+train_feat_extractor = False # whether to finetune or load finetuned model 
+load_feat_extractor_str = '' # '' to train from scratch, loads FE 
+# nb: pretraining FE saves regardless of save flag
 
 ## Architecture Options ------
 gap = False # global average pooling
@@ -49,7 +50,7 @@ meta_epochs = 1
 sub_epochs = 1
 
 ## Output Settings ----
-schema = 'saving_models_test' # if debug, ignored
+schema = 'resnet50e' # if debug, ignored
 debug = False
 tb = False
 verbose = True
@@ -119,8 +120,8 @@ if not mnist and not counts:
         density_map_h = 576 #img_size[1]
 elif not mnist:
     # size of count expanded to map spatial feature dimensions
-    density_map_h = 18 * 2 # need at least 2 channels, expand x2, then downsample (haar)
-    density_map_w = 24 * 2
+    density_map_h = 19 * 2 # need at least 2 channels, expand x2, then downsample (haar)
+    density_map_w = 25 * 2 # TODO - rework so this ties to ft_dims (vgg,alexnet, resnet, etc)
 elif mnist and feat_extractor != "none":
     if gap:
         density_map_h = img_size[1] * 2
