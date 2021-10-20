@@ -7,10 +7,17 @@ from torch.utils.data import DataLoader # Dataset
 from torch.utils.data.sampler import SubsetRandomSampler # RandomSampling
 # from torchvision import transforms
 import config as c
+import model
 import pickle 
 from train import train, train_battery
 #from utils import load_datasets, make_dataloaders
 from data_loader import CowObjectsDataset, CustToTensor,AerialNormalize, DmapAddUniformNoise, CustCrop, train_valid_split
+
+# command line params
+import argparse
+parser = argparse.ArgumentParser(description='Create dataloaders and train CowFlow or MNISTFlow conditional NF.')
+parser.add_argument("-fe_only", "--feat_extract_only", help="Trains the feature extractor component only.", action="store_true")
+args = parser.parse_args()
 
 empty_cache() # free up memory for cuda
 
@@ -45,9 +52,9 @@ if c.mnist:
         valid_loader = DataLoader(mnist_test,batch_size = c.batch_size[0],pin_memory=True,
                                       shuffle=False,sampler=toy_sampler)
         if len(c.lr_init) == 1:
-                model = train(train_loader,valid_loader,lr_i=c.lr_init)
+                mdl = train(train_loader,valid_loader,lr_i=c.lr_init)
         else:
-                model = train_battery([train_loader],[valid_loader],lr_i=c.lr_init)
+                mdl = train_battery([train_loader],[valid_loader],lr_i=c.lr_init)
                 
     else:
         tls,vls = [],[]
@@ -58,7 +65,7 @@ if c.mnist:
             vls.append(DataLoader(mnist_test,batch_size = bs,pin_memory=True,
                                       shuffle=False,sampler=toy_sampler))
             
-            model = train_battery(tls,vls,lr_i=c.lr_init)
+            mdl = train_battery(tls,vls,lr_i=c.lr_init)
     
    
 else:
@@ -68,7 +75,6 @@ else:
                                             count = c.counts,classification = c.train_feat_extractor)
     
     # create test train split
-    # save/load indices as they take a while to gen
     # https://stackoverflow.com/questions/27745500/how-to-save-a-list-to-a-file-and-read-it-as-a-list-type
     if not c.fixed_indices:
         train_indices, valid_indices = train_valid_split(dataset = transformed_dataset, 
@@ -90,6 +96,7 @@ else:
     # Creating data samplers and loaders:
     # only train part for dev purposes 
     
+    
     if not c.annotations_only:
         train_sampler = SubsetRandomSampler(train_indices[:round(c.data_prop*len(train_indices))])
         valid_sampler = SubsetRandomSampler(valid_indices[:round(c.data_prop*len(valid_indices))])
@@ -97,11 +104,10 @@ else:
     if c.annotations_only:
         train_sampler = SubsetRandomSampler(train_indices)
         valid_sampler = SubsetRandomSampler(valid_indices)
-    
-    if c.verbose: 
-        # TODO - broken currently for batteries
-        print("BROKEN Training using {} train samples and {} validation samples...".format(str(len(train_sampler)*int(c.batch_size[0])),str(len(valid_sampler)*int(c.batch_size[0]))))
-    
+        
+    if len(c.batch_size) != 1 or len(c.lr_init) != 1 and args.feat_extract_only:
+        ValueError('Training batteries not available for Feature Extractor only runs')
+        
     
     if len(c.batch_size) == 1:
         train_loader = DataLoader(transformed_dataset, batch_size=c.batch_size[0],shuffle=False, 
@@ -113,9 +119,12 @@ else:
                             pin_memory=True,sampler=valid_sampler)
         
         if len(c.lr_init) == 1:
-                model = train(train_loader,valid_loader,lr_i=c.lr_init)
+            if args.feat_extract_only:
+                feat_extractor = model.select_feat_extractor(c.feat_extractor,train_loader,valid_loader)
+            else:
+                mdl = train(train_loader,valid_loader,lr_i=c.lr_init)
         else:
-                model = train_battery([train_loader],[valid_loader],lr_i=c.lr_init)
+                mdl = train_battery([train_loader],[valid_loader],lr_i=c.lr_init)
                 
     else:
         tls,vls = [],[]
@@ -129,4 +138,4 @@ else:
                             num_workers=0,collate_fn=transformed_dataset.custom_collate_density,
                             pin_memory=True,sampler=valid_sampler))
             
-            model = train_battery(tls,vls,lr_i=c.lr_init)
+            mdl = train_battery(tls,vls,lr_i=c.lr_init)

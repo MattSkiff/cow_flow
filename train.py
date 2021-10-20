@@ -4,6 +4,7 @@ import torch.nn as nn
 from tqdm import tqdm # progress bar
 import time 
 import copy
+import os
 from datetime import datetime 
 
 import config as c
@@ -12,10 +13,12 @@ from eval import eval_mnist, eval_model
 from utils import get_loss, plot_preds, t2np
 from torch.nn.utils import clip_grad_value_
 from torch.optim.lr_scheduler import ExponentialLR
-import model
+import model # importing entire file fixes 'cyclical import' issues
 #from model import CowFlow, MNISTFlow, select_feat_extractor, save_model #, save_weights
 
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+FEAT_MOD_DIR = './models/feat_extractors/'
+
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu") # select 0 gpu
 
 # tensorboard
 from torch.utils.tensorboard import SummaryWriter
@@ -59,11 +62,18 @@ def train_battery(train_loader,valid_loader,lr_i = c.lr_init):
 
 def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None): #def train(train_loader, test_loader):
             
-            feat_extractor = model.select_feat_extractor(c.feat_extractor,train_loader,valid_loader)
+            if c.verbose: 
+                print("Training run using {} train samples and {} validation samples...".format(str(len(train_loader)*int(train_loader.batch_size)),str(len(valid_loader)*int(valid_loader.batch_size))))
+                print("Using device: {}".format(c.device))
+                    
+            if c.load_feat_extractor_str == '':
+                feat_extractor = model.select_feat_extractor(c.feat_extractor,train_loader,valid_loader)
+            else:
+                feat_extractor = model.load_model(filename=c.load_feat_extractor_str,loc=FEAT_MOD_DIR)
         
             now = datetime.now() 
             modelname = "_".join([
-                               c.schema,c.pc,
+                               c.schema,os.uname().nodename,
                               "JO",str(c.joint_optim),
                               "PT",str(c.pretrained),
                               "BS",str(train_loader.batch_size),
@@ -119,11 +129,11 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                     
             if c.joint_optim:
                 optimizer = torch.optim.Adam([
-                            {'params': model.nf.parameters()},
-                            {'params': model.feat_extractor.parameters(), 'lr_init': 1e-3,'betas':(0.9,0.999),'eps':1e-08, 'weight_decay':0}
+                            {'params': mdl.nf.parameters()},
+                            {'params': mdl.feat_extractor.parameters(), 'lr_init': 1e-3,'betas':(0.9,0.999),'eps':1e-08, 'weight_decay':0}
                         ], lr=lr_i[0], betas=(0.8, 0.8), eps=1e-04, weight_decay=c.weight_decay )
             else:
-                optimizer = torch.optim.Adam(model.nf.parameters(), lr=lr_i[0], betas=(0.8, 0.8), eps=1e-04, weight_decay=c.weight_decay)
+                optimizer = torch.optim.Adam(mdl.nf.parameters(), lr=lr_i[0], betas=(0.8, 0.8), eps=1e-04, weight_decay=c.weight_decay)
             
             
             # add scheduler to improve stability further into training
@@ -157,8 +167,11 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                         
                         optimizer.zero_grad()
                         
-                        if not c.mnist and not c.counts:
+                        # TODO - can this section
+                        if not c.mnist and not c.counts and not train_feat_extractor:
                             images,dmaps,labels = data
+                        elif not c.mnist and not c.counts:
+                            images,dmaps,labels, _ = data # _ = binary_label
                         elif not c.mnist:
                             images,dmaps,labels,counts = data
                         else:
@@ -202,7 +215,7 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                         else:
                             input_data = (images,labels)
                             
-                        z, log_det_jac = model(*input_data)
+                        z, log_det_jac = mdl(*input_data)
                             
                         # x: inputs (i.e. 'x-side' when rev is False, 'z-side' when rev is True) [FrEIA]
                         # i.e. what y (output) is depends on direction of flow
@@ -223,7 +236,7 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                         loss_t = t2np(loss)
                         
                         if writer != None:
-                            writer.add_scalar('loss/training_minibatch',loss, k)
+                            writer.add_scalar('minibatch_loss/train',loss, k)
                         
                         train_loss.append(loss_t)
                         loss.backward()
@@ -257,7 +270,7 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                             print(len(images)) # features                
                     
                     if writer != None:
-                        writer.add_scalar('loss/training_subpeoch',mean_train_loss, j)
+                        writer.add_scalar('epoch_loss/train',mean_train_loss, j)
                     
                     if c.verbose:
                         t_e2 = time.perf_counter()
@@ -312,7 +325,7 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                                 print('Sub Epoch: {:d} \t valid_loss: {:4f}'.format(sub_epoch,valid_loss))
                         
                         if writer != None:
-                            writer.add_scalar('loss/valid_subpeoch',valid_loss, j)
+                            writer.add_scalar('epoch_loss/val',valid_loss, j)
                             
                     j += 1
                 l += 1
@@ -332,16 +345,16 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                     mdl.to(c.device)
                 
                 if writer != None:
-                    writer.add_scalar('accuracy/training',training_accuracy, l)
-                    writer.add_scalar('accuracy/valid',valid_accuracy, l)
+                    writer.add_scalar('epoch_acc/train',training_accuracy, l)
+                    writer.add_scalar('epoch_acc/val',valid_accuracy, l)
                 
                     # add param tensorboard scalars
                     # TODO: write this to text file and store once per run (instead of cstate copy)
                     writer.add_hparams(
                                hparam_dict = model_hparam_dict,
                                metric_dict = {
-                                'accuracy/valid':valid_accuracy,
-                                'accuracy/training':training_accuracy
+                                'epoch_acc/val':valid_accuracy,
+                                'epoch_acc/train':training_accuracy
                                               },
                                run_name = modelname
                                )
@@ -375,7 +388,20 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                 return model
  
 # from pytorch tutorial...           
-def train_feat_extractor(feat_extractor,trainloader,validloader,criterion = nn.CrossEntropyLoss(),writer=None):
+def train_feat_extractor(feat_extractor,trainloader,validloader,criterion = nn.CrossEntropyLoss()):
+    
+    now = datetime.now() 
+    filename = "_".join([
+                c.feat_extractor,
+                'FTE',str(c.feat_extractor_epochs),
+                str(now.strftime("%d_%m_%Y_%H_%M_%S")),
+                "PT",str(c.pretrained)
+            ])
+    
+    if not c.debug:
+        writer = SummaryWriter(log_dir='runs/feat_pretrained/'+filename)
+    else:
+        writer = None
     
     optimizer = torch.optim.Adam(feat_extractor.parameters(),lr=1e-3,betas=(0.9,0.999),eps=1e-08, weight_decay=0)
     best_model_wts = copy.deepcopy(feat_extractor.state_dict())
@@ -386,65 +412,76 @@ def train_feat_extractor(feat_extractor,trainloader,validloader,criterion = nn.C
     
     dataset_sizes = {'train': t_sz,'val': v_sz}
    
-    for phase in ['train', 'val']:
-        if phase == 'train':
-            feat_extractor.train()  
-        else:
-            feat_extractor.eval()        
+    feat_extractor.to(c.device)        
     
     for epoch in range(c.feat_extractor_epochs):
         
-        running_loss = 0.0; running_corrects = 0
-        
-        if c.verbose:
-            print('Feature Extractor Epoch {}/{}'.format(epoch, c.feat_extractor_epochs - 1))
-        for i, data in enumerate(tqdm(trainloader, disable=c.hide_tqdm_bar)):
+        for phase in ['train', 'val']:
+            if phase == 'train':
+                feat_extractor.train()  
+                loader = trainloader
+            else:
+                feat_extractor.eval()
+                loader = validloader
             
-            optimizer.zero_grad()
+            if c.verbose:
+                print('Feature Extractor {} Epoch {}/{}'.format(phase,epoch, c.feat_extractor_epochs)) 
+                
+            running_loss = 0.0; running_corrects = 0
             
-            images = data[0].to(c.device)
-            binary_labels = data[3].to(c.device)
-            
-            if c.debug:
-                print('feature extractor labels: ',binary_labels)
-            
-            with torch.set_grad_enabled(phase == 'train'):
-                outputs = feat_extractor(images)
-                _, preds = torch.max(outputs, 1)
+            for i, data in enumerate(tqdm(loader, disable=c.hide_tqdm_bar)):
+                
+                optimizer.zero_grad()
+                
+                images = data[0].to(c.device)
+                binary_labels = data[3].to(c.device)
                 
                 if c.debug:
-                    print('preds: ',preds)
-                    
-                loss = criterion(outputs,binary_labels)
-                            
-                if writer != None:
-                     writer.add_scalar('loss/training_minibatch',loss, epoch)
-                     
-            if phase == 'train':                 
-                loss.backward()
-                clip_grad_value_(feat_extractor.parameters(), c.clip_value)
-                optimizer.step()
-            
-            # statistics
-            running_loss += loss.item() * images.size(0)
-            
-            if c.debug:
-                print('binary_labels.data: ',binary_labels.data)
-                print('preds: ',preds)
-                print('running corrects: ',running_corrects)
+                    print('feature extractor labels: ',binary_labels)
                 
-            running_corrects += torch.sum(preds == binary_labels.data)
+                with torch.set_grad_enabled(phase == 'train'):
+                    outputs = feat_extractor(images)
+                    _, preds = torch.max(outputs, 1)
+                    
+                    if c.debug:
+                        print('preds: ',preds)
+                        
+                    loss = criterion(outputs,binary_labels)
+                                
+                    if writer != None:
+                         writer.add_scalar('minibatch_loss/{}'.format(phase),loss.item(), i)
+                         
+                if phase == 'train':                 
+                    loss.backward()
+                    clip_grad_value_(feat_extractor.parameters(), c.clip_value)
+                    optimizer.step()
+                
+                # statistics
+                running_loss += loss.item() * images.size(0)
+                running_corrects += torch.sum(preds == binary_labels.data)
+                
+                if c.debug:
+                    print('binary_labels.data: ',binary_labels.data)
+                    print('preds: ',preds)
+                    print('running corrects: ',running_corrects)
+                      
+            epoch_loss = running_loss / dataset_sizes[phase]
+            epoch_acc = running_corrects.double() / dataset_sizes[phase]
+        
+            if c.verbose:
+                print('{} Loss: {:.4f} Acc: {:.4f}'.format(phase, epoch_loss, epoch_acc)) 
             
-        epoch_loss = running_loss / dataset_sizes[phase]
-        epoch_acc = running_corrects.double() / dataset_sizes[phase]
+            if writer != None:
+                writer.add_scalar('epoch_acc/{}'.format(phase),epoch_acc, epoch)
+                writer.add_scalar('epoch_loss/{}'.format(phase),epoch_loss, epoch)
+            
+            running_loss = 0.0; running_corrects = 0
         
-        print('{} Loss: {:.4f} Acc: {:.4f}'.format(phase, epoch_loss, epoch_acc)) 
-        
-        # deep copy the model
-        if phase == 'val' and epoch_acc > best_acc:
-            best_acc = epoch_acc
-            best_model_wts = copy.deepcopy(feat_extractor.state_dict())
+            # deep copy the model with best valid acc
+            if phase == 'val' and epoch_acc > best_acc:
+                best_acc = epoch_acc
+                best_model_wts = copy.deepcopy(feat_extractor.state_dict())
         
     feat_extractor.load_state_dict(best_model_wts)
-    
+    model.save_model(model=feat_extractor,filename=filename,loc=FEAT_MOD_DIR)
     return feat_extractor
