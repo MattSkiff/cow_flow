@@ -76,14 +76,14 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                                c.schema,os.uname().nodename,
                               "JO",str(c.joint_optim),
                               "PT",str(c.pretrained),
-                              "BS",str(train_loader.batch_size),
-                              "NC",str(c.n_coupling_blocks),
-                              "E",str(c.meta_epochs*c.sub_epochs),
+                              "BS"+str(train_loader.batch_size),
+                              "NC"+str(c.n_coupling_blocks),
+                              "E"+str(c.meta_epochs*c.sub_epochs),
                               "CT",str(c.counts),
                               "DIM",str(c.density_map_h),
-                              "LR_I",str(lr_i),
+                              "LR_I"+str(lr_i),
                               "MNIST",str(c.mnist),
-                              "WD",str(c.weight_decay),
+                              "WD"+str(c.weight_decay),
                               "FE",str(c.feat_extractor),
                               'FT',str(c.train_feat_extractor),
                               #"LRS",str(c.scheduler), # only one LR scheduler currently
@@ -238,7 +238,7 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                         loss_t = t2np(loss)
                         
                         if writer != None:
-                            writer.add_scalar('minibatch_loss/train',loss, k)
+                            writer.add_scalar('loss/minibatch_train',loss, k)
                         
                         train_loss.append(loss_t)
                         loss.backward()
@@ -272,7 +272,7 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                             print(len(images)) # features                
                     
                     if writer != None:
-                        writer.add_scalar('epoch_loss/train',mean_train_loss, j)
+                        writer.add_scalar('loss/epoch_train',mean_train_loss, j)
                     
                     if c.verbose:
                         t_e2 = time.perf_counter()
@@ -327,10 +327,9 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                                 print('Sub Epoch: {:d} \t valid_loss: {:4f}'.format(sub_epoch,valid_loss))
                         
                         if writer != None:
-                            writer.add_scalar('epoch_loss/val',valid_loss, j)
+                            writer.add_scalar('loss/epoch_val',valid_loss, j)
                             
                     j += 1
-                l += 1
                 
                 if c.mnist:
                     valid_accuracy, training_accuracy = eval_mnist(model,valid_loader,train_loader)
@@ -347,22 +346,22 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                     mdl.to(c.device)
                 
                 if writer != None:
-                    writer.add_scalar('epoch_acc/train',training_accuracy, l)
-                    writer.add_scalar('epoch_acc/val',valid_accuracy, l)
+                    writer.add_scalar('acc/meta_epoch_train',training_accuracy, l)
+                    writer.add_scalar('acc/meta_epoch_val',valid_accuracy, l)
                 
                     # add param tensorboard scalars
-                    # TODO: write this to text file and store once per run (instead of cstate copy)
                     writer.add_hparams(
                                hparam_dict = model_hparam_dict,
                                metric_dict = {
-                                'epoch_acc/val':valid_accuracy,
-                                'epoch_acc/train':training_accuracy
+                                'acc/meta_epoch_train':training_accuracy,
+                                'acc/meta_epoch_val':valid_accuracy
                                               },
                                run_name = modelname
                                )
                 
                 
                     writer.flush()
+                    l += 1
             
             # post training: visualise a random reconstruction
             if c.dmap_viz:
@@ -400,7 +399,8 @@ def train_feat_extractor(feat_extractor,trainloader,validloader,criterion = nn.C
                 c.feat_extractor,
                 'FTE',str(c.feat_extractor_epochs),
                 str(now.strftime("%d_%m_%Y_%H_%M_%S")),
-                "PT",str(c.pretrained)
+                "PT",str(c.pretrained),
+                'BS',str(trainloader.batch_size)
             ])
     
     if not c.debug:
@@ -450,11 +450,11 @@ def train_feat_extractor(feat_extractor,trainloader,validloader,criterion = nn.C
                     
                     if c.debug:
                         print('preds: ',preds)
-                        
+                    
                     loss = criterion(outputs,binary_labels)
                                 
                     if writer != None:
-                         writer.add_scalar('minibatch_loss/{}'.format(phase),loss.item(), i)
+                         writer.add_scalar('loss/minibatch_{}'.format(phase),loss.item(), i)
                          
                 if phase == 'train':                 
                     loss.backward()
@@ -477,8 +477,8 @@ def train_feat_extractor(feat_extractor,trainloader,validloader,criterion = nn.C
                 print('{} Loss: {:.4f} Acc: {:.4f}'.format(phase, epoch_loss, epoch_acc)) 
             
             if writer != None:
-                writer.add_scalar('epoch_acc/{}'.format(phase),epoch_acc, epoch)
-                writer.add_scalar('epoch_loss/{}'.format(phase),epoch_loss, epoch)
+                writer.add_scalar('acc/epoch_{}'.format(phase),epoch_acc, epoch)
+                writer.add_scalar('loss/epoch_{}'.format(phase),epoch_loss, epoch)
             
             running_loss = 0.0; running_corrects = 0
         

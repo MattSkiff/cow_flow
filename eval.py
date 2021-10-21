@@ -43,7 +43,7 @@ def eval_mnist(model, validloader, trainloader,samples = 1,confusion = False, pr
                 if c.one_hot:
                     dims = (1,2)
                 
-                x = torch.reshape(x,(loader.batch_size,c.density_map_h ** 2)) # torch.Size([200, 12, 12])
+                x = torch.reshape(x,(loader.batch_size,c.density_map_h * c.density_map_w)) # torch.Size([200, 12, 12])
                 raw_preds = x  # torch.Size([200, 144])
                 x = torch.mode(x,dim = 1).values.cpu().detach().numpy() #print(x.shape) (200,)
                 

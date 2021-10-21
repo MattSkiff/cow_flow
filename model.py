@@ -14,6 +14,7 @@ import torch.nn.functional as F
 from torchvision.models.resnet import ResNet, BasicBlock
 
 import config as c # hyper params
+import arguments as a
 from utils import init_weights
 
 import train # train_feat_extractor
@@ -122,27 +123,13 @@ def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,m
     
     # include batch size as extra dimension here? data is batched along extra dimension
     # input = density maps / mnist labels 
-    nodes = [Ff.InputNode(c.channels,input_dim[0],input_dim[1],name='input')] 
     
-    # haar downsampling to resolves input data only having a single channel (from unsqueezed singleton dimension)
-    # affine coupling performs channel wise split
-    # https://github.com/VLL-HD/FrEIA/issues/8
-    if c.mnist or c.counts:
-        nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling'))
-    elif not c.counts:
-        # downsamples density maps (not needed for counts)
-        nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling1'))
-        nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling2'))
-        nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling3'))
-        nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling4'))
-        nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling5'))
-    
-    # 'Because of the construction of the conditional coupling blocks, the condition must have the same spatial dimensions as the data'
+        # 'Because of the construction of the conditional coupling blocks, the condition must have the same spatial dimensions as the data'
     # https://github.com/VLL-HD/FrEIA/issues/9
     
     # condition = exacted image features
     if c.mnist or c.counts:
-        condition = Ff.ConditionNode(condition_dim,input_dim[0] // 2,input_dim[1] // 2, name = 'condition') 
+        condition = [Ff.ConditionNode(condition_dim,input_dim[0] // 2,input_dim[1] // 2, name = 'condition')]
     else:
         # TODO: avoid hardcoding feature spatial dimensions in
         if c.feat_extractor == 'resnet18':
@@ -151,8 +138,26 @@ def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,m
             ft_dims = (18,25)
         elif c.feat_extractor == 'alexnet':
             ft_dims = (17,24)
- 
-        condition = Ff.ConditionNode(condition_dim,ft_dims[0],ft_dims[1],name = 'condition') 
+        elif c.feat_extractor == 'none':
+            ft_dims = (600,800)
+            
+        condition = [Ff.ConditionNode(condition_dim,ft_dims[0],ft_dims[1],name = 'condition')]
+    
+    nodes = [Ff.InputNode(c.channels,input_dim[0],input_dim[1],name='input')] 
+    
+    # haar downsampling to resolves input data only having a single channel (from unsqueezed singleton dimension)
+    # affine coupling performs channel wise split
+    # https://github.com/VLL-HD/FrEIA/issues/8
+    if c.mnist or c.counts or c.feat_extractor == 'none':
+        nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling'))
+            
+    elif not c.counts and c.feat_extractor != 'none':
+        # downsamples density maps (not needed for counts)
+        nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling1'))
+        nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling2'))
+        nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling3'))
+        nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling4'))
+        nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling5'))
         
     for k in range(c.n_coupling_blocks):
         if c.verbose:
@@ -163,13 +168,23 @@ def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,m
         if c.verbose:
             print(condition)
             
-        nodes.append(Ff.Node(nodes[-1], Fm.GLOWCouplingBlock,{'clamp': c.clamp_alpha, 'subnet_constructor':subnet},conditions=[condition],
-                             name = 'couple_{}'.format(k)))
+        if a.args.unconditional:
+            condition = None
+            
+        nodes.append(Ff.Node(nodes[-1], Fm.GLOWCouplingBlock,{'clamp': c.clamp_alpha, 'subnet_constructor':subnet},conditions=condition,
+                            name = 'couple_{}'.format(k)))
+        
+        #nodes.append(Ff.Node(nodes[-1], Fm.AllInOneBlock,{'subnet_constructor':subnet},conditions=[condition],name = 'allin1_{}'.format(k)))
        
     # perform haar upsampling (reshape) to ensure loss calculation is correct
     # nodes.append(Ff.Node(nodes[-1], Fm.HaarUpsampling, {}, name = 'Upsampling'))
+    if a.args.unconditional:
+        out = Ff.ReversibleGraphNet(nodes + [Ff.OutputNode(nodes[-1], name='output')], verbose=c.verbose)
+    else:
+        out = Ff.ReversibleGraphNet(nodes + [condition,Ff.OutputNode(nodes[-1], name='output')], verbose=c.verbose) 
         
-    return Ff.ReversibleGraphNet(nodes + [condition,Ff.OutputNode(nodes[-1], name='output')], verbose=c.verbose) 
+        
+    return out
         
 class CowFlow(nn.Module):
     
@@ -192,7 +207,6 @@ class CowFlow(nn.Module):
         self.pretrained = c.pretrained
         self.finetuned = c.train_feat_extractor
         self.scheduler = c.scheduler
-
 
     def forward(self,images,labels,rev=False): # label = dmaps or counts
         # no multi-scale architecture (yet) as per differnet paper
@@ -226,7 +240,10 @@ class CowFlow(nn.Module):
             else:
                 feat_cat.append(feat_s)
         
-        feats = torch.cat(feat_cat) # concatenation (does nothing at single scale feature extraction)
+            feats = torch.cat(feat_cat) # concatenation (does nothing at single scale feature extraction)
+            
+        else:
+            feats = feat_s
         
         # adding spatial dimensions....
         # remove dimension of size one for concatenation in NF coupling layer - squeeze()
