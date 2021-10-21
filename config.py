@@ -4,11 +4,11 @@ proj_dir = "/home/matthew/Desktop/laptop_desktop/clones/cow_flow/data"
 # device settings
 import torch
 
-gpu = False
+gpu = True
 
 ## Data Options ------
 mnist = False 
-counts = True
+counts = False # must be off for pretraining feature extractor (#TODO)
 balanced = True # whether to have a 1:1 mixture of empty:annotated images
 annotations_only = False # whether to only use image patches that have annotations
 data_prop = 1 # proportion of the full dataset to use 
@@ -24,7 +24,7 @@ validation = False
 ## Feature Extractor Options ------
 joint_optim = False
 pretrained = True
-feat_extractor = "resnet18" # alexnet, vgg16_bn,resnet18, none # TODO mnist_resnet, efficient net
+feat_extractor = "none" # alexnet, vgg16_bn,resnet18, none # TODO mnist_resnet, efficient net
 feat_extractor_epochs = 50
 train_feat_extractor = False # whether to finetune or load finetuned model 
 load_feat_extractor_str = '' # '' to train from scratch, loads FE 
@@ -32,6 +32,7 @@ load_feat_extractor_str = '' # '' to train from scratch, loads FE
 
 ## Architecture Options ------
 gap = False # global average pooling
+downsampling = False # whether to downsample dmaps by converting spatial dims to channel dims
 n_coupling_blocks = 1
 
 # Hyper Params and Optimisation ------
@@ -46,13 +47,13 @@ batch_size = [16] # actual batch size is this value multiplied by n_transforms(_
 
 # total epochs = meta_epochs * sub_epochs
 # evaluation after <sub_epochs> epochs
-meta_epochs = 1
+meta_epochs = 25
 sub_epochs = 1
 
 ## Output Settings ----
-schema = 'resnet50e' # if debug, ignored
+schema = '' # if debug, ignored
 debug = False
-tb = False
+tb = True
 verbose = True
 report_freq = 50 # nth minibatch to report on (1 = always)
 dmap_viz = False
@@ -118,6 +119,8 @@ if not mnist and not counts:
          density_map_w = 768
     elif feat_extractor == 'vgg16_bn':
         density_map_h = 576 #img_size[1]
+    elif feat_extractor == 'none':
+        density_map_h = 600
 elif not mnist:
     # size of count expanded to map spatial feature dimensions
     density_map_h = 19 * 2 # need at least 2 channels, expand x2, then downsample (haar)
