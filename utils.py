@@ -109,6 +109,9 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
       
     if not mdl.mnist and digit != None:
         print('Digit argument ignored for non-MNIST models')
+        
+    if mdl.count != loader.dataset.count:
+        raise ValueError("model and loader count properties do not match!")
     
     if mdl.mnist:
         if plot_n != None and digit != None:
@@ -166,7 +169,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
                 if not mdl.mnist:
                     # TODO - remove hard coding dims here
                     if loader.dataset.count:
-                        dummy_z = (randn(c.batch_size[0],c.channels*4,c.density_map_h // 2,c.density_map_w // 2, requires_grad=True)).to(c.device)
+                        dummy_z = (randn(loader.batch_size,c.channels*4,c.density_map_h // 2,c.density_map_w // 2, requires_grad=True)).to(c.device)
                     else:
                         
                         if mdl.feat_extractor.__class__.__name__ == 'Sequential': # feat_extractor
@@ -217,7 +220,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
                     
                     if plot:
                         
-                        n_plots = 3+hist-mdl.mnist
+                        n_plots = 3+hist-mdl.mnist-mdl.count
                                
                         fig, ax = plt.subplots(n_plots,1)
                         plt.ioff()
@@ -269,7 +272,10 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
                         if mdl.mnist:
                             out = labels[lb_idx],dmap_rev_np, mean_pred 
                         else:
-                            out = dmaps[lb_idx].sum(),dmap_rev_np, sum_pred
+                            if mdl.count:
+                                out = counts[lb_idx],dmap_rev_np, mean_pred
+                            else:
+                                out = dmaps[lb_idx].sum(),dmap_rev_np, sum_pred
                         
                         if digit != None and labels[idx] == digit:
                             return out 
@@ -286,11 +292,51 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
 
     return out
 
+def counts_preds_vs_actual(mdl,loader):
+    """Plots predicted versus actual counts from the data and returns the R^2 value. Required a count dataloader and a count model."""
+    assert mdl.count
+    assert loader.dataset.count
+    assert not mdl.mnist
+    assert mdl.modelname 
+    
+    means = []
+    actuals = []
+    
+    for i, data in enumerate(tqdm(loader, disable=c.hide_tqdm_bar)):
+    
+        images,dmaps,labels,counts = data           
+        dummy_z = (randn(loader.batch_size,c.channels*4,c.density_map_h // 2,c.density_map_w // 2, requires_grad=True)).to(c.device)
+        images = images.float().to(c.device)
+        dummy_z = dummy_z.float().to(c.device)
+        mdl = mdl.to(c.device)
+        x, _ = mdl(images,dummy_z,rev=True)
+        
+        mean_preds = x.mean(dim = (1,2,3)).detach().cpu().numpy()
+        means.append(mean_preds)
+        actuals.append(counts.detach().cpu().numpy())
+        
+    means =np.concatenate(means, axis=0)
+    actuals = np.concatenate(actuals, axis=0)
+    correlation_matrix = np.corrcoef(means, actuals)
+    correlation_xy = correlation_matrix[0,1]
+    r_squared = correlation_xy**2
+    
+    # TODO - add model info to plot
+    ident = [0.0, np.max(actuals)]
+    plt.axis([0, 10, 0, 10])
+    plt.scatter(means, actuals, alpha=0.5)
+    plt.plot(ident,ident)
+    plt.title('Predicted versus Actual Counts: R2 = {}'.format(str(round(r_squared,2))))
+    plt.xlabel("Predicted Counts")
+    plt.ylabel("Actual Counts")
+    plt.show()
+    
+    return mean_preds,counts,r_squared
 
-def get_likelihood(mdl, validloader, plot = True,save=False,digit=None,ood=False):
+def get_likelihood(mdl, loader, plot = True,save=False,digit=None,ood=False):
     # TODO - more sophisticated ood test of likelihood
     """"'ood' is simply magnifying the value of the image by 100 and checking the loglikelihood is lower"""
-    for i, data in enumerate(tqdm(validloader, disable=c.hide_tqdm_bar)):
+    for i, data in enumerate(tqdm(loader, disable=c.hide_tqdm_bar)):
         
         if c.mnist:
             images,labels = data
