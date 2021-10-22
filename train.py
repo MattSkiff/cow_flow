@@ -414,6 +414,7 @@ def train_feat_extractor(feat_extractor,trainloader,validloader,criterion = nn.C
     
     t_sz = len(trainloader)*trainloader.batch_size
     v_sz = len(validloader)*validloader.batch_size
+    minibatch_count = 0 
     
     dataset_sizes = {'train': t_sz,'val': v_sz}
    
@@ -452,9 +453,10 @@ def train_feat_extractor(feat_extractor,trainloader,validloader,criterion = nn.C
                         print('preds: ',preds)
                     
                     loss = criterion(outputs,binary_labels)
+                    minibatch_count += 1
                                 
                     if writer != None:
-                         writer.add_scalar('loss/minibatch_{}'.format(phase),loss.item(), i)
+                         writer.add_scalar('loss/minibatch_{}'.format(phase),loss.item(), minibatch_count)
                          
                 if phase == 'train':                 
                     loss.backward()

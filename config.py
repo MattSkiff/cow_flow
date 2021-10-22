@@ -8,7 +8,7 @@ gpu = True
 
 ## Data Options ------
 mnist = False 
-counts = False # must be off for pretraining feature extractor (#TODO)
+counts = True # must be off for pretraining feature extractor (#TODO)
 balanced = True # whether to have a 1:1 mixture of empty:annotated images
 annotations_only = False # whether to only use image patches that have annotations
 data_prop = 1 # proportion of the full dataset to use 
@@ -43,7 +43,7 @@ clamp_alpha = 1.9
 
 # vectorised params must always be passed as lists
 lr_init = [2e-4]
-batch_size = [16] # actual batch size is this value multiplied by n_transforms(_test)
+batch_size = [8] # actual batch size is this value multiplied by n_transforms(_test)
 
 # total epochs = meta_epochs * sub_epochs
 # evaluation after <sub_epochs> epochs
