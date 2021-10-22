@@ -24,7 +24,7 @@ validation = False
 ## Feature Extractor Options ------
 joint_optim = False
 pretrained = True
-feat_extractor = "none" # alexnet, vgg16_bn,resnet18, none # TODO mnist_resnet, efficient net
+feat_extractor = "resnet18" # alexnet, vgg16_bn,resnet18, none # TODO mnist_resnet, efficient net
 feat_extractor_epochs = 50
 train_feat_extractor = False # whether to finetune or load finetuned model 
 load_feat_extractor_str = '' # '' to train from scratch, loads FE 
@@ -32,7 +32,7 @@ load_feat_extractor_str = '' # '' to train from scratch, loads FE
 
 ## Architecture Options ------
 gap = False # global average pooling
-downsampling = False # whether to downsample dmaps by converting spatial dims to channel dims
+downsampling = False # TODO - does nothing atm whether to downsample dmaps by converting spatial dims to channel dims
 n_coupling_blocks = 1
 
 # Hyper Params and Optimisation ------

@@ -315,15 +315,14 @@ def counts_preds_vs_actual(mdl,loader):
         means.append(mean_preds)
         actuals.append(counts.detach().cpu().numpy())
         
-    means =np.concatenate(means, axis=0)
+    means = np.concatenate(means, axis=0)
     actuals = np.concatenate(actuals, axis=0)
     correlation_matrix = np.corrcoef(means, actuals)
     correlation_xy = correlation_matrix[0,1]
     r_squared = correlation_xy**2
     
     # TODO - add model info to plot
-    ident = [0.0, np.max(actuals)]
-    plt.axis([0, 10, 0, 10])
+    ident = [np.min(np.concatenate([means,actuals], axis=0)), np.max(np.concatenate([means,actuals], axis=0))]
     plt.scatter(means, actuals, alpha=0.5)
     plt.plot(ident,ident)
     plt.title('Predicted versus Actual Counts: R2 = {}'.format(str(round(r_squared,2))))
@@ -331,7 +330,7 @@ def counts_preds_vs_actual(mdl,loader):
     plt.ylabel("Actual Counts")
     plt.show()
     
-    return mean_preds,counts,r_squared
+    return means,actuals,r_squared
 
 def get_likelihood(mdl, loader, plot = True,save=False,digit=None,ood=False):
     # TODO - more sophisticated ood test of likelihood
