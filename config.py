@@ -8,7 +8,7 @@ gpu = True
 
 ## Data Options ------
 mnist = False 
-counts = True # must be off for pretraining feature extractor (#TODO)
+counts = False # must be off for pretraining feature extractor (#TODO)
 balanced = True # whether to have a 1:1 mixture of empty:annotated images
 annotations_only = False # whether to only use image patches that have annotations
 data_prop = 1 # proportion of the full dataset to use 
@@ -24,7 +24,7 @@ validation = False
 ## Feature Extractor Options ------
 joint_optim = False
 pretrained = True
-feat_extractor = "resnet18" # alexnet, vgg16_bn,resnet18, none # TODO mnist_resnet, efficient net
+feat_extractor = "none" # alexnet, vgg16_bn,resnet18, none # TODO mnist_resnet, efficient net
 feat_extractor_epochs = 50
 train_feat_extractor = False # whether to finetune or load finetuned model 
 load_feat_extractor_str = '' # '' to train from scratch, loads FE 
@@ -33,7 +33,11 @@ load_feat_extractor_str = '' # '' to train from scratch, loads FE
 ## Architecture Options ------
 gap = False # global average pooling
 downsampling = False # TODO - does nothing atm whether to downsample dmaps by converting spatial dims to channel dims
-n_coupling_blocks = 1
+n_coupling_blocks = 8
+
+## Subnet Architecture Options
+batchnorm = False
+filters = 32
 
 # Hyper Params and Optimisation ------
 scheduler = 'exponential' # exponential, none
@@ -43,7 +47,7 @@ clamp_alpha = 1.9
 
 # vectorised params must always be passed as lists
 lr_init = [2e-4]
-batch_size = [8] # actual batch size is this value multiplied by n_transforms(_test)
+batch_size = [4] # actual batch size is this value multiplied by n_transforms(_test)
 
 # total epochs = meta_epochs * sub_epochs
 # evaluation after <sub_epochs> epochs
@@ -52,7 +56,7 @@ sub_epochs = 1
 
 ## Output Settings ----
 schema = '' # if debug, ignored
-debug = False
+debug = True
 tb = True
 verbose = True
 report_freq = 50 # nth minibatch to report on (1 = always)
@@ -78,6 +82,7 @@ else:
     fixed_indices = False # turn this off for actual experiments, on to speed up code
     # save/load is now redundant
 
+# "condition dim"
 if feat_extractor == "alexnet":
     n_feat = 256 
 elif feat_extractor == "vgg16_bn":
@@ -85,7 +90,11 @@ elif feat_extractor == "vgg16_bn":
 elif feat_extractor == "resnet18":
     n_feat = 512
 elif feat_extractor == "none":
-    n_feat = 1 
+    if mnist:
+        n_feat = 1 
+    else:
+        # conditioning on raw RGB image
+         n_feat = 3
 
 if mnist:
     one_hot = True # only for MNIST
@@ -94,8 +103,11 @@ else:
 
 if one_hot:
     channels = 10 # onehot 1 num -> 0,0,0,1 etc
-else:
+elif mnist or feat_extractor != "none":
     channels = 1 # greyscale mnist, density maps
+else:
+    # TODO - this is a massive hack to test feature extractor-less  NF
+    channels = 2 # duplicate dmap over channel dimension (1->2)
 
 if debug:
     schema = 'schema/debug' # aka ignore debugs

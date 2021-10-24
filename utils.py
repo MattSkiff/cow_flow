@@ -292,8 +292,8 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
 
     return out
 
-def counts_preds_vs_actual(mdl,loader):
-    """Plots predicted versus actual counts from the data and returns the R^2 value. Required a count dataloader and a count model."""
+def counts_preds_vs_actual(mdl,loader,plot=False):
+    """Plots predicted versus actual counts from the data and returns the R^2 value. Required: count dataloader and count model."""
     assert mdl.count
     assert loader.dataset.count
     assert not mdl.mnist
@@ -322,13 +322,14 @@ def counts_preds_vs_actual(mdl,loader):
     r_squared = correlation_xy**2
     
     # TODO - add model info to plot
-    ident = [np.min(np.concatenate([means,actuals], axis=0)), np.max(np.concatenate([means,actuals], axis=0))]
-    plt.scatter(means, actuals, alpha=0.5)
-    plt.plot(ident,ident)
-    plt.title('Predicted versus Actual Counts: R2 = {}'.format(str(round(r_squared,2))))
-    plt.xlabel("Predicted Counts")
-    plt.ylabel("Actual Counts")
-    plt.show()
+    if plot:
+        ident = [np.min(np.concatenate([means,actuals], axis=0)), np.max(np.concatenate([means,actuals], axis=0))]
+        plt.scatter(means, actuals, alpha=0.5)
+        plt.plot(ident,ident)
+        plt.title('Predicted versus Actual Counts: R2 = {}'.format(str(round(r_squared,2))))
+        plt.xlabel("Predicted Counts")
+        plt.ylabel("Actual Counts")
+        plt.show()
     
     return means,actuals,r_squared
 

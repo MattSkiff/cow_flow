@@ -72,20 +72,23 @@ def select_feat_extractor(feat_extractor,train_loader=None,valid_loader=None):
 def sub_conv2d(dims_in,dims_out):
     # naming pytorch layers:
     # https://stackoverflow.com/questions/66152766/how-to-assign-a-name-for-a-pytorch-layer/66162559#66162559
-    net = nn.Sequential(
-            collections.OrderedDict(
+    network_dict = collections.OrderedDict(
                 [
-                    ("conv1", nn.Conv2d(dims_in, 32, kernel_size = 3,padding = 1)), 
-                    ('batchnorm1',nn.BatchNorm2d(32)),
+                    ("conv1", nn.Conv2d(dims_in, c.filters, kernel_size = 3,padding = 1)), 
+                    ('batchnorm1',nn.BatchNorm2d(c.filters)),
                     ("relu1", nn.ReLU()),
-                    ("conv2", nn.Conv2d(32, 64, kernel_size = 3,padding = 1)),
-                    ('batchnorm2',nn.BatchNorm2d(64)),
+                    ("conv2", nn.Conv2d(c.filters, c.filters*2, kernel_size = 3,padding = 1)),
+                    ('batchnorm2',nn.BatchNorm2d(c.filters*2)),
                     ("relu2", nn.ReLU()),
-                    ("conv3", nn.Conv2d(64, dims_out,kernel_size = 3,padding = 1))
+                    ("conv3", nn.Conv2d(c.filters*2, dims_out,kernel_size = 3,padding = 1))
                 ]
         )
-    )
     
+    if not c.batchnorm:
+        del network_dict['batchnorm1']
+        del network_dict['batchnorm2']
+    
+    net = nn.Sequential(network_dict)
     net.apply(init_weights)
     
     # zero init last subnet weights as per glow, cINNs paper
@@ -132,6 +135,7 @@ def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,m
         condition = [Ff.ConditionNode(condition_dim,input_dim[0] // 2,input_dim[1] // 2, name = 'condition')]
     else:
         # TODO: avoid hardcoding feature spatial dimensions in
+        # TODO: tie feat_extractor property to model, e.g.  add  func to class (clases - multiple inheritance)
         if c.feat_extractor == 'resnet18':
             ft_dims = (19,25)
         elif c.feat_extractor == 'vgg16_bn' :
@@ -148,7 +152,7 @@ def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,m
     # haar downsampling to resolves input data only having a single channel (from unsqueezed singleton dimension)
     # affine coupling performs channel wise split
     # https://github.com/VLL-HD/FrEIA/issues/8
-    if c.mnist or c.counts or c.feat_extractor == 'none':
+    if c.mnist or c.counts:
         nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling'))
             
     elif not c.counts and c.feat_extractor != 'none':
@@ -182,7 +186,6 @@ def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,m
         out = Ff.ReversibleGraphNet(nodes + [Ff.OutputNode(nodes[-1], name='output')], verbose=c.verbose)
     else:
         out = Ff.ReversibleGraphNet(nodes + condition + [Ff.OutputNode(nodes[-1], name='output')], verbose=c.verbose) 
-        
         
     return out
         
@@ -268,12 +271,16 @@ class CowFlow(nn.Module):
             labels = labels.unsqueeze(1) #.expand(-1,c.n_feat,-1, -1) 
         
         if c.debug:
-            print('label sizes: ',labels.size())
+            print('label sizes:')
+            print(labels.size(),"\n")
         
         if c.counts and not rev:
             # expand counts out to spatial dims of feats
             labels = labels.unsqueeze(2).unsqueeze(3).expand(-1,-1,feats.size()[2] * 2,feats.size()[3] * 2)
-        
+            
+        if self.feat_extractor.__class__.__name__ == 'NothingNet' and not self.count:
+            labels = labels.expand(-1,c.channels,-1,-1) # expand dmap over channel dimension
+            
         if c.debug: 
             print("expanded label (dmap/counts) map size")
             print(labels.size(),"\n") 
@@ -282,7 +289,7 @@ class CowFlow(nn.Module):
         # first argument is the 'x' i.e. the data we are mapping to z (NF : x <--> z)
         # is also what we are trying to predict (in a sense we are using 'x' features to predict 'y' density maps)
         # hence ambiguity in notation
-        
+
         z = self.nf(x_or_z = labels,c = feats,rev=rev)
         return z
 
