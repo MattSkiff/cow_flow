@@ -69,18 +69,18 @@ def select_feat_extractor(feat_extractor,train_loader=None,valid_loader=None):
         
     return feat_extractor
 
-def sub_conv2d(dims_in,dims_out):
+def sub_conv2d(dims_in,dims_out,n_filters):
     # naming pytorch layers:
     # https://stackoverflow.com/questions/66152766/how-to-assign-a-name-for-a-pytorch-layer/66162559#66162559
     network_dict = collections.OrderedDict(
                 [
-                    ("conv1", nn.Conv2d(dims_in, c.filters, kernel_size = 3,padding = 1)), 
-                    ('batchnorm1',nn.BatchNorm2d(c.filters)),
+                    ("conv1", nn.Conv2d(dims_in, n_filters, kernel_size = 3,padding = 1)), 
+                    ('batchnorm1',nn.BatchNorm2d(n_filters)),
                     ("relu1", nn.ReLU()),
-                    ("conv2", nn.Conv2d(c.filters, c.filters*2, kernel_size = 3,padding = 1)),
-                    ('batchnorm2',nn.BatchNorm2d(c.filters*2)),
+                    ("conv2", nn.Conv2d(c.filters, n_filters*2, kernel_size = 3,padding = 1)),
+                    ('batchnorm2',nn.BatchNorm2d(n_filters*2)),
                     ("relu2", nn.ReLU()),
-                    ("conv3", nn.Conv2d(c.filters*2, dims_out,kernel_size = 3,padding = 1))
+                    ("conv3", nn.Conv2d(n_filters*2, dims_out,kernel_size = 3,padding = 1))
                 ]
         )
     
@@ -100,13 +100,13 @@ def sub_conv2d(dims_in,dims_out):
 def sub_fc(dims_in,dims_out,internal_size):
     # debugging
     net = nn.Sequential(
-        nn.Linear(dims_in, dims_out), # internal_size
-        #nn.ReLU(),
-        #nn.Dropout(),
-        #nn.Linear(internal_size, internal_size), 
-        #nn.ReLU(),
-        #nn.Dropout(),
-        #nn.Linear(internal_size,dims_out)
+        nn.Linear(dims_in, internal_size), # internal_size
+        nn.ReLU(),
+        nn.Dropout(),
+        nn.Linear(internal_size, internal_size), 
+        nn.ReLU(),
+        nn.Dropout(),
+        nn.Linear(internal_size,dims_out)
         )
     
     return net
@@ -117,7 +117,10 @@ def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,m
         
         # subnet is operating over density map 
         # hence switch from linear to conv2d net
-        net = sub_conv2d(dims_in,dims_out)
+        if c.subnet_type == 'conv':
+            net = sub_conv2d(dims_in,dims_out,c.filters)
+        elif c.subnet_type == 'fc':
+            net = sub_fc(dims_in,dims_out,c.width)
 
         if c.debug:
             print('dims in: {}, dims out: {}'.format(dims_in,dims_out))
@@ -174,7 +177,7 @@ def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,m
             
         if a.args.unconditional:
             condition = None
-            
+        
         nodes.append(Ff.Node(nodes[-1], Fm.GLOWCouplingBlock,{'clamp': c.clamp_alpha, 'subnet_constructor':subnet},conditions=condition,
                             name = 'couple_{}'.format(k)))
         
@@ -202,6 +205,7 @@ class CowFlow(nn.Module):
             
         self.nf = nf_head()   
         self.modelname = modelname
+        self.unconditional = a.args.unconditional
         self.count = c.counts
         self.mnist = False
         self.gap = c.gap
@@ -290,7 +294,11 @@ class CowFlow(nn.Module):
         # is also what we are trying to predict (in a sense we are using 'x' features to predict 'y' density maps)
         # hence ambiguity in notation
 
-        z = self.nf(x_or_z = labels,c = feats,rev=rev)
+        if self.unconditional:
+            z = self.nf(x_or_z = labels,rev=rev)
+        else:
+            z = self.nf(x_or_z = labels,c = feats,rev=rev)
+            
         return z
 
 class MNISTFlow(nn.Module):

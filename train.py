@@ -358,19 +358,20 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                     train_R2 = -99; valid_R2 = -99
                 
                     # add param tensorboard scalars
-                    writer.add_hparams(
-                               hparam_dict = model_hparam_dict,
-                               metric_dict = {
-                                'acc/meta_epoch_train':training_accuracy,
-                                'acc/meta_epoch_val':valid_accuracy,
-                                'R2/meta_epoch_train':train_R2,
-                                'R2/meta_epoch_valid':valid_R2
-                                              },
-                               run_name = modelname
-                               )
-                
-                
-                    writer.flush()
+                    if writer != None:
+                        writer.add_hparams(
+                                   hparam_dict = model_hparam_dict,
+                                   metric_dict = {
+                                    'acc/meta_epoch_train':training_accuracy,
+                                    'acc/meta_epoch_val':valid_accuracy,
+                                    'R2/meta_epoch_train':train_R2,
+                                    'R2/meta_epoch_valid':valid_R2
+                                                  },
+                                   run_name = modelname
+                                   )
+                    
+                    
+                        writer.flush()
                     l += 1
             
             # post training: visualise a random reconstruction
