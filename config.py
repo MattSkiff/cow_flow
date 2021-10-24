@@ -24,7 +24,7 @@ validation = False
 ## Feature Extractor Options ------
 joint_optim = False
 pretrained = True
-feat_extractor = "none" # alexnet, vgg16_bn,resnet18, none # TODO mnist_resnet, efficient net
+feat_extractor = "resnet18" # alexnet, vgg16_bn,resnet18, none # TODO mnist_resnet, efficient net
 feat_extractor_epochs = 50
 train_feat_extractor = False # whether to finetune or load finetuned model 
 load_feat_extractor_str = '' # '' to train from scratch, loads FE 
@@ -33,11 +33,13 @@ load_feat_extractor_str = '' # '' to train from scratch, loads FE
 ## Architecture Options ------
 gap = False # global average pooling
 downsampling = False # TODO - does nothing atm whether to downsample dmaps by converting spatial dims to channel dims
-n_coupling_blocks = 8
+n_coupling_blocks = 4
 
 ## Subnet Architecture Options
 batchnorm = False
 filters = 32
+width = 1024
+subnet_type = 'conv' # options = fc, conv
 
 # Hyper Params and Optimisation ------
 scheduler = 'exponential' # exponential, none
@@ -51,18 +53,18 @@ batch_size = [4] # actual batch size is this value multiplied by n_transforms(_t
 
 # total epochs = meta_epochs * sub_epochs
 # evaluation after <sub_epochs> epochs
-meta_epochs = 25
+meta_epochs = 1
 sub_epochs = 1
 
 ## Output Settings ----
-schema = '' # if debug, ignored
-debug = True
-tb = True
+schema = 'unconditional_test' # if debug, ignored
+debug = False
+tb = False
 verbose = True
 report_freq = 50 # nth minibatch to report on (1 = always)
 dmap_viz = False
 hide_tqdm_bar = False
-save_model = False # also saves a copy of the config file with the name of the model
+save_model = True # also saves a copy of the config file with the name of the model
 checkpoints = False
 
 # nb: same as the defaults specified for the pretrained pytorch model zoo
