@@ -85,4 +85,4 @@ def eval_mnist(model, validloader, trainloader,samples = 1,confusion = False, pr
 
 def eval_model(model, validloader, trainloader, plot = True, save=True,hist=True):
     
-    return 0,0
+    return -99,-99

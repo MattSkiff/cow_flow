@@ -10,7 +10,7 @@ from datetime import datetime
 import config as c
 
 from eval import eval_mnist, eval_model
-from utils import get_loss, plot_preds, t2np
+from utils import get_loss, plot_preds, counts_preds_vs_actual, t2np
 from torch.nn.utils import clip_grad_value_
 from torch.optim.lr_scheduler import ExponentialLR
 import model # importing entire file fixes 'cyclical import' issues
@@ -345,16 +345,26 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                     #save_weights(model,"checkpoint_"+str(l)+"_"+modelname) # currently have no use for saving weights
                     mdl.to(c.device)
                 
-                if writer != None:
+                if writer != None and mdl.mnist:
                     writer.add_scalar('acc/meta_epoch_train',training_accuracy, l)
                     writer.add_scalar('acc/meta_epoch_val',valid_accuracy, l)
+                    
+                if writer != None and mdl.count:
+                    _,_,train_R2 = counts_preds_vs_actual(mdl,train_loader)
+                    _,_,valid_R2 = counts_preds_vs_actual(mdl,valid_loader)
+                    writer.add_scalar('R2/meta_epoch_train',train_R2, l)
+                    writer.add_scalar('R2/meta_epoch_valid',valid_R2, l)
+                else:
+                    train_R2 = -99; valid_R2 = -99
                 
                     # add param tensorboard scalars
                     writer.add_hparams(
                                hparam_dict = model_hparam_dict,
                                metric_dict = {
                                 'acc/meta_epoch_train':training_accuracy,
-                                'acc/meta_epoch_val':valid_accuracy
+                                'acc/meta_epoch_val':valid_accuracy,
+                                'R2/meta_epoch_train':train_R2,
+                                'R2/meta_epoch_valid':valid_R2
                                               },
                                run_name = modelname
                                )
