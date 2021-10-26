@@ -4,15 +4,15 @@ proj_dir = "/home/matthew/Desktop/laptop_desktop/clones/cow_flow/data"
 # device settings
 import torch
 
-gpu = True
+gpu = False
 
 ## Data Options ------
 mnist = False 
-counts = False # must be off for pretraining feature extractor (#TODO)
-balanced = True # whether to have a 1:1 mixture of empty:annotated images
-annotations_only = False # whether to only use image patches that have annotations
+counts = True # must be off for pretraining feature extractor (#TODO)
+balanced = False # whether to have a 1:1 mixture of empty:annotated images
+annotations_only = True # whether to only use image patches that have annotations
 data_prop = 1 # proportion of the full dataset to use 
-test_train_split = 70 # percentage of data to allocate to train set
+test_train_split = 99 # percentage of data to allocate to train set
 
 ## Density Map Options ------
 filter_size = 15 # as per single image mcnn paper
@@ -31,15 +31,15 @@ load_feat_extractor_str = '' # '' to train from scratch, loads FE
 # nb: pretraining FE saves regardless of save flag
 
 ## Architecture Options ------
-gap = False # global average pooling
+gap = True # global average pooling
 downsampling = False # TODO - does nothing atm whether to downsample dmaps by converting spatial dims to channel dims
-n_coupling_blocks = 4
+n_coupling_blocks = 2
 
 ## Subnet Architecture Options
 batchnorm = False
 filters = 32
-width = 1024
-subnet_type = 'conv' # options = fc, conv
+width = 800 
+subnet_type = 'fc' # options = fc, conv
 
 # Hyper Params and Optimisation ------
 scheduler = 'exponential' # exponential, none
@@ -48,8 +48,8 @@ clip_value = 1 # gradient clipping
 clamp_alpha = 1.9 
 
 # vectorised params must always be passed as lists
-lr_init = [2e-4]
-batch_size = [4] # actual batch size is this value multiplied by n_transforms(_test)
+lr_init = [2e-3]
+batch_size = [1] # actual batch size is this value multiplied by n_transforms(_test)
 
 # total epochs = meta_epochs * sub_epochs
 # evaluation after <sub_epochs> epochs
@@ -57,11 +57,11 @@ meta_epochs = 1
 sub_epochs = 1
 
 ## Output Settings ----
-schema = 'unconditional_test' # if debug, ignored
+schema = 'countLowD_anno_only' # if debug, ignored
 debug = False
 tb = False
 verbose = True
-report_freq = 50 # nth minibatch to report on (1 = always)
+report_freq = 100 # nth minibatch to report on (1 = always)
 dmap_viz = False
 hide_tqdm_bar = False
 save_model = True # also saves a copy of the config file with the name of the model
@@ -107,6 +107,8 @@ if one_hot:
     channels = 10 # onehot 1 num -> 0,0,0,1 etc
 elif mnist or feat_extractor != "none":
     channels = 1 # greyscale mnist, density maps
+elif counts:
+    channels = 1 # duplication not needed (linear subnets)
 else:
     # TODO - this is a massive hack to test feature extractor-less  NF
     channels = 2 # duplicate dmap over channel dimension (1->2)
@@ -150,3 +152,6 @@ elif mnist and feat_extractor == "none":
     # minimum possible dimensionality of flow possible with coupling layers
     density_map_h = 4
     density_map_w = 4 
+
+# checks
+assert not (feat_extractor == 'none' and gap == True)

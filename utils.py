@@ -7,6 +7,7 @@ import os
 import torch
 import numpy as np
 import random
+from prettytable import PrettyTable
 
 VIZ_DIR = './viz'
 
@@ -15,10 +16,10 @@ def t2np(tensor):
     return tensor.cpu().data.numpy() if tensor is not None else None
 
 def get_loss(z, jac):
-    '''check equation 4 of the paper why this makes sense - oh and just ignore the scaling here'''
-    # in differnet, exponentiate over 'channel' dim (n_feat)
+    # in differnet, exponentiate over 'channel' dim (n_feat)  
     # here, we exponentiate over channel, height, width to produce single norm val per density map
-    return torch.mean(0.5 * torch.sum(z ** 2, dim=(1,2,3)) - jac) / z.shape[1]
+    dims = tuple(range(1, len(z.size())-1))
+    return torch.mean(0.5 * torch.sum(z ** 2, dim=dims) - jac) / z.shape[1]
 
 # from: https://discuss.pytorch.org/t/how-to-add-noise-to-mnist-dataset-when-using-pytorch/59745
 # @ptrblck
@@ -139,9 +140,9 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
             else:
                 images,dmaps,labels = data
             
-            lb_idx = random.randint(0,loader.batch_size)
+            lb_idx = random.randint(0,loader.batch_size-1)
                 
-            if not mdl.mnist and mdl.count:
+            if mdl.count: # not mdl.mnist or # TODO
 
                 # check annotations in batch aren't empty
                 lb_idx = None
@@ -171,6 +172,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
                     if loader.dataset.count:
                         dummy_z = (randn(loader.batch_size,c.channels*4,c.density_map_h // 2,c.density_map_w // 2, requires_grad=True)).to(c.device)
                     else:
+                        in_channels = 1024
                         
                         if mdl.feat_extractor.__class__.__name__ == 'Sequential': # feat_extractor
                             ft_dims = (19,25)
@@ -178,8 +180,11 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
                             ft_dims = (18,25)
                         elif mdl.feat_extractor.__class__.__name__ == 'AlexNet':
                             ft_dims = (17,25)
+                        elif mdl.feat_extractor.__class__.__name__ == 'NothingNet':
+                            ft_dims = (600,800)
+                            in_channels = 2
                         
-                        dummy_z = (randn(c.batch_size[0], 1024,ft_dims[0],ft_dims[1], requires_grad=True)).to(c.device)
+                        dummy_z = (randn(c.batch_size[0], in_channels,ft_dims[0],ft_dims[1], requires_grad=True)).to(c.device)
                 else:
                     if sampling == 'ones':
                         dummy_z = (torch.ones(loader.batch_size, c.channels*4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True).to(c.device))
@@ -208,7 +213,6 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
                     lb_idx = [lb_idx]
                 
                 for lb_idx in lb_idx:
-                
                     dmap_rev_np = x[lb_idx].squeeze().cpu().detach().numpy()
                     mean_pred = x[lb_idx].mean()
                     
@@ -219,6 +223,9 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
                     sum_pred = x[lb_idx].sum()
                     
                     if plot:
+                        
+                        if mdl.unconditional:
+                            hist = False
                         
                         n_plots = 3+hist-mdl.mnist-mdl.count
                                
@@ -244,7 +251,10 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
                             im = unnorm(images[lb_idx])
                             
                             im = 255-im.permute(1,2,0).cpu().numpy()
-                            
+                         
+                        if mdl.unconditional:
+                            dmap_rev_np = dmap_rev_np[0,:,:] # select only data from first duplicated channel
+                        
                         ax[0].imshow(dmap_rev_np, cmap='viridis', interpolation='nearest')
                         
                         if mdl.count:
@@ -303,20 +313,29 @@ def counts_preds_vs_actual(mdl,loader,plot=False):
     actuals = []
     
     for i, data in enumerate(tqdm(loader, disable=c.hide_tqdm_bar)):
-    
-        images,dmaps,labels,counts = data           
-        dummy_z = (randn(loader.batch_size,c.channels*4,c.density_map_h // 2,c.density_map_w // 2, requires_grad=True)).to(c.device)
+        images,dmaps,labels,counts = data
+        if not mdl.gap:    
+            dummy_z = (randn(loader.batch_size,c.channels*4,c.density_map_h // 2,c.density_map_w // 2, requires_grad=True)).to(c.device)
+        else:
+            dummy_z = (randn(loader.batch_size,c.channels, requires_grad=True)).to(c.device)
         images = images.float().to(c.device)
         dummy_z = dummy_z.float().to(c.device)
         mdl = mdl.to(c.device)
         x, _ = mdl(images,dummy_z,rev=True)
         
-        mean_preds = x.mean(dim = (1,2,3)).detach().cpu().numpy()
+        mean_preds = x.mean(dim = tuple(range(1,len(x.shape)-1))).detach().cpu().numpy()
         means.append(mean_preds)
         actuals.append(counts.detach().cpu().numpy())
+    
+    if mdl.gap:
+        means = [means]
         
     means = np.concatenate(means, axis=0)
     actuals = np.concatenate(actuals, axis=0)
+    
+    print(means)
+    print(actuals)
+    
     correlation_matrix = np.corrcoef(means, actuals)
     correlation_xy = correlation_matrix[0,1]
     r_squared = correlation_xy**2
@@ -409,3 +428,16 @@ def get_likelihood(mdl, loader, plot = True,save=False,digit=None,ood=False):
         out = mean_ll # z[0],x[0],
         
     return out # x.size() #
+
+# https://stackoverflow.com/questions/49201236/check-the-total-number-of-parameters-in-a-pytorch-model
+def count_parameters(model):
+    table = PrettyTable(["Modules", "Parameters"])
+    total_params = 0
+    for name, parameter in model.named_parameters():
+        if not parameter.requires_grad: continue
+        param = parameter.numel()
+        table.add_row([name, param])
+        total_params+=param
+    print(table)
+    print(f"Total Trainable Params: {total_params}")
+    return total_params
