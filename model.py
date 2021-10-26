@@ -130,12 +130,14 @@ def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,m
     # include batch size as extra dimension here? data is batched along extra dimension
     # input = density maps / mnist labels 
     
-        # 'Because of the construction of the conditional coupling blocks, the condition must have the same spatial dimensions as the data'
+    # 'Because of the construction of the conditional coupling blocks, the condition must have the same spatial dimensions as the data'
     # https://github.com/VLL-HD/FrEIA/issues/9
     
     # condition = exacted image features
-    if c.mnist or c.counts:
+    if c.mnist or (c.counts and not c.gap):
         condition = [Ff.ConditionNode(condition_dim,input_dim[0] // 2,input_dim[1] // 2, name = 'condition')]
+    elif c.counts and c.gap:
+        condition = [Ff.ConditionNode(condition_dim,name = 'condition')]
     else:
         # TODO: avoid hardcoding feature spatial dimensions in
         # TODO: tie feat_extractor property to model, e.g.  add  func to class (clases - multiple inheritance)
@@ -147,18 +149,21 @@ def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,m
             ft_dims = (17,24)
         elif c.feat_extractor == 'none':
             ft_dims = (600,800)
-            
+        
         condition = [Ff.ConditionNode(condition_dim,ft_dims[0],ft_dims[1],name = 'condition')]
     
-    nodes = [Ff.InputNode(c.channels,input_dim[0],input_dim[1],name='input')] 
+    if c.counts and c.gap:
+        nodes = [Ff.InputNode(1,name='input')] # single count value
+    else:
+        nodes = [Ff.InputNode(c.channels,input_dim[0],input_dim[1],name='input')] 
     
     # haar downsampling to resolves input data only having a single channel (from unsqueezed singleton dimension)
     # affine coupling performs channel wise split
     # https://github.com/VLL-HD/FrEIA/issues/8
-    if c.mnist or c.counts:
+    if c.mnist or (c.counts or c.feat_extractor == 'none') and c.downsampling and c.subnet_type == 'conv':
         nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling'))
             
-    elif not c.counts and c.feat_extractor != 'none':
+    elif not c.counts and c.feat_extractor != 'none' and c.downsampling:
         # downsamples density maps (not needed for counts)
         nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling1'))
         nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling2'))
@@ -169,8 +174,10 @@ def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,m
     for k in range(c.n_coupling_blocks):
         if c.verbose:
             print("creating layer {:d}".format(k))
-            
-        nodes.append(Ff.Node(nodes[-1], Fm.PermuteRandom, {'seed': k}, name='permute_{}'.format(k)))
+        
+        # Don't need permutation layer if flow is univariate
+        if not (c.counts and c.subnet_type == 'fc'):
+            nodes.append(Ff.Node(nodes[-1], Fm.PermuteRandom, {'seed': k}, name='permute_{}'.format(k)))
         
         if c.verbose:
             print(condition)
@@ -259,7 +266,7 @@ class CowFlow(nn.Module):
             print("concatenated and pooled feature size..")
             print(feats.size(),"\n")
         
-        if c.feat_extractor != "none":
+        if c.feat_extractor != "none" and c.subnet_type =='conv':
         
             if c.gap:
                 feats = feats.unsqueeze(2).unsqueeze(3).expand(-1, -1, c.density_map_h // 2,c.density_map_w // 2)
@@ -278,11 +285,11 @@ class CowFlow(nn.Module):
             print('label sizes:')
             print(labels.size(),"\n")
         
-        if c.counts and not rev:
+        if c.counts and not rev and c.subnet_type == 'conv':
             # expand counts out to spatial dims of feats
             labels = labels.unsqueeze(2).unsqueeze(3).expand(-1,-1,feats.size()[2] * 2,feats.size()[3] * 2)
             
-        if self.feat_extractor.__class__.__name__ == 'NothingNet' and not self.count:
+        if self.unconditional and not c.downsampling and not self.count and c.subnet_type == 'conv':
             labels = labels.expand(-1,c.channels,-1,-1) # expand dmap over channel dimension
             
         if c.debug: 
@@ -293,12 +300,12 @@ class CowFlow(nn.Module):
         # first argument is the 'x' i.e. the data we are mapping to z (NF : x <--> z)
         # is also what we are trying to predict (in a sense we are using 'x' features to predict 'y' density maps)
         # hence ambiguity in notation
-
+        
         if self.unconditional:
             z = self.nf(x_or_z = labels,rev=rev)
         else:
             z = self.nf(x_or_z = labels,c = feats,rev=rev)
-            
+          
         return z
 
 class MNISTFlow(nn.Module):
