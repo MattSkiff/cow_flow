@@ -75,23 +75,56 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                 feat_extractor = model.load_model(filename=c.load_feat_extractor_str,loc=FEAT_MOD_DIR)
         
             now = datetime.now() 
-            modelname = "_".join([
-                               c.schema,os.uname().nodename,
-                              "JO",str(c.joint_optim),
-                              "PT",str(c.pretrained),
-                              "BS"+str(train_loader.batch_size),
-                              "NC"+str(c.n_coupling_blocks),
-                              "E"+str(c.meta_epochs*c.sub_epochs),
-                              "CT",str(c.counts),
-                              "DIM",str(c.density_map_h),
-                              "LR_I"+str(lr_i),
-                              "MNIST",str(c.mnist),
-                              "WD"+str(c.weight_decay),
-                              "FE",str(c.feat_extractor),
-                              'FT',str(c.train_feat_extractor),
-                              #"LRS",str(c.scheduler), # only one LR scheduler currently
-                               str(now.strftime("%d_%m_%Y_%H_%M_%S"))
-                      ])
+            
+            parts = [c.schema,
+                     os.uname().nodename,
+                    "BS",str(train_loader.batch_size),
+                    "LR_I",str(lr_i),
+                    "NC",str(c.n_coupling_blocks),
+                    "E",str(c.meta_epochs*c.sub_epochs),
+                    "FE",str(c.feat_extractor),
+                    "DIM",str(c.density_map_h)]
+            
+            #"LRS",str(c.scheduler), # only one LR scheduler currently
+            if c.joint_optim:
+                parts.append('JO')
+                
+            if c.pretrained:
+                parts.append('PT')
+                
+            if c.pyramid:
+                parts.append('PY')
+                
+            if c.counts and not c.mnist:
+                parts.append('CT')
+                
+            if c.mnist:
+                parts.append('MNIST')
+                
+            if c.weight_decay != 1e-5:
+                parts.extend(["WD",str(c.weight_decay)])
+                
+            if c.train_feat_extractor:
+                parts.append('FT')
+                
+            if c.filter_size != 15 and not c.mnist:
+                parts.extend(["FSZ",str(c.filter_size)])
+                
+            if c.sigma != 4 and not c.mnist:
+                parts.extend(["FSG",str(c.sigma)])
+                
+            if c.clamp_alpha != 1.9 and not c.mnist:
+                parts.extend(["CLA",str(c.clamp_alpha)])
+                
+            if c.test_train_split != 70 and not c.mnist:
+                parts.extend(["SPLIT",str(c.clamp_alpha)])
+                
+            if c.balanced and not c.mnist:
+                parts.append('BL')
+                   
+            parts.append(str(now.strftime("%d_%m_%Y_%H_%M_%S")))
+            
+            modelname = "_".join(parts)
     
             print("Training Model: ",modelname)
     
@@ -100,12 +133,14 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                                 'image height':c.density_map_h,
                                 'image width':c.density_map_w,
                                 'joint optimisation?':c.joint_optim,
+                                'global average pooling?':c.gap,
                                 'annotations only?':c.annotations_only,
                                 'pretrained?':c.pretrained,
+                                'feature pyramid?':c.pyramid,
                                 'finetuned?':c.train_feat_extractor,
                                 'mnist?':c.mnist,
                                 'counts?':c.counts,
-                                'test run?':c.test_run,
+                                #'test run?':c.test_run, # unused
                                 'prop. of data':c.data_prop,
                                 'clamp alpha':c.clamp_alpha,
                                 'weight decay':c.weight_decay,
@@ -235,7 +270,8 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                             print(log_det_jac)
                         
                         # this loss needs to calc distance between predicted density and density map
-                        dims = tuple(range(1, len(z.size())-1))
+                        # note: probably going to get an error with mnist or counts # TODO
+                        dims = tuple(range(1, len(z.size())))
                         loss = get_loss(z, log_det_jac,dims) # mdl.nf.jacobian(run_forward=False)
                         k += 1
                         
