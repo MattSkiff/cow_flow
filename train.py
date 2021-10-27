@@ -298,25 +298,25 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                         est_total_time = round(((t2-t1) * (total_iter-k)) / 60,2)
                         est_remain_time = round(((t2-t1) * (total_iter-k)) / 60,2)
                         
-                        if k % c.report_freq == 0 and c.verbose and k != 0:
-                                print('Mini-Batch Time: {:f}, Mini-Batch: {:d}, Mini-Batch train loss: {:.4f}'.format(t2-t1,i+1, mean_train_loss))
-                                print('Meta Epoch: {:d}, Sub Epoch: {:d}, | Epoch {:d} out of {:d} Total Epochs'.format(meta_epoch, sub_epoch,meta_epoch*c.sub_epochs + sub_epoch,c.meta_epochs*c.sub_epochs))
+                        if k % c.report_freq == 0 and c.verbose and k != 0 and c.report_freq != -1:
+                                print('Mini-Batch Time: {:f}, Mini-Batch: {:d}, Mini-Batch train loss: {:.4f}'.format(t2-t1,i+1, train_loss))
                                 print('{:d} Mini-Batches in sub-epoch remaining'.format(len(train_loader)-i))
                                 print('Total Iterations: ',total_iter,'| Passed Iterations: ',k)
-                                print('Total Training Time (mins): {:.2f} | Remaining Time (mins): {:.2f}'.format(est_total_time,est_remain_time))
-                        
+                                
                         if c.debug and not c.mnist:
                             print("number of elements in density maps list:")
                             print(len(dmaps)) # images
                             print("number of images in image tensor:")
                             print(len(images)) # features                
                     
-                    if writer != None:
-                        writer.add_scalar('loss/epoch_train',mean_train_loss, j)
-                    
                     if c.verbose:
                         t_e2 = time.perf_counter()
-                        print("Sub Epoch Time (s): {:f}".format(t_e2-t_e1))
+                        print("Sub Epoch Time (s): {:f}, Epoch train loss: {:.4f}".format(t_e2-t_e1,mean_train_loss))
+                        print('Meta Epoch: {:d}, Sub Epoch: {:d}, | Epoch {:d} out of {:d} Total Epochs'.format(meta_epoch, sub_epoch,meta_epoch*c.sub_epochs + sub_epoch,c.meta_epochs*c.sub_epochs))
+                        print('Total Training Time (mins): {:.2f} | Remaining Time (mins): {:.2f}'.format(est_total_time,est_remain_time))
+                    
+                    if writer != None:
+                        writer.add_scalar('loss/epoch_train',mean_train_loss, j)
                     
                     if c.validation: 
                         valid_loss = list()
