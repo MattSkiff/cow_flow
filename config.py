@@ -8,10 +8,10 @@ gpu = False
 
 ## Data Options ------
 mnist = False 
-counts = True # must be off for pretraining feature extractor (#TODO)
+counts = False # must be off for pretraining feature extractor (#TODO)
 balanced = False # whether to have a 1:1 mixture of empty:annotated images
-annotations_only = True # whether to only use image patches that have annotations
-data_prop = 1 # proportion of the full dataset to use 
+annotations_only = False # whether to only use image patches that have annotations
+data_prop = 0.1 # proportion of the full dataset to use 
 test_train_split = 99 # percentage of data to allocate to train set
 
 ## Density Map Options ------
@@ -31,15 +31,16 @@ load_feat_extractor_str = '' # '' to train from scratch, loads FE
 # nb: pretraining FE saves regardless of save flag
 
 ## Architecture Options ------
-gap = True # global average pooling
-downsampling = False # TODO - does nothing atm whether to downsample dmaps by converting spatial dims to channel dims
-n_coupling_blocks = 2
+pyramid = False # only implemented for resnet18
+gap = False # global average pooling
+downsampling = True # TODO - does nothing atm whether to downsample dmaps by converting spatial dims to channel dims
+n_coupling_blocks = 5
 
 ## Subnet Architecture Options
 batchnorm = False
 filters = 32
 width = 800 
-subnet_type = 'fc' # options = fc, conv
+subnet_type = 'conv' # options = fc, conv
 
 # Hyper Params and Optimisation ------
 scheduler = 'exponential' # exponential, none
@@ -57,7 +58,7 @@ meta_epochs = 1
 sub_epochs = 1
 
 ## Output Settings ----
-schema = 'countLowD_anno_only' # if debug, ignored
+schema = '' # if debug, ignored
 debug = False
 tb = False
 verbose = True
@@ -65,7 +66,7 @@ report_freq = 100 # nth minibatch to report on (1 = always)
 dmap_viz = False
 hide_tqdm_bar = False
 save_model = True # also saves a copy of the config file with the name of the model
-checkpoints = False
+checkpoints = False # saves after every meta epoch
 
 # nb: same as the defaults specified for the pretrained pytorch model zoo
 norm_mean, norm_std = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225] 
@@ -126,6 +127,7 @@ else:
 img_dims = [3] + list(img_size) # RGB + x-y
 
 # TODO: rename this parameter
+# this effects the padding applied to the density maps
 if not mnist and not counts:
     density_map_w = 800 #img_size[0]
     if feat_extractor == 'resnet18':
@@ -155,3 +157,8 @@ elif mnist and feat_extractor == "none":
 
 # checks
 assert not (feat_extractor == 'none' and gap == True)
+assert subnet_type in ['conv','fc']
+assert feat_extractor in ['none' ,'alexnet','vgg16_bn','resnet18']
+assert scheduler in ['exponential','none']
+assert (pyramid and feat_extractor == 'resnet18') or not pyramid
+assert (pyramid and not train_feat_extractor) or not pyramid # TODO

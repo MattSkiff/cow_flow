@@ -62,6 +62,9 @@ def train_battery(train_loader,valid_loader,lr_i = c.lr_init):
 
 def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None): #def train(train_loader, test_loader):
             
+            if c.debug:
+                torch.autograd.set_detect_anomaly(True)
+    
             if c.verbose: 
                 print("Training run using {} train samples and {} validation samples...".format(str(len(train_loader)*int(train_loader.batch_size)),str(len(valid_loader)*int(valid_loader.batch_size))))
                 print("Using device: {}".format(c.device))
@@ -232,7 +235,8 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                             print(log_det_jac)
                         
                         # this loss needs to calc distance between predicted density and density map
-                        loss = get_loss(z, log_det_jac) # mdl.nf.jacobian(run_forward=False)
+                        dims = tuple(range(1, len(z.size())-1))
+                        loss = get_loss(z, log_det_jac,dims) # mdl.nf.jacobian(run_forward=False)
                         k += 1
                         
                         loss_t = t2np(loss)
@@ -316,7 +320,8 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                                 
                             if i % c.report_freq == 0 and c.verbose and not c.mnist:
                                     print('count: {:f}'.format(dmaps.sum()))
-            
+                                    
+                            dims = tuple(range(1, len(z.size())-1))
                             loss = get_loss(z, log_det_jac)
                             k += 1
                             valid_loss.append(t2np(loss))
@@ -469,7 +474,7 @@ def train_feat_extractor(feat_extractor,trainloader,validloader,criterion = nn.C
                     if writer != None:
                          writer.add_scalar('loss/minibatch_{}'.format(phase),loss.item(), minibatch_count)
                          
-                if phase == 'train':                 
+                if phase == 'train':     
                     loss.backward()
                     clip_grad_value_(feat_extractor.parameters(), c.clip_value)
                     optimizer.step()
