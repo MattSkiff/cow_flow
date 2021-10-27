@@ -4,12 +4,12 @@ proj_dir = "/home/matthew/Desktop/laptop_desktop/clones/cow_flow/data"
 # device settings
 import torch
 
-gpu = False
+gpu = True
 
 ## Data Options ------
 mnist = False 
 counts = False # must be off for pretraining feature extractor (#TODO)
-balanced = False # whether to have a 1:1 mixture of empty:annotated images
+balanced = True # whether to have a 1:1 mixture of empty:annotated images
 annotations_only = False # whether to only use image patches that have annotations
 data_prop = 0.1 # proportion of the full dataset to use 
 test_train_split = 99 # percentage of data to allocate to train set
@@ -31,7 +31,7 @@ load_feat_extractor_str = '' # '' to train from scratch, loads FE
 # nb: pretraining FE saves regardless of save flag
 
 ## Architecture Options ------
-pyramid = False # only implemented for resnet18
+pyramid = True # only implemented for resnet18
 gap = False # global average pooling
 downsampling = True # TODO - does nothing atm whether to downsample dmaps by converting spatial dims to channel dims
 n_coupling_blocks = 5
@@ -50,7 +50,7 @@ clamp_alpha = 1.9
 
 # vectorised params must always be passed as lists
 lr_init = [2e-3]
-batch_size = [1] # actual batch size is this value multiplied by n_transforms(_test)
+batch_size = [12] # actual batch size is this value multiplied by n_transforms(_test)
 
 # total epochs = meta_epochs * sub_epochs
 # evaluation after <sub_epochs> epochs
@@ -65,7 +65,7 @@ verbose = True
 report_freq = 100 # nth minibatch to report on (1 = always)
 dmap_viz = False
 hide_tqdm_bar = False
-save_model = True # also saves a copy of the config file with the name of the model
+save_model = False # also saves a copy of the config file with the name of the model
 checkpoints = False # saves after every meta epoch
 
 # nb: same as the defaults specified for the pretrained pytorch model zoo
@@ -154,6 +154,9 @@ elif mnist and feat_extractor == "none":
     # minimum possible dimensionality of flow possible with coupling layers
     density_map_h = 4
     density_map_w = 4 
+
+if pyramid:
+    n_coupling_blocks = 5 # for recording purposes
 
 # checks
 assert not (feat_extractor == 'none' and gap == True)
