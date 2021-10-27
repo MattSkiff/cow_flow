@@ -513,12 +513,7 @@ class CustCrop(object):
     """Crop images to match vgg feature sizes."""
 
     def __call__(self, sample):
-             
-        image = sample['image']
-        #image = image[:,0:c.img_size[1]-1,0:c.img_size[0]-1]
-        
-        sample['image'] =  image
-        
+              
         if 'density' in sample.keys():
             density = sample['density']
             
@@ -528,10 +523,17 @@ class CustCrop(object):
                 pd = 8
             elif c.feat_extractor == 'alexnet':
                 density = density[:544,:768]
-
-            density = F.pad(input=density, pad=(0,0,pd,0), mode='constant', value=0)
+            
             # (padding_left,padding_right, padding, padding, padding_top,padding_bottom)
+            density = F.pad(input=density, pad=(0,0,pd,0), mode='constant', value=0)
             sample['density'] = density
+            
+            if c.pyramid:
+                # adding padding so high level features match dmap dims after downsampling (37,38)
+                image = sample['image']
+                #image = image[:,0:c.img_size[1]-1,0:c.img_size[0]-1]
+                image = F.pad(input=image, pad=(0,0,pd,0), mode='constant', value=0)
+                sample['image'] =  image
         
         return sample
 

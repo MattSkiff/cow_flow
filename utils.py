@@ -11,14 +11,38 @@ from prettytable import PrettyTable
 
 VIZ_DIR = './viz'
 
+# https://kozodoi.me/python/deep%20learning/pytorch/tutorial/2021/05/27/extracting-features.html
+def get_features(name):
+    def hook(model, input, output):
+        features[name] = output.detach()
+    return hook
+
+def ft_dims_select(mdl=None):
+    
+    if mdl == None:
+        fe = c.feat_extractor
+    else:
+        fe = mdl.feat_extractor.__class__.__name__
+    
+    if fe == 'resnet18' or fe == 'Sequential':
+        ft_dims = (19,25)
+    elif fe == 'vgg16_bn' or fe == 'VGG':
+        ft_dims = (18,25)
+    elif fe == 'alexnet' or fe == 'AlexNet':
+        ft_dims = (17,24)
+    elif fe == 'none' or fe == 'NothingNet':
+        ft_dims = (600,800)
+        
+    return ft_dims
+
 def t2np(tensor):
     '''pytorch tensor -> numpy array'''
     return tensor.cpu().data.numpy() if tensor is not None else None
 
-def get_loss(z, jac):
+def get_loss(z, jac,dims):
     # in differnet, exponentiate over 'channel' dim (n_feat)  
     # here, we exponentiate over channel, height, width to produce single norm val per density map
-    dims = tuple(range(1, len(z.size())-1))
+    
     return torch.mean(0.5 * torch.sum(z ** 2, dim=dims) - jac) / z.shape[1]
 
 # from: https://discuss.pytorch.org/t/how-to-add-noise-to-mnist-dataset-when-using-pytorch/59745
@@ -122,7 +146,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
         elif plot_n != None:
             print("Plotting first {} digits".format(plot_n))
     
-    def inner_func(mdl=mdl):
+    def inner_func(mdl=mdl,hist=hist):
         
  
         idx = random.randint(0,len(loader)-1)
@@ -169,29 +193,24 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
                 
                 if not mdl.mnist:
                     # TODO - remove hard coding dims here
-                    if loader.dataset.count:
-                        dummy_z = (randn(loader.batch_size,c.channels*4,c.density_map_h // 2,c.density_map_w // 2, requires_grad=True)).to(c.device)
+                    if loader.dataset.count and not mdl.gap:
+                        dummy_z = (randn(loader.batch_size,c.channels*4,c.density_map_h // 2,c.density_map_w // 2)).to(c.device) 
+                    elif loader.dataset.count and mdl.gap:
+                        dummy_z = (randn(loader.batch_size,1)).to(c.device) 
                     else:
                         in_channels = 1024
-                        
-                        if mdl.feat_extractor.__class__.__name__ == 'Sequential': # feat_extractor
-                            ft_dims = (19,25)
-                        elif mdl.feat_extractor.__class__.__name__ == 'VGG':
-                            ft_dims = (18,25)
-                        elif mdl.feat_extractor.__class__.__name__ == 'AlexNet':
-                            ft_dims = (17,25)
-                        elif mdl.feat_extractor.__class__.__name__ == 'NothingNet':
-                            ft_dims = (600,800)
+                        ft_dims = ft_dims_select(mdl)
+                        if mdl.feat_extractor.__class__.__name__ == 'NothingNet':
                             in_channels = 2
                         
-                        dummy_z = (randn(c.batch_size[0], in_channels,ft_dims[0],ft_dims[1], requires_grad=True)).to(c.device)
+                        dummy_z = (randn(c.batch_size[0], in_channels,ft_dims[0],ft_dims[1])).to(c.device)
                 else:
                     if sampling == 'ones':
-                        dummy_z = (torch.ones(loader.batch_size, c.channels*4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True).to(c.device))
+                        dummy_z = (torch.ones(loader.batch_size, c.channels*4 , c.density_map_h // 2,c.density_map_w  // 2).to(c.device))
                     elif sampling == "zeros":
-                        dummy_z = torch.zeros(loader.batch_size, c.channels*4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True).to(c.device)
+                        dummy_z = torch.zeros(loader.batch_size, c.channels*4 , c.density_map_h // 2,c.density_map_w  // 2).to(c.device)
                     elif sampling == "randn":
-                        dummy_z = (randn(loader.batch_size, c.channels*4, c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True)).to(c.device)
+                        dummy_z = (randn(loader.batch_size, c.channels*4, c.density_map_h // 2,c.density_map_w  // 2)).to(c.device)
                     else:
                         ValueError("Invalid function arg (sampling). Try 'randn', 'zeros' or 'ones'.")
                 
@@ -216,15 +235,21 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
                     dmap_rev_np = x[lb_idx].squeeze().cpu().detach().numpy()
                     mean_pred = x[lb_idx].mean()
                     
-                    if mdl.count or mdl.mnist:
+                    # TODO
+                    if (mdl.count or mdl.mnist) and not mdl.gap:
                         x_flat = torch.reshape(x,(loader.batch_size,c.density_map_h * c.density_map_w)) # torch.Size([200, 12, 12])
                         mode = torch.mode(x_flat,dim = 1).values.cpu().detach().numpy()
-                    
+                    elif mdl.count and mdl.gap:
+                        x_flat = x
+                        mode = torch.mode(x_flat,dim = 1).values.cpu().detach().numpy()
+                        
                     sum_pred = x[lb_idx].sum()
                     
                     if plot:
                         
-                        if mdl.unconditional:
+                        #assert mdl.subnet_type != 'fc'
+                        
+                        if mdl.unconditional: 
                             hist = False
                         
                         n_plots = 3+hist-mdl.mnist-mdl.count
@@ -234,7 +259,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
                         
                         if mdl.mnist:
                             fig.suptitle('{} \n mode of reconstruction: {}'.format(title,str(mode)),y=1.0,fontsize=24) # :.2f
-                        elif loader.dataset.count:   
+                        elif mdl.count:   
                             fig.suptitle('{} \n Predicted count: {:.2f}'.format(title,mean_pred),y=1.0,fontsize=24)
                         else:
                             fig.suptitle('{} \n Predicted count: {:.2f}'.format(title,sum_pred),y=1.0,fontsize=24)
@@ -242,7 +267,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
                         fig.set_size_inches(8*1,12*1)
                         fig.set_dpi(100)
                         
-                        if c.mnist:
+                        if mdl.mnist:
                             im = images[lb_idx].squeeze().cpu().numpy()
                         else:
                             unnorm = UnNormalize(mean =tuple(c.norm_mean),
@@ -252,18 +277,19 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
                             
                             im = 255-im.permute(1,2,0).cpu().numpy()
                          
-                        if mdl.unconditional:
-                            dmap_rev_np = dmap_rev_np[0,:,:] # select only data from first duplicated channel
+                        if mdl.feat_extractor.__class__.__name__ == 'NothingNet':
+                            dmap_rev_np = dmap_rev_np[1,:,:] # select only data from first duplicated channel
                         
-                        ax[0].imshow(dmap_rev_np, cmap='viridis', interpolation='nearest')
+                        ax[0].imshow((255-dmap_rev_np* 255).astype(np.uint8))#, cmap='viridis', interpolation='nearest')
                         
                         if mdl.count:
+                            # no dmaps provided by dataloader if mdl.count
                             ax[1].imshow((im * 255).astype(np.uint8))
                             if hist:
                                 ax[2].hist(dmap_rev_np.flatten(),bins = 30)
                         else:
                         
-                            if c.mnist:
+                            if mdl.mnist:
                                 ax[1].imshow(im)
                                 if hist:
                                     ax[2].hist(dmap_rev_np.flatten(),bins = 30)
@@ -313,17 +339,21 @@ def counts_preds_vs_actual(mdl,loader,plot=False):
     actuals = []
     
     for i, data in enumerate(tqdm(loader, disable=c.hide_tqdm_bar)):
+        
         images,dmaps,labels,counts = data
-        if not mdl.gap:    
+        if not mdl.gap:  
+            num = 0
             dummy_z = (randn(loader.batch_size,c.channels*4,c.density_map_h // 2,c.density_map_w // 2, requires_grad=True)).to(c.device)
         else:
+            num = 1
             dummy_z = (randn(loader.batch_size,c.channels, requires_grad=True)).to(c.device)
+            
         images = images.float().to(c.device)
         dummy_z = dummy_z.float().to(c.device)
         mdl = mdl.to(c.device)
         x, _ = mdl(images,dummy_z,rev=True)
-        
-        mean_preds = x.mean(dim = tuple(range(1,len(x.shape)-1))).detach().cpu().numpy()
+
+        mean_preds = x.mean(dim = tuple(range(1,len(x.shape)-num))).detach().cpu().numpy()
         means.append(mean_preds)
         actuals.append(counts.detach().cpu().numpy())
     
@@ -333,8 +363,8 @@ def counts_preds_vs_actual(mdl,loader,plot=False):
     means = np.concatenate(means, axis=0)
     actuals = np.concatenate(actuals, axis=0)
     
-    print(means)
-    print(actuals)
+    print(means.shape)
+    print(actuals.shape)
     
     correlation_matrix = np.corrcoef(means, actuals)
     correlation_xy = correlation_matrix[0,1]

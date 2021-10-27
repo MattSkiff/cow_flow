@@ -8,19 +8,18 @@ from __future__ import print_function, division
 import torch
 import torch.nn as nn
 from torchvision.models import alexnet, resnet18, vgg16_bn  # feature extractors
+from torchvision.models.resnet import ResNet, BasicBlock
 
 import torch.nn.functional as F
 
-from torchvision.models.resnet import ResNet, BasicBlock
-
 import config as c # hyper params
 import arguments as a
-from utils import init_weights
+from utils import init_weights, ft_dims_select
 
 import train # train_feat_extractor
 # importing all fixes cyclical import 
 
-# FrEIA imports for invertible networks
+# FrEIA imports for invertible networks VLL/HDL
 import FrEIA.framework as Ff
 import FrEIA.modules as Fm
 
@@ -34,6 +33,7 @@ MODEL_DIR = './models'
 C_DIR = './cstates'
 
 # https://zablo.net/blog/post/using-resnet-for-mnist-in-pytorch-tutorial/
+# TODO
 class MnistResNet(ResNet):
     def __init__(self):
         super(MnistResNet, self).__init__(BasicBlock, [2, 2, 2, 2], num_classes=10)
@@ -41,25 +41,62 @@ class MnistResNet(ResNet):
             kernel_size=(7, 7), 
             stride=(2, 2), 
             padding=(3, 3), bias=False)
+     
+# TODO add argument for loading saved finetuned resnet18 from storage
+# ty ptrblck  https://discuss.pytorch.org/t/how-can-i-replace-the-forward-method-of-a-predefined-torchvision-model-with-my-customized-forward-function/54224/6
+# ty Zeeshan Khan Suri https://zshn25.github.io/ResNet-feature-pyramid-in-Pytorch/
+class ResNetPyramid(ResNet):
+
+    def __init__(self):
+        super(ResNetPyramid, self).__init__(BasicBlock, [2, 2, 2, 2])
+        self.load_state_dict(resnet18(pretrained=c.pretrained).state_dict())
         
+    def forward(self, x):
+        # change forward here
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x0 = self.relu(x)
+        x = self.maxpool(x0)
+
+        x1 = self.layer1(x)
+        x2 = self.layer2(x1)
+        x3 = self.layer3(x2)
+        x4 = self.layer4(x3)
+        
+        return [x0,x1,x2,x3,x4]
+ 
+# TODO - will break because of ref to config file
+if c.pyramid:
+
+    mdl = ResNetPyramid()
+    feats = mdl(torch.randn(c.batch_size[0],3,c.density_map_h,c.density_map_w))
+    
+    if c.verbose:
+        print('Feature Pyramid Dimensions:')
+        [print(f.shape) for f in feats]
+        
+    pyramid_dims = [f.shape for f in feats]
+    
 class NothingNet():
     def __init__(self):
         self.features = torch.nn.Identity()
 
 def select_feat_extractor(feat_extractor,train_loader=None,valid_loader=None):
-
-    if c.feat_extractor == "alexnet":
-        feat_extractor = alexnet(pretrained=c.pretrained,progress=False).to(c.device)
-    elif c.feat_extractor == "resnet18":
-         # last but one layer of resnet -> features
-         feat_extractor = resnet18(pretrained=c.pretrained,progress=False)
-            
-    elif c.feat_extractor == "vgg16_bn":
-        feat_extractor = vgg16_bn(pretrained=c.pretrained,progress=False).to(c.device)
-    elif c.feat_extractor == "mnist_resnet":
-        feat_extractor = MnistResNet()
-    elif c.feat_extractor == "none":
-        feat_extractor = NothingNet()
+    
+    if not c.pyramid:
+        if c.feat_extractor == "alexnet":
+            feat_extractor = alexnet(pretrained=c.pretrained,progress=False).to(c.device)
+        elif c.feat_extractor == "resnet18":
+             # last but one layer of resnet -> features
+             feat_extractor = resnet18(pretrained=c.pretrained,progress=False)
+        elif c.feat_extractor == "vgg16_bn":
+            feat_extractor = vgg16_bn(pretrained=c.pretrained,progress=False).to(c.device)
+        elif c.feat_extractor == "mnist_resnet":
+            feat_extractor = MnistResNet()
+        elif c.feat_extractor == "none":
+            feat_extractor = NothingNet()
+    else:
+        feat_extractor = ResNetPyramid()
     
     if c.train_feat_extractor:
     # pretrain feature extractor with classification problem
@@ -84,6 +121,7 @@ def sub_conv2d(dims_in,dims_out,n_filters):
                 ]
         )
     
+    # batchnorm works poorly for very small minibatches, so may want to disable
     if not c.batchnorm:
         del network_dict['batchnorm1']
         del network_dict['batchnorm2']
@@ -96,7 +134,21 @@ def sub_conv2d(dims_in,dims_out,n_filters):
     net.conv3.bias.data.fill_(0.00)
     
     return net
+
+def subnet(dims_in, dims_out):
     
+    # subnet is operating over density map 
+    # hence switch from linear to conv2d net
+    if c.subnet_type == 'conv':
+        net = sub_conv2d(dims_in,dims_out,c.filters)
+    elif c.subnet_type == 'fc':
+        net = sub_fc(dims_in,dims_out,c.width)
+
+    if c.debug:
+        print('dims in: {}, dims out: {}'.format(dims_in,dims_out))
+    
+    return net
+   
 def sub_fc(dims_in,dims_out,internal_size):
     # debugging
     net = nn.Sequential(
@@ -111,21 +163,61 @@ def sub_fc(dims_in,dims_out,internal_size):
     
     return net
 
-def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,mnist=False):
+# TODO: turn func into loop
+def nf_pyramid(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat):
+    assert c.subnet_type == 'conv'
+    assert not c.gap and not c.counts and not c.mnist
     
-    def subnet(dims_in, dims_out):
-        
-        # subnet is operating over density map 
-        # hence switch from linear to conv2d net
-        if c.subnet_type == 'conv':
-            net = sub_conv2d(dims_in,dims_out,c.filters)
-        elif c.subnet_type == 'fc':
-            net = sub_fc(dims_in,dims_out,c.width)
-
-        if c.debug:
-            print('dims in: {}, dims out: {}'.format(dims_in,dims_out))
-        
-        return net
+    nodes = [Ff.InputNode(c.channels,input_dim[0],input_dim[1],name='input')] 
+    
+    # Conditions
+    condition0 = [Ff.ConditionNode(pyramid_dims[0][1],pyramid_dims[0][2],pyramid_dims[0][3],name = 'condition0')]
+    condition1 = [Ff.ConditionNode(pyramid_dims[1][1],pyramid_dims[1][2],pyramid_dims[1][3],name = 'condition1')]
+    condition2 = [Ff.ConditionNode(pyramid_dims[2][1],pyramid_dims[2][2],pyramid_dims[2][3],name = 'condition2')]
+    condition3 = [Ff.ConditionNode(pyramid_dims[3][1],pyramid_dims[3][2],pyramid_dims[3][3],name = 'condition3')]
+    condition4 = [Ff.ConditionNode(pyramid_dims[4][1],pyramid_dims[4][2],pyramid_dims[4][3],name = 'condition4')]
+    
+    # block 1
+    k=0
+    nodes.append(Ff.Node(nodes[-1], Fm.PermuteRandom, {'seed': k}, name='permute_{}'.format(k)))
+    nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling_{}'.format(k)))
+    nodes.append(Ff.Node(nodes[-1], Fm.GLOWCouplingBlock,{'clamp': c.clamp_alpha, 
+                         'subnet_constructor':subnet},conditions=condition0,name = 'couple_{}'.format(k)))
+      
+    # block 2
+    k+=1
+    nodes.append(Ff.Node(nodes[-1], Fm.PermuteRandom, {'seed': k}, name='permute_{}'.format(k)))
+    nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling_{}'.format(k)))
+    nodes.append(Ff.Node(nodes[-1], Fm.GLOWCouplingBlock,{'clamp': c.clamp_alpha, 
+                         'subnet_constructor':subnet},conditions=condition1,name = 'couple_{}'.format(k)))
+     
+    # block 3
+    k+=1
+    nodes.append(Ff.Node(nodes[-1], Fm.PermuteRandom, {'seed': k}, name='permute_{}'.format(k)))
+    nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling_{}'.format(k)))
+    nodes.append(Ff.Node(nodes[-1], Fm.GLOWCouplingBlock,{'clamp': c.clamp_alpha, 
+                         'subnet_constructor':subnet},conditions=condition2,name = 'couple_{}'.format(k)))
+    
+    # block 4
+    k+=1
+    nodes.append(Ff.Node(nodes[-1], Fm.PermuteRandom, {'seed': k}, name='permute_{}'.format(k)))
+    nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling_{}'.format(k)))
+    nodes.append(Ff.Node(nodes[-1], Fm.GLOWCouplingBlock,{'clamp': c.clamp_alpha, 
+                         'subnet_constructor':subnet},conditions=condition3,name = 'couple_{}'.format(k)))
+    
+    # block 5
+    k+=1
+    nodes.append(Ff.Node(nodes[-1], Fm.PermuteRandom, {'seed': k}, name='permute_{}'.format(k)))
+    nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling_{}'.format(k)))
+    nodes.append(Ff.Node(nodes[-1], Fm.GLOWCouplingBlock,{'clamp': c.clamp_alpha, 
+                         'subnet_constructor':subnet},conditions=condition4,name = 'couple_{}'.format(k)))
+    
+    out = Ff.ReversibleGraphNet(nodes + condition0 + condition1 + condition2 + condition3 + condition4 + [Ff.OutputNode(nodes[-1], name='output')], verbose=c.verbose)
+    
+    return out
+    
+    
+def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,mnist=False):
     
     # include batch size as extra dimension here? data is batched along extra dimension
     # input = density maps / mnist labels 
@@ -140,15 +232,7 @@ def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,m
         condition = [Ff.ConditionNode(condition_dim,name = 'condition')]
     else:
         # TODO: avoid hardcoding feature spatial dimensions in
-        # TODO: tie feat_extractor property to model, e.g.  add  func to class (clases - multiple inheritance)
-        if c.feat_extractor == 'resnet18':
-            ft_dims = (19,25)
-        elif c.feat_extractor == 'vgg16_bn' :
-            ft_dims = (18,25)
-        elif c.feat_extractor == 'alexnet':
-            ft_dims = (17,24)
-        elif c.feat_extractor == 'none':
-            ft_dims = (600,800)
+        ft_dims = ft_dims_select()
         
         condition = [Ff.ConditionNode(condition_dim,ft_dims[0],ft_dims[1],name = 'condition')]
     
@@ -204,16 +288,20 @@ class CowFlow(nn.Module):
     def __init__(self,modelname,feat_extractor):
         super(CowFlow,self).__init__()
         
-        if c.feat_extractor == 'resnet18':
+        if c.feat_extractor == 'resnet18' and not c.pyramid:
             modules = list(feat_extractor.children())[:-2]
             self.feat_extractor=nn.Sequential(*modules)
         else:
             self.feat_extractor = feat_extractor
-            
-        self.nf = nf_head()   
+        
+        if c.pyramid:
+            self.nf = nf_pyramid()   
+        else:
+            self.nf = nf_head()  
         self.modelname = modelname
         self.unconditional = a.args.unconditional
         self.count = c.counts
+        self.subnet_type = c.subnet_type
         self.mnist = False
         self.gap = c.gap
         self.n_coupling_blocks = c.n_coupling_blocks
@@ -221,6 +309,7 @@ class CowFlow(nn.Module):
         self.pretrained = c.pretrained
         self.finetuned = c.train_feat_extractor
         self.scheduler = c.scheduler
+        self.pyramid = c.pyramid
 
     def forward(self,images,labels,rev=False): # label = dmaps or counts
         # no multi-scale architecture (yet) as per differnet paper
@@ -232,46 +321,46 @@ class CowFlow(nn.Module):
         # x = raw images, y = density maps
         feat_cat = list()
         
-        if self.feat_extractor.__class__.__name__ != 'Sequential':
+        if self.feat_extractor.__class__.__name__ != 'Sequential' and not self.pyramid:
             feat_s = self.feat_extractor.features(images) # extract features
         else:
             feat_s = self.feat_extractor(images)
         
-        if c.debug:
+        if c.debug and not self.pyramid:
             print("raw feature size..")
             print(feat_s.size(),"\n")
             
         # global average pooling as described in paper:
         # h x w x d -> 1 x 1 x d
         # see: https://alexisbcook.github.io/2017/global-average-pooling-layers-for-object-localization/
+        # vary according to input image
         # (alexnet) torch.Size([batch_size, 256, 17, 24])
-        # (vgg16-bn) torch.Size([4, 512, 18, 25]) 
+        # (vgg16-bn) torch.Size([batch_size, 512, 18, 25]) 
+        # (resnet18) torch.Size([batch_size, 512, 19, 25]) 
         
-        if c.feat_extractor != "none":
+        if self.feat_extractor.__class__.__name__  == "NothingNet" or self.pyramid:
+            feats = feat_s
+        else:
             
-            if c.gap:
+            if self.gap:
                 feat_cat.append(torch.mean(feat_s,dim = (2,3))) 
             else:
                 feat_cat.append(feat_s)
-        
+             
             feats = torch.cat(feat_cat) # concatenation (does nothing at single scale feature extraction)
-            
-        else:
-            feats = feat_s
-        
-        # adding spatial dimensions....
-        # remove dimension of size one for concatenation in NF coupling layer - squeeze()
-        
-        if c.debug: 
+
+        if c.debug and not c.pyramid: 
             print("concatenated and pooled feature size..")
             print(feats.size(),"\n")
         
+        # adding spatial dimensions....
+        # remove dimension of size one for concatenation in NF coupling layer - squeeze()
         if c.feat_extractor != "none" and c.subnet_type =='conv':
         
-            if c.gap:
+            if self.gap:
                 feats = feats.unsqueeze(2).unsqueeze(3).expand(-1, -1, c.density_map_h // 2,c.density_map_w // 2)
         
-        if c.debug: 
+        if c.debug and not self.pyramid: 
             print("reshaped feature size with spatial dims..")
             print(feats.size(),"\n")
         
@@ -289,7 +378,7 @@ class CowFlow(nn.Module):
             # expand counts out to spatial dims of feats
             labels = labels.unsqueeze(2).unsqueeze(3).expand(-1,-1,feats.size()[2] * 2,feats.size()[3] * 2)
             
-        if self.unconditional and not c.downsampling and not self.count and c.subnet_type == 'conv':
+        if self.unconditional and not c.downsampling and not self.count and c.subnet_type == 'conv': 
             labels = labels.expand(-1,c.channels,-1,-1) # expand dmap over channel dimension
             
         if c.debug: 
@@ -301,7 +390,10 @@ class CowFlow(nn.Module):
         # is also what we are trying to predict (in a sense we are using 'x' features to predict 'y' density maps)
         # hence ambiguity in notation
         
-        if self.unconditional:
+        if c.pyramid:
+            # feats = list of 4 tensors
+            z = self.nf(x_or_z = labels,c = feats,rev=rev)
+        elif self.unconditional:
             z = self.nf(x_or_z = labels,rev=rev)
         else:
             z = self.nf(x_or_z = labels,c = feats,rev=rev)
