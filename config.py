@@ -1,5 +1,5 @@
 '''This file configures the training procedure'''
-proj_dir = "/home/matthew/Desktop/laptop_desktop/clones/cow_flow/data"
+proj_dir = "/home/mks29/clones/cow_flow/data"
 
 # device settings
 import torch
@@ -11,8 +11,8 @@ mnist = False
 counts = False # must be off for pretraining feature extractor (#TODO)
 balanced = True # whether to have a 1:1 mixture of empty:annotated images
 annotations_only = False # whether to only use image patches that have annotations
-data_prop = 0.1 # proportion of the full dataset to use 
-test_train_split = 99 # percentage of data to allocate to train set
+data_prop = 1 # proportion of the full dataset to use 
+test_train_split = 70 # percentage of data to allocate to train set
 
 ## Density Map Options ------
 filter_size = 15 # as per single image mcnn paper
@@ -50,22 +50,22 @@ clamp_alpha = 1.9
 
 # vectorised params must always be passed as lists
 lr_init = [2e-3]
-batch_size = [12] # actual batch size is this value multiplied by n_transforms(_test)
+batch_size = [16] # actual batch size is this value multiplied by n_transforms(_test)
 
 # total epochs = meta_epochs * sub_epochs
 # evaluation after <sub_epochs> epochs
-meta_epochs = 1
+meta_epochs = 10
 sub_epochs = 1
 
 ## Output Settings ----
-schema = '' # if debug, ignored
-debug = False
-tb = False
-verbose = True
-report_freq = 100 # nth minibatch to report on (1 = always)
+schema = 'pyramid_test1' # if debug, ignored
+debug = False # report loads of info/debug info
+tb = True # write metrics, hyper params to tb files
+verbose = True # report stats per sub epoch and other info
+report_freq = -1 # nth minibatch to report minibatch loss on (1 = always,-1 = turn off)
 dmap_viz = False
 hide_tqdm_bar = False
-save_model = False # also saves a copy of the config file with the name of the model
+save_model = True # also saves a copy of the config file with the name of the model
 checkpoints = False # saves after every meta epoch
 
 # nb: same as the defaults specified for the pretrained pytorch model zoo
