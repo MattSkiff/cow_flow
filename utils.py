@@ -11,12 +11,6 @@ from prettytable import PrettyTable
 
 VIZ_DIR = './viz'
 
-# https://kozodoi.me/python/deep%20learning/pytorch/tutorial/2021/05/27/extracting-features.html
-def get_features(name):
-    def hook(model, input, output):
-        features[name] = output.detach()
-    return hook
-
 def ft_dims_select(mdl=None):
     
     if mdl == None:
@@ -24,7 +18,7 @@ def ft_dims_select(mdl=None):
     else:
         fe = mdl.feat_extractor.__class__.__name__
     
-    if fe == 'resnet18' or fe == 'Sequential':
+    if fe in ['resnet18','ResNetPyramid'] or fe == 'Sequential':
         ft_dims = (19,25)
     elif fe == 'vgg16_bn' or fe == 'VGG':
         ft_dims = (18,25)

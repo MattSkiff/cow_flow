@@ -78,12 +78,12 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
             
             parts = [c.schema,
                      os.uname().nodename,
-                    "BS",str(train_loader.batch_size),
-                    "LR_I",str(lr_i),
-                    "NC",str(c.n_coupling_blocks),
-                    "E",str(c.meta_epochs*c.sub_epochs),
+                    "BS"+str(train_loader.batch_size),
+                    "LR_I"+str(lr_i),
+                    "NC"+str(c.n_coupling_blocks),
+                    "E"+str(c.meta_epochs*c.sub_epochs),
                     "FE",str(c.feat_extractor),
-                    "DIM",str(c.density_map_h)]
+                    "DIM"+str(c.density_map_h)]
             
             #"LRS",str(c.scheduler), # only one LR scheduler currently
             if c.joint_optim:
@@ -117,7 +117,7 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                 parts.extend(["CLA",str(c.clamp_alpha)])
                 
             if c.test_train_split != 70 and not c.mnist:
-                parts.extend(["SPLIT",str(c.clamp_alpha)])
+                parts.extend(["SPLIT",str(c.test_train_split)])
                 
             if c.balanced and not c.mnist:
                 parts.append('BL')
