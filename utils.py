@@ -1,6 +1,5 @@
 # MIT License Marco Rudolph 2021
 from torch import randn
-import config as c
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import os
@@ -9,7 +8,8 @@ import numpy as np
 import random
 from prettytable import PrettyTable
 
-VIZ_DIR = './viz'
+import config as c
+import gvars as g
 
 def ft_dims_select(mdl=None):
     
@@ -53,7 +53,7 @@ class AddGaussianNoise(object):
         return self.__class__.__name__ + '(mean={0}, std={1})'.format(self.mean, self.std)
     
 class AddUniformNoise(object):
-    def __init__(self, r1=0., r2=1e-3):
+    def __init__(self, r1=0., r2=1e-5):
         self.r1 = r1
         self.r2 = r2
         
@@ -151,6 +151,10 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
         
         for i, data in enumerate(tqdm(loader, disable=c.hide_tqdm_bar)):
             
+            # TODO - broken - filename doesn't match image
+#            if not mdl.mnist:
+#                sample_fname = loader.dataset.train_im_paths[i]
+            
             if mdl.mnist:
                 images,labels = data
             elif loader.dataset.count: # model.dataset.count
@@ -160,7 +164,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
             
             lb_idx = random.randint(0,loader.batch_size-1)
                 
-            if mdl.count: # not mdl.mnist or # TODO
+            if mdl.count: #  or # TODO
 
                 # check annotations in batch aren't empty
                 lb_idx = None
@@ -179,9 +183,30 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
                 if lb_idx == None:
                     continue  
             
+            elif not mdl.mnist:
+                
+                 # check annotations in batch aren't empty
+                lb_idx = None
+                 
+                j = 0
+                for label in labels:
+                    
+                    z = z+1
+                    if z >= len(loader)*loader.batch_size:
+                        print("Loader has no labelled data!")
+                    if len(label) != 0:
+                        lb_idx = j
+                        break
+                    else:
+                        j = j + 1
+
+                if lb_idx == None:
+                    continue  
+            
             if i != idx and plot_n == None and digit == None and mdl.mnist:
                 continue
-            
+           
+            ## create noise vector ---
             if (mdl.mnist and labels.size) or not mdl.mnist: # triggers only if there is at least one annotation
                 # Z shape: torch.Size([2, 4, 300, 400]) (batch size = 2)
                 
@@ -208,6 +233,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
                     else:
                         ValueError("Invalid function arg (sampling). Try 'randn', 'zeros' or 'ones'.")
                 
+                ## sample from model ---
                 images = images.float().to(c.device)
                 dummy_z = dummy_z.float().to(c.device)
                 mdl = mdl.to(c.device)
@@ -236,7 +262,8 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
                     elif mdl.count and mdl.gap:
                         x_flat = x
                         mode = torch.mode(x_flat,dim = 1).values.cpu().detach().numpy()
-                        
+                    
+                    # TODO!
                     sum_pred = x[lb_idx].sum()
                     
                     if plot:
@@ -253,7 +280,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
                         
                         if mdl.mnist:
                             fig.suptitle('{} \n mode of reconstruction: {}'.format(title,str(mode)),y=1.0,fontsize=24) # :.2f
-                        elif mdl.count:   
+                        if mdl.count:   
                             fig.suptitle('{} \n Predicted count: {:.2f}'.format(title,mean_pred),y=1.0,fontsize=24)
                         else:
                             fig.suptitle('{} \n Predicted count: {:.2f}'.format(title,sum_pred),y=1.0,fontsize=24)
@@ -295,9 +322,9 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
                             
                         
                         if save:
-                            if not os.path.exists(VIZ_DIR):
-                                os.makedirs(VIZ_DIR)
-                            plt.savefig("{}/{}.jpg".format(VIZ_DIR,mdl.modelname), bbox_inches='tight', pad_inches = 0)
+                            if not os.path.exists(g.VIZ_DIR):
+                                os.makedirs(g.VIZ_DIR)
+                            plt.savefig("{}/{}.jpg".format(g.VIZ_DIR,mdl.modelname), bbox_inches='tight', pad_inches = 0)
                         
                         if mdl.mnist:
                             out = labels[lb_idx],dmap_rev_np, mean_pred 
@@ -337,10 +364,10 @@ def counts_preds_vs_actual(mdl,loader,plot=False):
         images,dmaps,labels,counts = data
         if not mdl.gap:  
             num = 0
-            dummy_z = (randn(loader.batch_size,c.channels*4,c.density_map_h // 2,c.density_map_w // 2, requires_grad=True)).to(c.device)
+            dummy_z = (randn(loader.batch_size,c.channels*4,c.density_map_h // 2,c.density_map_w // 2, requires_grad=False)).to(c.device)
         else:
             num = 1
-            dummy_z = (randn(loader.batch_size,c.channels, requires_grad=True)).to(c.device)
+            dummy_z = (randn(loader.batch_size,c.channels, requires_grad=False)).to(c.device)
             
         images = images.float().to(c.device)
         dummy_z = dummy_z.float().to(c.device)
@@ -440,9 +467,9 @@ def get_likelihood(mdl, loader, plot = True,save=False,digit=None,ood=False):
                     ax[2].hist(dmap_rev_np_ood.flatten(),bins = 30)
                 
                 if save:
-                    if not os.path.exists(VIZ_DIR):
-                        os.makedirs(VIZ_DIR)
-                    plt.savefig("{}/{}.jpg".format(VIZ_DIR,mdl.modelname), bbox_inches='tight', pad_inches = 0)
+                    if not os.path.exists(g.VIZ_DIR):
+                        os.makedirs(g.VIZ_DIR)
+                    plt.savefig("{}/{}.jpg".format(g.VIZ_DIR,mdl.modelname), bbox_inches='tight', pad_inches = 0)
             
             break
         

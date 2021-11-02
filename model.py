@@ -11,9 +11,6 @@ from torchvision.models import alexnet, resnet18, vgg16_bn  # feature extractors
 from torchvision.models.resnet import ResNet, BasicBlock
 
 import torch.nn.functional as F
-
-import config as c # hyper params
-import arguments as a
 from utils import init_weights, ft_dims_select
 
 import train # train_feat_extractor
@@ -28,9 +25,47 @@ import collections
 import shutil
 import dill # solve error when trying to pickle lambda function in FrEIA
 
-WEIGHT_DIR = './weights'
-MODEL_DIR = './models'
-C_DIR = './cstates'
+import config as c # hyper params
+import arguments as a
+import gvars as g
+
+# TODO - shift below 5 util functions to utils
+def save_cstate(cdir,modelname,config_file):
+    ''' saves a snapshot of the config file before running and saving model '''
+    if not os.path.exists(g.C_DIR):
+        os.makedirs(g.C_DIR)
+        
+    base, extension = os.path.splitext(config_file)
+    
+    if c.verbose:
+        'Config file copied to {}'.format(g.C_DIR)
+    
+    new_name = os.path.join(cdir, base+"_"+modelname+".txt")
+    
+    shutil.copy(config_file, new_name)
+
+def save_model(model,filename,loc=g.MODEL_DIR):
+    if not os.path.exists(loc):
+        os.makedirs(loc)
+    torch.save(model, os.path.join(loc,filename), pickle_module=dill)
+    print("model {} saved to {}".format(filename,loc))
+    save_cstate(cdir=g.C_DIR,modelname="",config_file="config.py")
+    
+def load_model(filename,loc=g.MODEL_DIR):
+    path = os.path.join(loc, filename)
+    model = torch.load(path, pickle_module=dill)
+    print("model {} loaded from {}".format(filename,loc))
+    return model
+    
+def save_weights(model,filename,loc=g.WEIGHT_DIR):
+    if not os.path.exists(loc):
+        os.makedirs(loc)
+    torch.save(model.state_dict(),os.path.join(loc,filename), pickle_module=dill)
+        
+def load_weights(model, filename,loc=g.WEIGHT_DIR):
+    path = os.path.join(loc, filename)
+    model.load_state_dict(torch.load(path,pickle_module=dill))
+    return model
 
 # https://zablo.net/blog/post/using-resnet-for-mnist-in-pytorch-tutorial/
 # TODO
@@ -48,8 +83,17 @@ class MnistResNet(ResNet):
 class ResNetPyramid(ResNet):
 
     def __init__(self):
+        
         super(ResNetPyramid, self).__init__(BasicBlock, [2, 2, 2, 2])
-        self.load_state_dict(resnet18(pretrained=c.pretrained).state_dict())
+        num_ftrs = self.fc.in_features
+        self.fc = nn.Linear(num_ftrs, 2)  
+        
+        if c.load_feat_extractor_str == '':
+            self.load_state_dict(resnet18(pretrained=c.pretrained).state_dict())
+        elif c.load_feat_extractor_str != '':
+            # TODO
+            finetuned_fe = load_model(c.load_feat_extractor_str,loc=g.FEAT_MOD_DIR)
+            self.load_state_dict(finetuned_fe.state_dict())
         
     def forward(self, x):
         # change forward here
@@ -65,18 +109,6 @@ class ResNetPyramid(ResNet):
         
         return [x0,x1,x2,x3,x4]
  
-# TODO - will break because of ref to config file
-if c.pyramid:
-
-    mdl = ResNetPyramid()
-    feats = mdl(torch.randn(c.batch_size[0],3,c.density_map_h,c.density_map_w))
-    
-    if c.verbose:
-        print('Feature Pyramid Dimensions:')
-        [print(f.shape) for f in feats]
-        
-    pyramid_dims = [f.shape for f in feats]
-    
 class NothingNet():
     def __init__(self):
         self.features = torch.nn.Identity()
@@ -168,14 +200,25 @@ def nf_pyramid(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_fea
     assert c.subnet_type == 'conv'
     assert not c.gap and not c.counts and not c.mnist
     
+    # TODO - will break because of ref to config file
+    mdl = ResNetPyramid()
+    feats = mdl(torch.randn(c.batch_size[0],3,c.density_map_h,c.density_map_w,requires_grad=False))
+    del mdl
+    
+    if c.verbose:
+        print('Feature Pyramid Dimensions:')
+        [print(f.shape) for f in feats]
+        
+    p_dims = [f.shape for f in feats]
+    
     nodes = [Ff.InputNode(c.channels,input_dim[0],input_dim[1],name='input')] 
     
     # Conditions
-    condition0 = [Ff.ConditionNode(pyramid_dims[0][1],pyramid_dims[0][2],pyramid_dims[0][3],name = 'condition0')]
-    condition1 = [Ff.ConditionNode(pyramid_dims[1][1],pyramid_dims[1][2],pyramid_dims[1][3],name = 'condition1')]
-    condition2 = [Ff.ConditionNode(pyramid_dims[2][1],pyramid_dims[2][2],pyramid_dims[2][3],name = 'condition2')]
-    condition3 = [Ff.ConditionNode(pyramid_dims[3][1],pyramid_dims[3][2],pyramid_dims[3][3],name = 'condition3')]
-    condition4 = [Ff.ConditionNode(pyramid_dims[4][1],pyramid_dims[4][2],pyramid_dims[4][3],name = 'condition4')]
+    condition0 = [Ff.ConditionNode(p_dims[0][1],p_dims[0][2],p_dims[0][3],name = 'condition0')]
+    condition1 = [Ff.ConditionNode(p_dims[1][1],p_dims[1][2],p_dims[1][3],name = 'condition1')]
+    condition2 = [Ff.ConditionNode(p_dims[2][1],p_dims[2][2],p_dims[2][3],name = 'condition2')]
+    condition3 = [Ff.ConditionNode(p_dims[3][1],p_dims[3][2],p_dims[3][3],name = 'condition3')]
+    condition4 = [Ff.ConditionNode(p_dims[4][1],p_dims[4][2],p_dims[4][3],name = 'condition4')]
     
     # block 1
     k=0
@@ -290,7 +333,7 @@ class CowFlow(nn.Module):
         
         if c.feat_extractor == 'resnet18' and not c.pyramid:
             modules = list(feat_extractor.children())[:-2]
-            self.feat_extractor=nn.Sequential(*modules)
+            self.feat_extractor = nn.Sequential(*modules)
         else:
             self.feat_extractor = feat_extractor
         
@@ -385,6 +428,9 @@ class CowFlow(nn.Module):
             print("expanded label (dmap/counts) map size")
             print(labels.size(),"\n") 
         
+        if c.debug and c.pyramid:
+            print("length of feature vec pyramid tensor list")
+            print(len(feats))
         # second argument to NF is the condition - i.e. the features
         # first argument is the 'x' i.e. the data we are mapping to z (NF : x <--> z)
         # is also what we are trying to predict (in a sense we are using 'x' features to predict 'y' density maps)
@@ -486,40 +532,3 @@ class MNISTFlow(nn.Module):
         
         z = self.nf(x_or_z = labels,c = feats,rev=rev)
         return z
-
-def save_cstate(cdir,modelname,config_file):
-    ''' saves a snapshot of the config file before running and saving model '''
-    if not os.path.exists(C_DIR):
-        os.makedirs(C_DIR)
-        
-    base, extension = os.path.splitext(config_file)
-    
-    if c.verbose:
-        'Config file copied to {}'.format(C_DIR)
-    
-    new_name = os.path.join(cdir, base+"_"+modelname+".txt")
-    
-    shutil.copy(config_file, new_name)
-
-def save_model(model,filename,loc=MODEL_DIR):
-    if not os.path.exists(loc):
-        os.makedirs(loc)
-    torch.save(model, os.path.join(loc,filename), pickle_module=dill)
-    print("model {} saved to {}".format(filename,loc))
-    save_cstate(cdir=C_DIR,modelname="",config_file="config.py")
-    
-def load_model(filename,loc=MODEL_DIR):
-    path = os.path.join(loc, filename)
-    model = torch.load(path, pickle_module=dill)
-    print("model {} loaded from {}".format(filename,loc))
-    return model
-    
-def save_weights(model,filename,loc=WEIGHT_DIR):
-    if not os.path.exists(loc):
-        os.makedirs(loc)
-    torch.save(model.state_dict(),os.path.join(loc,filename), pickle_module=dill)
-        
-def load_weights(model, filename,loc=WEIGHT_DIR):
-    path = os.path.join(loc, filename)
-    model.load_state_dict(torch.load(path,pickle_module=dill))
-    return model
