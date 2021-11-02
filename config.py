@@ -4,22 +4,22 @@ proj_dir = "/home/matthew/Desktop/laptop_desktop/clones/cow_flow/data"
 # device settings
 import torch
 
-gpu = False
+gpu = True
 
 ## Data Options ------
 mnist = False 
 counts = False # must be off for pretraining feature extractor (#TODO)
 balanced = True # whether to have a 1:1 mixture of empty:annotated images
 annotations_only = False # whether to only use image patches that have annotations
-data_prop = 1 # proportion of the full dataset to use 
+data_prop = 1 # proportion of the full dataset to use     
 test_train_split = 70 # percentage of data to allocate to train set
 
 ## Density Map Options ------
-filter_size = 15 # as per single image mcnn paper
-sigma = 4.0 # "   -----    " 
+filter_size = 45 # as per single image mcnn paper
+sigma = 12.0 # "   -----    " 
 
 test_run = False # use only a small fraction of data to check everything works
-validation = False
+validation = True
 
 ## Feature Extractor Options ------
 joint_optim = False
@@ -27,7 +27,7 @@ pretrained = True
 feat_extractor = "resnet18" # alexnet, vgg16_bn,resnet18, none # TODO mnist_resnet, efficient net
 feat_extractor_epochs = 50
 train_feat_extractor = False # whether to finetune or load finetuned model 
-load_feat_extractor_str = '' # '' to train from scratch, loads FE 
+load_feat_extractor_str = 'resnet18_FTE_50_21_10_2021_10_27_59_PT_True' # 'resnet18_FTE_50_21_10_2021_10_27_59_PT_True' to train from scratch, loads FE 
 # nb: pretraining FE saves regardless of save flag
 
 ## Architecture Options ------
@@ -39,31 +39,31 @@ n_coupling_blocks = 5
 ## Subnet Architecture Options
 batchnorm = False
 filters = 32
-width = 800 
+width = 800
 subnet_type = 'conv' # options = fc, conv
 
 # Hyper Params and Optimisation ------
-scheduler = 'exponential' # exponential, none
+scheduler = 'none' # exponential, none
 weight_decay = 1e-5 # differnet: 1e-5
 clip_value = 1 # gradient clipping
 clamp_alpha = 1.9 
 
 # vectorised params must always be passed as lists
-lr_init = [2e-5]
+lr_init = [2e-3]
 batch_size = [12] # actual batch size is this value multiplied by n_transforms(_test)
 
 # total epochs = meta_epochs * sub_epochs
 # evaluation after <sub_epochs> epochs
-meta_epochs = 1
+meta_epochs = 5
 sub_epochs = 1
 
 ## Output Settings ----
-schema = '' # if debug, ignored
-debug = True # report loads of info/debug info
-tb = False # write metrics, hyper params to tb files
+schema = 'delete_me_large_filter_adam_betas' # if debug, ignored
+debug = False # report loads of info/debug info
+tb = True # write metrics, hyper params to tb files
 verbose = True # report stats per sub epoch and other info
-report_freq = -1 # nth minibatch to report minibatch loss on (1 = always,-1 = turn off)
-dmap_viz = False
+report_freq = 1 # nth minibatch to report minibatch loss on (1 = always,-1 = turn off)
+dmap_viz = True
 hide_tqdm_bar = False
 save_model = False # also saves a copy of the config file with the name of the model
 checkpoints = False # saves after every meta epoch
@@ -163,5 +163,7 @@ assert not (feat_extractor == 'none' and gap == True)
 assert subnet_type in ['conv','fc']
 assert feat_extractor in ['none' ,'alexnet','vgg16_bn','resnet18']
 assert scheduler in ['exponential','none']
+
 assert (pyramid and feat_extractor == 'resnet18') or not pyramid
+assert (pyramid and downsampling) or not pyramid # pyramid nf head has  downsmapling
 assert (pyramid and not train_feat_extractor) or not pyramid # TODO
