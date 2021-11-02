@@ -198,8 +198,8 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                     
                     train_loss = list()
                     
-                    if c.debug:
-                        print(scheduler.get_lr()[0])
+                    if c.debug and c.scheduler != 'none':
+                        print('Initial Scheduler Learning Rate: ',scheduler.get_lr()[0])
                     
                     for i, data in enumerate(tqdm(train_loader, disable=c.hide_tqdm_bar)):
                         
