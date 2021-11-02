@@ -1,10 +1,10 @@
 '''This file configures the training procedure'''
-proj_dir = "/home/mks29/clones/cow_flow/data"
+proj_dir = "/home/matthew/Desktop/laptop_desktop/clones/cow_flow/data"
 
 # device settings
 import torch
 
-gpu = True
+gpu = False
 
 ## Data Options ------
 mnist = False 
@@ -49,23 +49,23 @@ clip_value = 1 # gradient clipping
 clamp_alpha = 1.9 
 
 # vectorised params must always be passed as lists
-lr_init = [2e-3]
-batch_size = [16] # actual batch size is this value multiplied by n_transforms(_test)
+lr_init = [2e-5]
+batch_size = [12] # actual batch size is this value multiplied by n_transforms(_test)
 
 # total epochs = meta_epochs * sub_epochs
 # evaluation after <sub_epochs> epochs
-meta_epochs = 10
+meta_epochs = 1
 sub_epochs = 1
 
 ## Output Settings ----
-schema = 'pyramid_test1' # if debug, ignored
-debug = False # report loads of info/debug info
-tb = True # write metrics, hyper params to tb files
+schema = '' # if debug, ignored
+debug = True # report loads of info/debug info
+tb = False # write metrics, hyper params to tb files
 verbose = True # report stats per sub epoch and other info
 report_freq = -1 # nth minibatch to report minibatch loss on (1 = always,-1 = turn off)
 dmap_viz = False
 hide_tqdm_bar = False
-save_model = True # also saves a copy of the config file with the name of the model
+save_model = False # also saves a copy of the config file with the name of the model
 checkpoints = False # saves after every meta epoch
 
 # nb: same as the defaults specified for the pretrained pytorch model zoo

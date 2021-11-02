@@ -32,12 +32,13 @@ from skimage import io
 from PIL import Image
 
 import config as c
+from utils import UnNormalize
 
 proj_dir = c.proj_dir
 random_flag = False
-points_flag = False
+points_flag = True
 demo = False
-density_demo = False
+density_demo = True
 mk_size = 25
 
 class CowObjectsDataset(Dataset):
@@ -162,8 +163,8 @@ class CowObjectsDataset(Dataset):
                     
                     base_map = np.zeros((c.img_size[1], c.img_size[0]), dtype=np.float32)
                     
-                    if c.debug:
-                        print(point)
+#                    if c.debug:
+#                        print(point)
                         
                     # subtract 1 to account for 0 indexing
                     base_map[int(round(point[2]*c.img_size[1])-1),int(round(point[1]*c.img_size[0])-1)] += 1
@@ -171,9 +172,9 @@ class CowObjectsDataset(Dataset):
                     
                     labels.append(point[0])
                     
-                    if c.debug:
-                        print("base map sum ",base_map.sum())
-                        print("density map sum ",density_map.sum())            
+#                    if c.debug:
+#                        print("base map sum ",base_map.sum())
+#                        print("density map sum ",density_map.sum())            
                 
         labels = np.array(labels) # list into default collate function produces empty tensors
         
@@ -235,11 +236,11 @@ class CowObjectsDataset(Dataset):
         else:
             ncol = 1
         
-        fig, ax = plt.subplots(batch_size,ncol)
+        fig, ax = plt.subplots(batch_size,ncol,figsize=(8,13))
         plt.ioff()
-        fig.suptitle('Batch from dataloader',y=0.9,fontsize=24)
-        fig.set_size_inches(8*ncol,6*batch_size)
-        fig.set_dpi(100)
+        fig.suptitle('Batch from dataloader',y=0.95,fontsize=20)
+        #fig.set_size_inches(8*ncol,6*batch_size)
+        #fig.set_dpi(100)
       
         images_batch = sample_batched[0]
       
@@ -250,11 +251,11 @@ class CowObjectsDataset(Dataset):
             for i in range(batch_size):
                 density = density_batch[i]
                 image = images_batch[i]
-                image = image.permute((1, 2, 0))
+                image = image.permute((1, 2, 0)).squeeze().cpu().numpy()
                 ax[i,0].axis('off')
                 ax[i,1].axis('off')
                 ax[i,0].imshow(density, cmap='hot', interpolation='nearest')
-                ax[i,1].imshow(image)
+                ax[i,1].imshow((255-image * 255).astype(np.uint8))
         else:
         
             annotations_batch = sample_batched[1]
@@ -303,19 +304,24 @@ class CowObjectsDataset(Dataset):
         
         sample = self[sample_no]
         
+        # TODO - plot annotations as well (i.e. pre dmap)
+        
         if self.density:
+                im = sample['image']
+                
+                unnorm = UnNormalize(mean =tuple(c.norm_mean),std=tuple(c.norm_std))
+                im = unnorm(im)
+                im = im.permute(1,2,0).cpu().numpy()
+                
                 fig, ax = plt.subplots(1,2)
-                ax[0].imshow(sample['density'], cmap='hot', interpolation='nearest')
-                ax[1].imshow(sample['image'], cmap='hot', interpolation='nearest')
+                ax[0].imshow(sample['density'], cmap='viridis', interpolation='nearest')
+                ax[1].imshow((255-im * 255).astype(np.uint8))
         else:
             """Show image with landmarks"""
             image = sample['image']
             an = sample['annotations']
             
-            fig, ax = plt.subplots()
-            # width, height, default DPI = 100
-            fig.set_size_inches(8,6)
-            fig.set_dpi(100)
+            fig, ax = plt.subplots(figsize=(3,4))
             ax.imshow(image)
             
             if debug:
@@ -680,7 +686,7 @@ if demo:
     # if density, can use default collate function for batching
     if transformed_dataset.density:
         dataloader = DataLoader(transformed_dataset, batch_size=4,
-                                shuffle=True, num_workers=0,collate_fn=cow_dataset.custom_collate_density)
+                                shuffle=True, num_workers=0,collate_fn=cow_dataset.custom_collate_aerial)
     else:
         dataloader = DataLoader(transformed_dataset, batch_size=4,
                                 shuffle=True, num_workers=0,collate_fn=cow_dataset.custom_collate_fn)

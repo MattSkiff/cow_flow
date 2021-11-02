@@ -1,7 +1,6 @@
 from torch import randn
 from tqdm import tqdm
 import config as c
-import numpy as np
 import torch
 
 # TODO extra args: plot = True, save=True,hist=True
@@ -38,10 +37,10 @@ def eval_mnist(model, validloader, trainloader,samples = 1,confusion = False, pr
                 if c.one_hot:
                     x = x.argmax(-3).to(torch.float)
                     
-                dims = (1,2,3)
-                 
-                if c.one_hot:
-                    dims = (1,2)
+#                dims = (1,2,3)
+#                 
+#                if c.one_hot:
+#                    dims = (1,2)
                 
                 x = torch.reshape(x,(loader.batch_size,c.density_map_h * c.density_map_w)) # torch.Size([200, 12, 12])
                 raw_preds = x  # torch.Size([200, 144])

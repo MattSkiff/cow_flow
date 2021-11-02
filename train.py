@@ -1,24 +1,25 @@
 import numpy as np
 import torch
 import torch.nn as nn
+from torch.nn.utils import clip_grad_value_
+from torch.optim.lr_scheduler import ExponentialLR
 from tqdm import tqdm # progress bar
+
 import time 
 import copy
 import os
 from datetime import datetime 
 
-import config as c
-
 from eval import eval_mnist, eval_model
 from utils import get_loss, plot_preds, counts_preds_vs_actual, t2np
-from torch.nn.utils import clip_grad_value_
-from torch.optim.lr_scheduler import ExponentialLR
 import model # importing entire file fixes 'cyclical import' issues
 #from model import CowFlow, MNISTFlow, select_feat_extractor, save_model #, save_weights
 
-FEAT_MOD_DIR = './models/feat_extractors/'
+import config as c
+import gvars as g
+import arguments as a
 
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu") # select 0 gpu
+device = torch.device("cuda:{}".format(a.args.gpu_number) if torch.cuda.is_available() else "cpu") # select gpu
 
 # tensorboard
 from torch.utils.tensorboard import SummaryWriter
@@ -61,7 +62,7 @@ def train_battery(train_loader,valid_loader,lr_i = c.lr_init):
                 
 
 def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None): #def train(train_loader, test_loader):
-            
+    
             if c.debug:
                 torch.autograd.set_detect_anomaly(True)
     
@@ -72,7 +73,7 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
             if c.load_feat_extractor_str == '':
                 feat_extractor = model.select_feat_extractor(c.feat_extractor,train_loader,valid_loader)
             else:
-                feat_extractor = model.load_model(filename=c.load_feat_extractor_str,loc=FEAT_MOD_DIR)
+                feat_extractor = model.load_model(filename=c.load_feat_extractor_str,loc=g.FEAT_MOD_DIR)
         
             now = datetime.now() 
             
@@ -545,5 +546,5 @@ def train_feat_extractor(feat_extractor,trainloader,validloader,criterion = nn.C
         print("Finetuning finished.")
         
     feat_extractor.load_state_dict(best_model_wts)
-    model.save_model(model=feat_extractor,filename=filename,loc=FEAT_MOD_DIR)
+    model.save_model(model=feat_extractor,filename=filename,loc=g.FEAT_MOD_DIR)
     return feat_extractor

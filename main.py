@@ -9,6 +9,7 @@ from torch.utils.data.sampler import SubsetRandomSampler # RandomSampling
 import config as c
 import arguments as a
 import model
+import os
 import pickle 
 from train import train, train_battery
 #from utils import load_datasets, make_dataloaders
@@ -69,6 +70,10 @@ else:
                                             convert_to_points=True,generate_density=True,
                                             count = c.counts,classification = c.train_feat_extractor)
     
+    # check dataloader if running interactively
+    if any('SPYDER' in name for name in os.environ):
+        transformed_dataset.show_annotations(5809)
+    
     # create test train split
     # https://stackoverflow.com/questions/27745500/how-to-save-a-list-to-a-file-and-read-it-as-a-list-type
     if not c.fixed_indices:
@@ -90,7 +95,6 @@ else:
     
     # Creating data samplers and loaders:
     # only train part for dev purposes 
-    
     
     if not c.annotations_only:
         train_sampler = SubsetRandomSampler(train_indices[:round(c.data_prop*len(train_indices))])
