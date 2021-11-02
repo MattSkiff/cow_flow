@@ -298,7 +298,7 @@ def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,m
     # haar downsampling to resolves input data only having a single channel (from unsqueezed singleton dimension)
     # affine coupling performs channel wise split
     # https://github.com/VLL-HD/FrEIA/issues/8
-    if c.mnist or c.counts or c.feat_extractor == 'none' or c.downsampling and c.subnet_type == 'conv':
+    if c.mnist or c.counts or c.feat_extractor == 'none' or not c.downsampling and c.subnet_type == 'conv':
         nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling'))
             
     elif not c.counts and c.feat_extractor != 'none' and c.downsampling:
@@ -416,7 +416,7 @@ class CowFlow(nn.Module):
         if c.feat_extractor != "none" and c.subnet_type =='conv':
         
             if self.gap:
-                feats = feats.unsqueeze(2).unsqueeze(3).expand(-1, -1, c.density_map_h // 2,c.density_map_w // 2)
+                feats = feats.unsqueeze(2).unsqueeze(3).expand(-1, -1, (c.density_map_h//c.scale) // 2,(c.density_map_w//c.scale) // 2)
         
         if c.debug and not self.pyramid: 
             print("reshaped feature size with spatial dims..")

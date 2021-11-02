@@ -13,7 +13,7 @@ import os
 import pickle 
 from train import train, train_battery
 #from utils import load_datasets, make_dataloaders
-from data_loader import CowObjectsDataset, CustToTensor,AerialNormalize, DmapAddUniformNoise, CustCrop, train_valid_split
+from data_loader import CowObjectsDataset, CustToTensor,AerialNormalize, DmapAddUniformNoise, CustCrop, CustResize, train_valid_split
 
 empty_cache() # free up memory for cuda
 
@@ -30,7 +30,8 @@ dmaps_pre = Compose([
             CustToTensor(),
             DmapAddUniformNoise(),
             AerialNormalize(),
-            CustCrop()
+            CustCrop(),
+            CustResize()
         ])
 
 if c.mnist:

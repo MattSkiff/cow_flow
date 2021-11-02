@@ -13,6 +13,7 @@ balanced = True # whether to have a 1:1 mixture of empty:annotated images
 annotations_only = False # whether to only use image patches that have annotations
 data_prop = 1 # proportion of the full dataset to use     
 test_train_split = 70 # percentage of data to allocate to train set
+scale = 2 # 2 = downscale two fold, 1 = unchange
 
 ## Density Map Options ------
 filter_size = 45 # as per single image mcnn paper
@@ -31,9 +32,9 @@ load_feat_extractor_str = 'resnet18_FTE_50_21_10_2021_10_27_59_PT_True' # 'resne
 # nb: pretraining FE saves regardless of save flag
 
 ## Architecture Options ------
-pyramid = True # only implemented for resnet18
-gap = False # global average pooling
-downsampling = True # TODO - does nothing atm whether to downsample dmaps by converting spatial dims to channel dims
+pyramid = False # only implemented for resnet18
+gap = True # global average pooling
+downsampling = False # TODO - does nothing atm whether to downsample dmaps by converting spatial dims to channel dims
 n_coupling_blocks = 5
 
 ## Subnet Architecture Options
@@ -50,7 +51,7 @@ clamp_alpha = 1.9
 
 # vectorised params must always be passed as lists
 lr_init = [2e-3]
-batch_size = [12] # actual batch size is this value multiplied by n_transforms(_test)
+batch_size = [8] # actual batch size is this value multiplied by n_transforms(_test)
 
 # total epochs = meta_epochs * sub_epochs
 # evaluation after <sub_epochs> epochs
@@ -58,14 +59,14 @@ meta_epochs = 5
 sub_epochs = 1
 
 ## Output Settings ----
-schema = 'delete_me_large_filter_adam_betas' # if debug, ignored
+schema = 'resize_test' # if debug, ignored
 debug = False # report loads of info/debug info
 tb = True # write metrics, hyper params to tb files
 verbose = True # report stats per sub epoch and other info
 report_freq = 1 # nth minibatch to report minibatch loss on (1 = always,-1 = turn off)
 dmap_viz = True
 hide_tqdm_bar = False
-save_model = False # also saves a copy of the config file with the name of the model
+save_model = True # also saves a copy of the config file with the name of the model
 checkpoints = False # saves after every meta epoch
 
 # nb: same as the defaults specified for the pretrained pytorch model zoo
@@ -158,7 +159,7 @@ elif mnist and feat_extractor == "none":
 if pyramid:
     n_coupling_blocks = 5 # for recording purposes
 
-# checks
+# Checks ------
 assert not (feat_extractor == 'none' and gap == True)
 assert subnet_type in ['conv','fc']
 assert feat_extractor in ['none' ,'alexnet','vgg16_bn','resnet18']
@@ -167,3 +168,5 @@ assert scheduler in ['exponential','none']
 assert (pyramid and feat_extractor == 'resnet18') or not pyramid
 assert (pyramid and downsampling) or not pyramid # pyramid nf head has  downsmapling
 assert (pyramid and not train_feat_extractor) or not pyramid # TODO
+
+assert scale in (1,2,4)

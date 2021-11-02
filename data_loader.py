@@ -542,6 +542,24 @@ class CustCrop(object):
                 sample['image'] =  image
         
         return sample
+    
+class CustResize(object):
+    """Resize density."""
+
+    def __call__(self, sample):
+              
+        if 'density' in sample.keys():
+            density = sample['density']
+            sz = list(density.size())
+            
+            # channels, height, width | alias off by default, bilinear default
+            density = density.unsqueeze(0).unsqueeze(0)
+            density = TF.resize(density,(sz[0]//c.scale,sz[1]//c.scale))
+            density = density.squeeze().squeeze()
+            
+            sample['density'] = density
+        
+        return sample
 
 # Need to create lists of test and train indices
 # Dataset is highly imbalanced, want test set to mirror train set imbalance

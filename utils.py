@@ -18,14 +18,19 @@ def ft_dims_select(mdl=None):
     else:
         fe = mdl.feat_extractor.__class__.__name__
     
-    if fe in ['resnet18','ResNetPyramid'] or fe == 'Sequential':
-        ft_dims = (19,25)
-    elif fe == 'vgg16_bn' or fe == 'VGG':
-        ft_dims = (18,25)
-    elif fe == 'alexnet' or fe == 'AlexNet':
-        ft_dims = (17,24)
-    elif fe == 'none' or fe == 'NothingNet':
-        ft_dims = (600,800)
+    if c.downsampling:
+    
+        if fe in ['resnet18','ResNetPyramid'] or fe == 'Sequential':
+            ft_dims = (19,25)
+        elif fe == 'vgg16_bn' or fe == 'VGG':
+            ft_dims = (18,25)
+        elif fe == 'alexnet' or fe == 'AlexNet':
+            ft_dims = (17,24)
+        elif fe == 'none' or fe == 'NothingNet':
+            ft_dims = (600,800)
+            
+    else:
+        ft_dims = (c.density_map_h//c.scale,c.density_map_w//c.scale)
         
     return ft_dims
 
