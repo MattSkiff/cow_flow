@@ -69,12 +69,7 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
             if c.verbose: 
                 print("Training run using {} train samples and {} validation samples...".format(str(len(train_loader)*int(train_loader.batch_size)),str(len(valid_loader)*int(valid_loader.batch_size))))
                 print("Using device: {}".format(c.device))
-                    
-            if c.load_feat_extractor_str == '':
-                feat_extractor = model.select_feat_extractor(c.feat_extractor,train_loader,valid_loader)
-            else:
-                feat_extractor = model.load_model(filename=c.load_feat_extractor_str,loc=g.FEAT_MOD_DIR)
-        
+                     
             now = datetime.now() 
             
             parts = [c.schema,
@@ -162,7 +157,9 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                 writer = SummaryWriter(log_dir='runs/'+c.schema+'/'+modelname)
             else:
                 writer = writer
-        
+            
+            feat_extractor = model.select_feat_extractor(c.feat_extractor,train_loader,valid_loader)
+            
             if c.mnist:
                 mdl = model.MNISTFlow(modelname=modelname,feat_extractor = feat_extractor)    
             else:
@@ -174,7 +171,7 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                             {'params': mdl.feat_extractor.parameters(), 'lr_init': 1e-3,'betas':(0.9,0.999),'eps':1e-08, 'weight_decay':0}
                         ], lr=lr_i[0], betas=(0.8, 0.8), eps=1e-04, weight_decay=c.weight_decay )
             else:
-                optimizer = torch.optim.Adam(mdl.nf.parameters(), lr=lr_i[0], betas=(0.8, 0.8), eps=1e-04, weight_decay=c.weight_decay)
+                optimizer = torch.optim.Adam(mdl.nf.parameters(), lr=lr_i[0], betas=(0.9, 0.999), eps=1e-04, weight_decay=c.weight_decay)
             
             
             # add scheduler to improve stability further into training
@@ -185,6 +182,8 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
             mdl.to(c.device)   
             
             k = 0 # track total mini batches
+            val_mb_iter = 0
+            train_mb_iter = 0
             j = 0 # track total sub epochs
             l = 0 # track epochs
             
@@ -275,11 +274,12 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                         dims = tuple(range(1, len(z.size())))
                         loss = get_loss(z, log_det_jac,dims) # mdl.nf.jacobian(run_forward=False)
                         k += 1
+                        train_mb_iter += 1
                         
                         loss_t = t2np(loss)
                         
                         if writer != None:
-                            writer.add_scalar('loss/minibatch_train',loss, k)
+                            writer.add_scalar('loss/minibatch_train',loss, train_mb_iter)
                         
                         train_loss.append(loss_t)
                         loss.backward()
@@ -300,7 +300,7 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                         est_remain_time = round(((t2-t1) * (total_iter-k)) / 60,2)
                         
                         if k % c.report_freq == 0 and c.verbose and k != 0 and c.report_freq != -1:
-                                print('Mini-Batch Time: {:f}, Mini-Batch: {:d}, Mini-Batch train loss: {:.4f}'.format(t2-t1,i+1, train_loss))
+                                print('\nTrain | Mini-Batch Time: {:.1f}, Mini-Batch: {:d}, Mini-Batch loss: {:.4f}'.format(t2-t1,i+1, loss_t))
                                 print('{:d} Mini-Batches in sub-epoch remaining'.format(len(train_loader)-i))
                                 print('Total Iterations: ',total_iter,'| Passed Iterations: ',k)
                                 
@@ -312,7 +312,7 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                     
                     if c.verbose:
                         t_e2 = time.perf_counter()
-                        print("Sub Epoch Time (s): {:f}, Epoch train loss: {:.4f}".format(t_e2-t_e1,mean_train_loss))
+                        print("\nTrain | Sub Epoch Time (s): {:f}, Epoch loss: {:.4f}".format(t_e2-t_e1,mean_train_loss))
                         print('Meta Epoch: {:d}, Sub Epoch: {:d}, | Epoch {:d} out of {:d} Total Epochs'.format(meta_epoch, sub_epoch,meta_epoch*c.sub_epochs + sub_epoch,c.meta_epochs*c.sub_epochs))
                         print('Total Training Time (mins): {:.2f} | Remaining Time (mins): {:.2f}'.format(est_total_time,est_remain_time))
                     
@@ -330,11 +330,12 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                             for i, data in enumerate(tqdm(valid_loader, disable=c.hide_tqdm_bar)):
                                 
                                 # validation
+                                # TODO - DRY violation...
                                 if not c.mnist and not c.counts:
                                      images,dmaps,labels = data
                                      dmaps = dmaps.float().to(c.device)
                                      images = images.float().to(c.device)
-                                     z, log_det_jac = model(images,dmaps)
+                                     z, log_det_jac = mdl(images,dmaps)
                                      
                                      valid_counts.append(dmaps.sum())
                                      
@@ -342,7 +343,7 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                                      images,dmaps,labels,counts = data
                                      counts = counts.float().to(c.device)
                                      images = images.float().to(c.device)
-                                     z, log_det_jac = model(images,counts)
+                                     z, log_det_jac = mdl(images,counts)
                                      
                                      valid_counts.append(counts.mean())
                                      
@@ -350,7 +351,7 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                                     images,labels = data
                                     labels = torch.Tensor([labels]).to(c.device)
                                     images = images.float().to(c.device)
-                                    z, log_det_jac = model(images,labels)
+                                    z, log_det_jac = mdl(images,labels)
                                     
                                 valid_z.append(z)
                                 
@@ -358,15 +359,19 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                             if i % c.report_freq == 0 and c.verbose and not c.mnist:
                                     print('count: {:f}'.format(dmaps.sum()))
                                     
-                            dims = tuple(range(1, len(z.size())-1))
-                            loss = get_loss(z, log_det_jac)
+                            dims = tuple(range(1, len(z.size())))
+                            loss = get_loss(z, log_det_jac,dims)
                             k += 1
+                            val_mb_iter += 1
                             valid_loss.append(t2np(loss))
+                            
+                            if writer != None:
+                                writer.add_scalar('loss/minibatch_val',loss, val_mb_iter)
                              
                         valid_loss = np.mean(np.array(valid_loss))
                          
                         if c.verbose:
-                                print('Sub Epoch: {:d} \t valid_loss: {:4f}'.format(sub_epoch,valid_loss))
+                                print('Validation | Sub Epoch: {:d} \t Epoch loss: {:4f}'.format(sub_epoch,valid_loss))
                         
                         if writer != None:
                             writer.add_scalar('loss/epoch_val',valid_loss, j)
@@ -394,8 +399,8 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                 if writer != None and mdl.count:
                     _,_,train_R2 = counts_preds_vs_actual(mdl,train_loader)
                     _,_,valid_R2 = counts_preds_vs_actual(mdl,valid_loader)
-                    writer.add_scalar('R2/meta_epoch_train',train_R2, l)
-                    writer.add_scalar('R2/meta_epoch_valid',valid_R2, l)
+                    #writer.add_scalar('R2/meta_epoch_train',train_R2, l) # TODO
+                    #writer.add_scalar('R2/meta_epoch_valid',valid_R2, l)
                 else:
                     train_R2 = -99; valid_R2 = -99
                 
@@ -419,7 +424,7 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
             # post training: visualise a random reconstruction
             if c.dmap_viz:
             
-                plot_preds(model, valid_loader, plot = True,mnist = c.mnist)
+                plot_preds(mdl, valid_loader, plot = True)
             
             # save final model, unless models are being saved at end of every meta peoch
             if c.save_model and not c.checkpoints:
@@ -532,7 +537,7 @@ def train_feat_extractor(feat_extractor,trainloader,validloader,criterion = nn.C
                 print('{} Loss: {:.4f} Acc: {:.4f}'.format(phase, epoch_loss, epoch_acc)) 
             
             if writer != None:
-                writer.add_scalar('acc/epoch_{}'.format(phase),epoch_acc, epoch)
+                #writer.add_scalar('acc/epoch_{}'.format(phase),epoch_acc, epoch) # TODO
                 writer.add_scalar('loss/epoch_{}'.format(phase),epoch_loss, epoch)
             
             running_loss = 0.0; running_corrects = 0

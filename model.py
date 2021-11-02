@@ -9,8 +9,14 @@ import torch
 import torch.nn as nn
 from torchvision.models import alexnet, resnet18, vgg16_bn  # feature extractors
 from torchvision.models.resnet import ResNet, BasicBlock
-
 import torch.nn.functional as F
+
+import os # save model
+import collections
+import shutil
+import dill # solve error when trying to pickle lambda function in FrEIA
+from types import MethodType # overwrtie private forward method
+
 from utils import init_weights, ft_dims_select
 
 import train # train_feat_extractor
@@ -19,11 +25,6 @@ import train # train_feat_extractor
 # FrEIA imports for invertible networks VLL/HDL
 import FrEIA.framework as Ff
 import FrEIA.modules as Fm
-
-import os # save model
-import collections
-import shutil
-import dill # solve error when trying to pickle lambda function in FrEIA
 
 import config as c # hyper params
 import arguments as a
@@ -80,40 +81,48 @@ class MnistResNet(ResNet):
 # TODO add argument for loading saved finetuned resnet18 from storage
 # ty ptrblck  https://discuss.pytorch.org/t/how-can-i-replace-the-forward-method-of-a-predefined-torchvision-model-with-my-customized-forward-function/54224/6
 # ty Zeeshan Khan Suri https://zshn25.github.io/ResNet-feature-pyramid-in-Pytorch/
+def _forward_impl_my(self, x):
+    # change forward here
+    x = self.conv1(x)
+    x = self.bn1(x)
+    x0 = self.relu(x)
+    x = self.maxpool(x0)
+
+    x1 = self.layer1(x)
+    x2 = self.layer2(x1)
+    x3 = self.layer3(x2)
+    x4 = self.layer4(x3)
+    
+    return [x0,x1,x2,x3,x4]       
+        
 class ResNetPyramid(ResNet):
 
     def __init__(self):
         
         super(ResNetPyramid, self).__init__(BasicBlock, [2, 2, 2, 2])
-        num_ftrs = self.fc.in_features
-        self.fc = nn.Linear(num_ftrs, 2)  
         
         if c.load_feat_extractor_str == '':
             self.load_state_dict(resnet18(pretrained=c.pretrained).state_dict())
         elif c.load_feat_extractor_str != '':
             # TODO
+            num_ftrs = self.fc.in_features
+            self.fc = nn.Linear(num_ftrs, 2)  
             finetuned_fe = load_model(c.load_feat_extractor_str,loc=g.FEAT_MOD_DIR)
             self.load_state_dict(finetuned_fe.state_dict())
-        
-    def forward(self, x):
-        # change forward here
-        x = self.conv1(x)
-        x = self.bn1(x)
-        x0 = self.relu(x)
-        x = self.maxpool(x0)
-
-        x1 = self.layer1(x)
-        x2 = self.layer2(x1)
-        x3 = self.layer3(x2)
-        x4 = self.layer4(x3)
-        
-        return [x0,x1,x2,x3,x4]
+            del finetuned_fe
+    
+#    def forward(self, x):
+#        
+#        return self._forward_impl(x)
  
 class NothingNet():
     def __init__(self):
         self.features = torch.nn.Identity()
 
 def select_feat_extractor(feat_extractor,train_loader=None,valid_loader=None):
+    
+    if c.load_feat_extractor_str and not c.pyramid:
+        feat_extractor = load_model(filename=c.load_feat_extractor_str,loc=g.FEAT_MOD_DIR)
     
     if not c.pyramid:
         if c.feat_extractor == "alexnet":
@@ -129,6 +138,7 @@ def select_feat_extractor(feat_extractor,train_loader=None,valid_loader=None):
             feat_extractor = NothingNet()
     else:
         feat_extractor = ResNetPyramid()
+        feat_extractor._forward_impl = MethodType(_forward_impl_my, feat_extractor)
     
     if c.train_feat_extractor:
     # pretrain feature extractor with classification problem
@@ -202,6 +212,7 @@ def nf_pyramid(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_fea
     
     # TODO - will break because of ref to config file
     mdl = ResNetPyramid()
+    mdl._forward_impl = MethodType(_forward_impl_my, mdl)
     feats = mdl(torch.randn(c.batch_size[0],3,c.density_map_h,c.density_map_w,requires_grad=False))
     del mdl
     
@@ -287,7 +298,7 @@ def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,m
     # haar downsampling to resolves input data only having a single channel (from unsqueezed singleton dimension)
     # affine coupling performs channel wise split
     # https://github.com/VLL-HD/FrEIA/issues/8
-    if c.mnist or (c.counts or c.feat_extractor == 'none') and c.downsampling and c.subnet_type == 'conv':
+    if c.mnist or c.counts or c.feat_extractor == 'none' or c.downsampling and c.subnet_type == 'conv':
         nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling'))
             
     elif not c.counts and c.feat_extractor != 'none' and c.downsampling:
@@ -372,6 +383,10 @@ class CowFlow(nn.Module):
         if c.debug and not self.pyramid:
             print("raw feature size..")
             print(feat_s.size(),"\n")
+            
+        if c.debug and self.pyramid:
+            print("feats list len:")
+            print(len(feat_s))
             
         # global average pooling as described in paper:
         # h x w x d -> 1 x 1 x d
