@@ -63,8 +63,7 @@ if c.mnist:
                                       shuffle=False,sampler=toy_sampler))
             
             mdl = train_battery(tls,vls,lr_i=c.lr_init)
-    
-   
+       
 else:
     # instantiate class
     transformed_dataset = CowObjectsDataset(root_dir=c.proj_dir,transform = dmaps_pre,
@@ -122,8 +121,8 @@ else:
             if a.args.feat_extract_only:
                 feat_extractor = model.select_feat_extractor(c.feat_extractor,train_loader,valid_loader)
             else:
-                #pass
-                mdl = train(train_loader,valid_loader,lr_i=c.lr_init)
+                pass
+                #mdl = train(train_loader,valid_loader,lr_i=c.lr_init)
         else:
                 mdl = train_battery([train_loader],[valid_loader],lr_i=c.lr_init)
                 

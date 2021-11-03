@@ -5,7 +5,7 @@ proj_dir = "/home/matthew/Desktop/laptop_desktop/clones/cow_flow/data"
 import torch
 import arguments as a
 
-gpu = True
+gpu = False
 
 ## Data Options ------
 mnist = False 
@@ -13,7 +13,7 @@ counts = False # must be off for pretraining feature extractor (#TODO)
 balanced = True # whether to have a 1:1 mixture of empty:annotated images
 annotations_only = False # whether to only use image patches that have annotations
 data_prop = 0.1 # proportion of the full dataset to use     
-test_train_split = 20 # percentage of data to allocate to train set
+test_train_split = 70 # percentage of data to allocate to train set
 scale = 1 # 4, 2 = downscale four/two fold, 1 = unchanged
 
 ## Density Map Options ------
@@ -21,7 +21,7 @@ filter_size = 45 # as per single image mcnn paper
 sigma = 12.0 # "   -----    " 
 
 test_run = False # use only a small fraction of data to check everything works
-validation = True
+validation = True # whether to run validation per meta epoch
 
 ## Feature Extractor Options ------
 joint_optim = False
@@ -36,7 +36,7 @@ load_feat_extractor_str = 'resnet18_FTE_50_21_10_2021_10_27_59_PT_True' # 'resne
 pyramid = False # only implemented for resnet18
 gap = True # global average pooling
 downsampling = False # whether to downsample (5 ds layers) dmaps by converting spatial dims to channel dims
-n_coupling_blocks = 5
+n_coupling_blocks = 1
 
 ## Subnet Architecture Options
 batchnorm = False
@@ -56,17 +56,17 @@ batch_size = [1] # actual batch size is this value multiplied by n_transforms(_t
 
 # total epochs = meta_epochs * sub_epochs
 # evaluation after <sub_epochs> epochs
-meta_epochs = 1
+meta_epochs = 2
 sub_epochs = 1
 
 ## Output Settings ----
 schema = 'tb_test' # if debug, ignored
 debug = False # report loads of info/debug info
 tb = True # write metrics, hyper params to tb files
-verbose = False # report stats per sub epoch and other info
+verbose = True # report stats per sub epoch and other info
 report_freq = -1 # nth minibatch to report minibatch loss on (1 = always,-1 = turn off)
 dmap_viz = True
-hide_tqdm_bar = False
+hide_tqdm_bar = True
 save_model = False # also saves a copy of the config file with the name of the model
 checkpoints = False # saves after every meta epoch
 
