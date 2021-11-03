@@ -17,9 +17,6 @@ import model # importing entire file fixes 'cyclical import' issues
 
 import config as c
 import gvars as g
-import arguments as a
-
-device = torch.device("cuda:{}".format(a.args.gpu_number) if torch.cuda.is_available() else "cpu") # select gpu
 
 # tensorboard
 from torch.utils.tensorboard import SummaryWriter
