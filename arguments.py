@@ -1,5 +1,6 @@
 import argparse
 import socket
+import config as c
 
 # command line params
 parser = argparse.ArgumentParser(description='Create dataloaders and train CowFlow or MNISTFlow conditional NF.')
@@ -12,6 +13,9 @@ parser.add_argument("-gn", "--gpu_number", help="Selects which GPU to train on."
 global args 
 args = parser.parse_args()
 host = socket.gethostname()
+
+if args.gpu_number != 0:
+    assert c.gpu
 
 assert args.gpu_number > -1
 

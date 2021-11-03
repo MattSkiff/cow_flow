@@ -96,6 +96,9 @@ class UnNormalize(object):
 
 # TODO split into minst and non mnist funcs
 def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=True,sampling="randn",plot_n=None):
+    
+    assert type(loader) == torch.utils.data.dataloader.DataLoader
+    
     """
 
     Parameters
@@ -221,7 +224,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
                         dummy_z = (randn(loader.batch_size,c.channels*4,(c.density_map_h) // 2,(c.density_map_w) // 2)).to(c.device) 
                     elif loader.dataset.count and mdl.gap:
                         dummy_z = (randn(loader.batch_size,1)).to(c.device) 
-                    elif c.downsampling:
+                    elif c.downsampling: # self.downsampling
                         in_channels = 1024
                         ft_dims = ft_dims_select(mdl)
                         if mdl.feat_extractor.__class__.__name__ == 'NothingNet':

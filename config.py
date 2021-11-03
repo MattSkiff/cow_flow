@@ -3,8 +3,9 @@ proj_dir = "/home/matthew/Desktop/laptop_desktop/clones/cow_flow/data"
 
 # device settings
 import torch
+import arguments as a
 
-gpu = True
+gpu = False
 
 ## Data Options ------
 mnist = False 
@@ -13,7 +14,7 @@ balanced = True # whether to have a 1:1 mixture of empty:annotated images
 annotations_only = False # whether to only use image patches that have annotations
 data_prop = 0.1 # proportion of the full dataset to use     
 test_train_split = 70 # percentage of data to allocate to train set
-scale = 2 # 4, 2 = downscale four/two fold, 1 = unchanged
+scale = 1 # 4, 2 = downscale four/two fold, 1 = unchanged
 
 ## Density Map Options ------
 filter_size = 45 # as per single image mcnn paper
@@ -33,9 +34,9 @@ load_feat_extractor_str = 'resnet18_FTE_50_21_10_2021_10_27_59_PT_True' # 'resne
 
 ## Architecture Options ------
 pyramid = False # only implemented for resnet18
-gap = True # global average pooling
-downsampling = False # TODO - does nothing atm whether to downsample dmaps by converting spatial dims to channel dims
-n_coupling_blocks = 1
+gap = False # global average pooling
+downsampling = False # whether to downsample (5 ds layers) dmaps by converting spatial dims to channel dims
+n_coupling_blocks = 5
 
 ## Subnet Architecture Options
 batchnorm = False
@@ -158,6 +159,9 @@ elif mnist and feat_extractor == "none":
     density_map_h = 4
     density_map_w = 4
 
+if gpu:
+    device = torch.device("cuda:{}".format(a.args.gpu_number) if torch.cuda.is_available() else "cpu") # select gpu
+
 # Checks ------
 assert not (feat_extractor == 'none' and gap == True)
 assert subnet_type in ['conv','fc']
@@ -169,5 +173,6 @@ if pyramid:
     assert (pyramid and feat_extractor == 'resnet18')
     assert (pyramid and downsampling) # pyramid nf head has  downsmapling
     assert (pyramid and not train_feat_extractor) # TODO
+    assert scale == 1
 
 assert scale in (1,2,4)

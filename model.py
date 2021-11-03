@@ -15,7 +15,6 @@ import os # save model
 import collections
 import shutil
 import dill # solve error when trying to pickle lambda function in FrEIA
-from types import MethodType # overwrtie private forward method
 
 from utils import init_weights, ft_dims_select
 
@@ -45,28 +44,29 @@ def save_cstate(cdir,modelname,config_file):
     
     shutil.copy(config_file, new_name)
 
-def save_model(model,filename,loc=g.MODEL_DIR):
+def save_model(mdl,filename,loc=g.MODEL_DIR):
     if not os.path.exists(loc):
         os.makedirs(loc)
-    torch.save(model, os.path.join(loc,filename), pickle_module=dill)
+    torch.save(mdl, os.path.join(loc,filename), pickle_module=dill)
     print("model {} saved to {}".format(filename,loc))
     save_cstate(cdir=g.C_DIR,modelname="",config_file="config.py")
     
 def load_model(filename,loc=g.MODEL_DIR):
     path = os.path.join(loc, filename)
-    model = torch.load(path, pickle_module=dill)
-    print("model {} loaded from {}".format(filename,loc))
-    return model
+    mdl = torch.load(path, pickle_module=dill)
     
-def save_weights(model,filename,loc=g.WEIGHT_DIR):
+    print("model {} loaded from {}".format(filename,loc))
+    return mdl
+    
+def save_weights(mdl,filename,loc=g.WEIGHT_DIR):
     if not os.path.exists(loc):
         os.makedirs(loc)
-    torch.save(model.state_dict(),os.path.join(loc,filename), pickle_module=dill)
+    torch.save(mdl.state_dict(),os.path.join(loc,filename), pickle_module=dill)
         
-def load_weights(model, filename,loc=g.WEIGHT_DIR):
+def load_weights(mdl, filename,loc=g.WEIGHT_DIR):
     path = os.path.join(loc, filename)
-    model.load_state_dict(torch.load(path,pickle_module=dill))
-    return model
+    mdl.load_state_dict(torch.load(path,pickle_module=dill))
+    return mdl
 
 # https://zablo.net/blog/post/using-resnet-for-mnist-in-pytorch-tutorial/
 # TODO
@@ -80,21 +80,8 @@ class MnistResNet(ResNet):
      
 # TODO add argument for loading saved finetuned resnet18 from storage
 # ty ptrblck  https://discuss.pytorch.org/t/how-can-i-replace-the-forward-method-of-a-predefined-torchvision-model-with-my-customized-forward-function/54224/6
-# ty Zeeshan Khan Suri https://zshn25.github.io/ResNet-feature-pyramid-in-Pytorch/
-def _forward_impl_my(self, x):
-    # change forward here
-    x = self.conv1(x)
-    x = self.bn1(x)
-    x0 = self.relu(x)
-    x = self.maxpool(x0)
-
-    x1 = self.layer1(x)
-    x2 = self.layer2(x1)
-    x3 = self.layer3(x2)
-    x4 = self.layer4(x3)
-    
-    return [x0,x1,x2,x3,x4]       
-        
+# ty Zeeshan Khan Suri https://zshn25.github.io/ResNet-feature-pyramid-in-Pytorch/       
+       
 class ResNetPyramid(ResNet):
 
     def __init__(self):
@@ -110,10 +97,24 @@ class ResNetPyramid(ResNet):
             finetuned_fe = load_model(c.load_feat_extractor_str,loc=g.FEAT_MOD_DIR)
             self.load_state_dict(finetuned_fe.state_dict())
             del finetuned_fe
+            
+    def _forward_impl_my(self, x):
+        # change forward here
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x0 = self.relu(x)
+        x = self.maxpool(x0)
     
-#    def forward(self, x):
-#        
-#        return self._forward_impl(x)
+        x1 = self.layer1(x)
+        x2 = self.layer2(x1)
+        x3 = self.layer3(x2)
+        x4 = self.layer4(x3)
+    
+        return [x0,x1,x2,x3,x4]
+    
+    def forward(self, x):
+        
+        return self._forward_impl_my(x)
  
 class NothingNet():
     def __init__(self):
@@ -138,7 +139,6 @@ def select_feat_extractor(feat_extractor,train_loader=None,valid_loader=None):
             feat_extractor = NothingNet()
     else:
         feat_extractor = ResNetPyramid()
-        feat_extractor._forward_impl = MethodType(_forward_impl_my, feat_extractor)
     
     if c.train_feat_extractor:
     # pretrain feature extractor with classification problem
@@ -212,7 +212,6 @@ def nf_pyramid(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_fea
     
     # TODO - will break because of ref to config file
     mdl = ResNetPyramid()
-    mdl._forward_impl = MethodType(_forward_impl_my, mdl)
     feats = mdl(torch.randn(c.batch_size[0],3,c.density_map_h,c.density_map_w,requires_grad=False))
     del mdl
     
@@ -352,7 +351,8 @@ class CowFlow(nn.Module):
             self.nf = nf_pyramid()   
         else:
             self.nf = nf_head()  
-            
+        
+        # these attr's are needed to make the model object independant of the config file
         self.modelname = modelname
         self.unconditional = a.args.unconditional
         self.count = c.counts
@@ -368,6 +368,7 @@ class CowFlow(nn.Module):
         self.scale = c.scale
         self.density_map_h = c.density_map_h
         self.density_map_w = c.density_map_w
+        self.downsampling = c.downsampling
 
     def forward(self,images,labels,rev=False): # label = dmaps or counts
         # no multi-scale architecture (yet) as per differnet paper
