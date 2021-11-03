@@ -5,7 +5,7 @@ proj_dir = "/home/matthew/Desktop/laptop_desktop/clones/cow_flow/data"
 import torch
 import arguments as a
 
-gpu = False
+gpu = True
 
 ## Data Options ------
 mnist = False 
@@ -13,7 +13,7 @@ counts = False # must be off for pretraining feature extractor (#TODO)
 balanced = True # whether to have a 1:1 mixture of empty:annotated images
 annotations_only = False # whether to only use image patches that have annotations
 data_prop = 0.1 # proportion of the full dataset to use     
-test_train_split = 70 # percentage of data to allocate to train set
+test_train_split = 20 # percentage of data to allocate to train set
 scale = 1 # 4, 2 = downscale four/two fold, 1 = unchanged
 
 ## Density Map Options ------
@@ -34,7 +34,7 @@ load_feat_extractor_str = 'resnet18_FTE_50_21_10_2021_10_27_59_PT_True' # 'resne
 
 ## Architecture Options ------
 pyramid = False # only implemented for resnet18
-gap = False # global average pooling
+gap = True # global average pooling
 downsampling = False # whether to downsample (5 ds layers) dmaps by converting spatial dims to channel dims
 n_coupling_blocks = 5
 
@@ -60,14 +60,14 @@ meta_epochs = 1
 sub_epochs = 1
 
 ## Output Settings ----
-schema = '' # if debug, ignored
-debug = True # report loads of info/debug info
-tb = False # write metrics, hyper params to tb files
-verbose = True # report stats per sub epoch and other info
-report_freq = 1 # nth minibatch to report minibatch loss on (1 = always,-1 = turn off)
+schema = 'tb_test' # if debug, ignored
+debug = False # report loads of info/debug info
+tb = True # write metrics, hyper params to tb files
+verbose = False # report stats per sub epoch and other info
+report_freq = -1 # nth minibatch to report minibatch loss on (1 = always,-1 = turn off)
 dmap_viz = True
-hide_tqdm_bar = True
-save_model = True # also saves a copy of the config file with the name of the model
+hide_tqdm_bar = False
+save_model = False # also saves a copy of the config file with the name of the model
 checkpoints = False # saves after every meta epoch
 
 # nb: same as the defaults specified for the pretrained pytorch model zoo
@@ -164,6 +164,7 @@ if gpu:
 
 # Checks ------
 assert not (feat_extractor == 'none' and gap == True)
+assert gap != downsampling
 assert subnet_type in ['conv','fc']
 assert feat_extractor in ['none' ,'alexnet','vgg16_bn','resnet18']
 assert scheduler in ['exponential','none']

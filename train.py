@@ -353,17 +353,20 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                                 valid_z.append(z)
                                 
                                 
-                            if i % c.report_freq == 0 and c.verbose and not c.mnist:
-                                    print('count: {:f}'.format(dmaps.sum()))
+                                if i % c.report_freq == 0 and c.verbose and not c.mnist:
+                                        print('count: {:f}'.format(dmaps.sum()))
                                     
-                            dims = tuple(range(1, len(z.size())))
-                            loss = get_loss(z, log_det_jac,dims)
-                            k += 1
-                            val_mb_iter += 1
-                            valid_loss.append(t2np(loss))
-                            
-                            if writer != None:
-                                writer.add_scalar('loss/minibatch_val',loss, val_mb_iter)
+                                dims = tuple(range(1, len(z.size())))
+                                loss = get_loss(z, log_det_jac,dims)
+                                k += 1
+                                val_mb_iter += 1
+                                valid_loss.append(t2np(loss))
+                                
+                                print('val_mb_iter')
+                                print(val_mb_iter)
+                                
+                                if writer != None:
+                                    writer.add_scalar('loss/minibatch_val',loss, val_mb_iter)
                              
                         valid_loss = np.mean(np.array(valid_loss))
                          
@@ -376,12 +379,12 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                     j += 1
                 
                 if c.mnist:
-                    valid_accuracy, training_accuracy = eval_mnist(model,valid_loader,train_loader)
+                    val_accuracy, train_accuracy = eval_mnist(model,valid_loader,train_loader)
                     print("\n")
-                    print("Training Accuracy: ", training_accuracy,"| Epoch: ",l)
-                    print("Valid Accuracy: ",valid_accuracy,"| Epoch: ",l)
+                    print("Training Accuracy: ", train_accuracy,"| Epoch: ",l)
+                    print("Valid Accuracy: ",val_accuracy,"| Epoch: ",l)
                 else:
-                    valid_accuracy, training_accuracy = eval_model(model,valid_loader,train_loader) # does nothing for now
+                    val_accuracy, train_accuracy = eval_model(model,valid_loader,train_loader) # does nothing for now
                 
                 if (c.save_model or battery) and c.checkpoints:
                     mdl.to('cpu')
@@ -390,8 +393,8 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                     mdl.to(c.device)
                 
                 if writer != None and mdl.mnist:
-                    writer.add_scalar('acc/meta_epoch_train',training_accuracy, l)
-                    writer.add_scalar('acc/meta_epoch_val',valid_accuracy, l)
+                    writer.add_scalar('acc/meta_epoch_train',train_accuracy, l)
+                    writer.add_scalar('acc/meta_epoch_val',val_accuracy, l)
                     
                 if writer != None and mdl.count:
                     _,_,train_R2 = counts_preds_vs_actual(mdl,train_loader)
@@ -399,24 +402,34 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                     #writer.add_scalar('R2/meta_epoch_train',train_R2, l) # TODO
                     #writer.add_scalar('R2/meta_epoch_valid',valid_R2, l)
                 else:
-                    train_R2 = -99; valid_R2 = -99
+                    train_R2 = -99; val_R2 = -99
+                    
+                model_metric_dict = {
+                                'acc/meta_epoch_train':train_accuracy,
+                               'acc/meta_epoch_val':val_accuracy,
+                               'R2/meta_epoch_train':train_R2,
+                               'R2/meta_epoch_val':val_R2
+                               }
                 
-                    # add param tensorboard scalars
-                    if writer != None:
-                        writer.add_hparams(
-                                   hparam_dict = model_hparam_dict,
-                                   metric_dict = {
-                                    'acc/meta_epoch_train':training_accuracy,
-                                    'acc/meta_epoch_val':valid_accuracy,
-                                    'R2/meta_epoch_train':train_R2,
-                                    'R2/meta_epoch_valid':valid_R2
-                                                  },
-                                   run_name = modelname
-                                   )
+                if train_R2 == -99:
+                    del model_metric_dict['R2/meta_epoch_train']
+                    del model_metric_dict['R2/meta_epoch_val']
+                    
+                if train_accuracy == -99:
+                    del model_metric_dict['acc/meta_epoch_train']
+                    del model_metric_dict['acc/meta_epoch_val']
+                    
+                # add param tensorboard scalars
+                if writer != None:
+                    writer.add_hparams(
+                               hparam_dict = model_hparam_dict,
+                               metric_dict = model_metric_dict,
+                               run_name = modelname
+                               )
                     
                     
-                        writer.flush()
-                    l += 1
+                    writer.flush()
+                l += 1
             
             # post training: visualise a random reconstruction
             if c.dmap_viz:
