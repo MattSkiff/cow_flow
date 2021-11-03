@@ -286,8 +286,6 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                         if c.scheduler != "none":
                             scheduler.step()
                         
-                        mean_train_loss = np.mean(train_loss)
-                        
                         t2 = time.perf_counter()
                         
                         # todo: account for validation iterations
@@ -307,11 +305,14 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                             print("number of images in image tensor:")
                             print(len(images)) # features                
                     
+                    mean_train_loss = np.mean(train_loss)
+                    
                     if c.verbose:
                         t_e2 = time.perf_counter()
                         print("\nTrain | Sub Epoch Time (s): {:f}, Epoch loss: {:.4f}".format(t_e2-t_e1,mean_train_loss))
                         print('Meta Epoch: {:d}, Sub Epoch: {:d}, | Epoch {:d} out of {:d} Total Epochs'.format(meta_epoch, sub_epoch,meta_epoch*c.sub_epochs + sub_epoch,c.meta_epochs*c.sub_epochs))
                         print('Total Training Time (mins): {:.2f} | Remaining Time (mins): {:.2f}'.format(est_total_time,est_remain_time))
+                    
                     
                     if writer != None:
                         writer.add_scalar('loss/epoch_train',mean_train_loss, j)
@@ -352,9 +353,8 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                                     
                                 valid_z.append(z)
                                 
-                                
-                                if i % c.report_freq == 0 and c.verbose and not c.mnist:
-                                        print('count: {:f}'.format(dmaps.sum()))
+                                if i % c.report_freq == 0 and c.debug and not c.mnist:
+                                        print('val true count: {:f}'.format(dmaps.sum()))
                                     
                                 dims = tuple(range(1, len(z.size())))
                                 loss = get_loss(z, log_det_jac,dims)
@@ -362,19 +362,16 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                                 val_mb_iter += 1
                                 valid_loss.append(t2np(loss))
                                 
-                                print('val_mb_iter')
-                                print(val_mb_iter)
-                                
                                 if writer != None:
                                     writer.add_scalar('loss/minibatch_val',loss, val_mb_iter)
                              
-                        valid_loss = np.mean(np.array(valid_loss))
+                        mean_valid_loss = np.mean(np.array(valid_loss))
                          
                         if c.verbose:
-                                print('Validation | Sub Epoch: {:d} \t Epoch loss: {:4f}'.format(sub_epoch,valid_loss))
+                                print('Validation | Sub Epoch: {:d} \t Epoch loss: {:4f}'.format(sub_epoch,mean_valid_loss))
                         
                         if writer != None:
-                            writer.add_scalar('loss/epoch_val',valid_loss, j)
+                            writer.add_scalar('loss/epoch_val',mean_valid_loss, j)
                             
                     j += 1
                 
