@@ -11,9 +11,9 @@ mnist = False
 counts = False # must be off for pretraining feature extractor (#TODO)
 balanced = True # whether to have a 1:1 mixture of empty:annotated images
 annotations_only = False # whether to only use image patches that have annotations
-data_prop = 1 # proportion of the full dataset to use     
+data_prop = 0.1 # proportion of the full dataset to use     
 test_train_split = 70 # percentage of data to allocate to train set
-scale = 2 # 2 = downscale two fold, 1 = unchange
+scale = 2 # 4, 2 = downscale four/two fold, 1 = unchanged
 
 ## Density Map Options ------
 filter_size = 45 # as per single image mcnn paper
@@ -35,7 +35,7 @@ load_feat_extractor_str = 'resnet18_FTE_50_21_10_2021_10_27_59_PT_True' # 'resne
 pyramid = False # only implemented for resnet18
 gap = True # global average pooling
 downsampling = False # TODO - does nothing atm whether to downsample dmaps by converting spatial dims to channel dims
-n_coupling_blocks = 5
+n_coupling_blocks = 1
 
 ## Subnet Architecture Options
 batchnorm = False
@@ -51,21 +51,21 @@ clamp_alpha = 1.9
 
 # vectorised params must always be passed as lists
 lr_init = [2e-3]
-batch_size = [8] # actual batch size is this value multiplied by n_transforms(_test)
+batch_size = [1] # actual batch size is this value multiplied by n_transforms(_test)
 
 # total epochs = meta_epochs * sub_epochs
 # evaluation after <sub_epochs> epochs
-meta_epochs = 5
+meta_epochs = 1
 sub_epochs = 1
 
 ## Output Settings ----
-schema = 'resize_test' # if debug, ignored
-debug = False # report loads of info/debug info
-tb = True # write metrics, hyper params to tb files
+schema = '' # if debug, ignored
+debug = True # report loads of info/debug info
+tb = False # write metrics, hyper params to tb files
 verbose = True # report stats per sub epoch and other info
 report_freq = 1 # nth minibatch to report minibatch loss on (1 = always,-1 = turn off)
 dmap_viz = True
-hide_tqdm_bar = False
+hide_tqdm_bar = True
 save_model = True # also saves a copy of the config file with the name of the model
 checkpoints = False # saves after every meta epoch
 
@@ -115,8 +115,10 @@ else:
     # TODO - this is a massive hack to test feature extractor-less  NF
     channels = 2 # duplicate dmap over channel dimension (1->2)
 
-if debug:
+if debug and tb:
     schema = 'schema/debug' # aka ignore debugs
+elif debug:
+    schema = 'debug' # aka ignore debugs
 
 if mnist and feat_extractor == "none":
     img_size = (28,28)
@@ -130,16 +132,16 @@ img_dims = [3] + list(img_size) # RGB + x-y
 # TODO: rename this parameter
 # this effects the padding applied to the density maps
 if not mnist and not counts:
-    density_map_w = 800 #img_size[0]
+    density_map_w = 800//scale #img_size[0]
     if feat_extractor == 'resnet18':
-        density_map_h = 608 #img_size[1]
+        density_map_h = 608//scale #img_size[1]
     elif feat_extractor == 'alexnet':
-         density_map_h = 544 #img_size[1]
-         density_map_w = 768
+         density_map_h = 544//scale #img_size[1]
+         density_map_w = 768//scale
     elif feat_extractor == 'vgg16_bn':
-        density_map_h = 576 #img_size[1]
+        density_map_h = 576//scale #img_size[1]
     elif feat_extractor == 'none':
-        density_map_h = 600
+        density_map_h = 600//scale
 elif not mnist:
     # size of count expanded to map spatial feature dimensions
     density_map_h = 19 * 2 # need at least 2 channels, expand x2, then downsample (haar)
@@ -154,10 +156,7 @@ elif mnist and feat_extractor != "none":
 elif mnist and feat_extractor == "none":
     # minimum possible dimensionality of flow possible with coupling layers
     density_map_h = 4
-    density_map_w = 4 
-
-if pyramid:
-    n_coupling_blocks = 5 # for recording purposes
+    density_map_w = 4
 
 # Checks ------
 assert not (feat_extractor == 'none' and gap == True)
@@ -165,8 +164,10 @@ assert subnet_type in ['conv','fc']
 assert feat_extractor in ['none' ,'alexnet','vgg16_bn','resnet18']
 assert scheduler in ['exponential','none']
 
-assert (pyramid and feat_extractor == 'resnet18') or not pyramid
-assert (pyramid and downsampling) or not pyramid # pyramid nf head has  downsmapling
-assert (pyramid and not train_feat_extractor) or not pyramid # TODO
+if pyramid:
+    n_coupling_blocks = 5 # for recording purposes
+    assert (pyramid and feat_extractor == 'resnet18')
+    assert (pyramid and downsampling) # pyramid nf head has  downsmapling
+    assert (pyramid and not train_feat_extractor) # TODO
 
 assert scale in (1,2,4)
