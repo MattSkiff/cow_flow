@@ -30,7 +30,7 @@ def ft_dims_select(mdl=None):
             ft_dims = (600,800)
             
     else:
-        ft_dims = (c.density_map_h//c.scale,c.density_map_w//c.scale)
+        ft_dims = (c.density_map_h//2,c.density_map_w//2)
         
     return ft_dims
 
@@ -217,15 +217,16 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
                 
                 if not mdl.mnist:
                     # TODO - remove hard coding dims here
-                    if loader.dataset.count and not mdl.gap:
-                        dummy_z = (randn(loader.batch_size,c.channels*4,c.density_map_h // 2,c.density_map_w // 2)).to(c.device) 
+                    if (loader.dataset.count and not mdl.gap) or not c.downsampling:
+                        dummy_z = (randn(loader.batch_size,c.channels*4,(c.density_map_h) // 2,(c.density_map_w) // 2)).to(c.device) 
                     elif loader.dataset.count and mdl.gap:
                         dummy_z = (randn(loader.batch_size,1)).to(c.device) 
-                    else:
+                    elif c.downsampling:
                         in_channels = 1024
                         ft_dims = ft_dims_select(mdl)
                         if mdl.feat_extractor.__class__.__name__ == 'NothingNet':
-                            in_channels = 2
+                            in_channels = 2                      
+                        
                         
                         dummy_z = (randn(c.batch_size[0], in_channels,ft_dims[0],ft_dims[1])).to(c.device)
                 else:

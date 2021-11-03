@@ -352,6 +352,7 @@ class CowFlow(nn.Module):
             self.nf = nf_pyramid()   
         else:
             self.nf = nf_head()  
+            
         self.modelname = modelname
         self.unconditional = a.args.unconditional
         self.count = c.counts
@@ -364,6 +365,9 @@ class CowFlow(nn.Module):
         self.finetuned = c.train_feat_extractor
         self.scheduler = c.scheduler
         self.pyramid = c.pyramid
+        self.scale = c.scale
+        self.density_map_h = c.density_map_h
+        self.density_map_w = c.density_map_w
 
     def forward(self,images,labels,rev=False): # label = dmaps or counts
         # no multi-scale architecture (yet) as per differnet paper
@@ -416,7 +420,7 @@ class CowFlow(nn.Module):
         if c.feat_extractor != "none" and c.subnet_type =='conv':
         
             if self.gap:
-                feats = feats.unsqueeze(2).unsqueeze(3).expand(-1, -1, (c.density_map_h//c.scale) // 2,(c.density_map_w//c.scale) // 2)
+                feats = feats.unsqueeze(2).unsqueeze(3).expand(-1, -1, (c.density_map_h) // 2,(c.density_map_w) // 2)
         
         if c.debug and not self.pyramid: 
             print("reshaped feature size with spatial dims..")

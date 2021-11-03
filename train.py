@@ -429,7 +429,7 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
             # save final model, unless models are being saved at end of every meta peoch
             if c.save_model and not c.checkpoints:
                 
-                filename = "models/"+"final_"+modelname+".txt"
+                filename = "./models/"+"final_"+modelname+".txt"
                 
                 # could switch to using json and print params on model reload
                 with open(filename, 'w') as f:
