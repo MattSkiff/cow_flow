@@ -275,6 +275,9 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                         
                         loss_t = t2np(loss)
                         
+                        if c.debug:
+                            print('loss/minibatch_train',train_mb_iter)
+                        
                         if writer != None:
                             writer.add_scalar('loss/minibatch_train',loss, train_mb_iter)
                         
@@ -313,7 +316,7 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                         print('Meta Epoch: {:d}, Sub Epoch: {:d}, | Epoch {:d} out of {:d} Total Epochs'.format(meta_epoch, sub_epoch,meta_epoch*c.sub_epochs + sub_epoch,c.meta_epochs*c.sub_epochs))
                         print('Total Training Time (mins): {:.2f} | Remaining Time (mins): {:.2f}'.format(est_total_time,est_remain_time))
                     
-                    
+                    print("loss/epoch_train:",j)
                     if writer != None:
                         writer.add_scalar('loss/epoch_train',mean_train_loss, j)
                     
@@ -362,6 +365,9 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                                 val_mb_iter += 1
                                 valid_loss.append(t2np(loss))
                                 
+                                if c.debug:
+                                    print('loss/minibatch_val',val_mb_iter)
+                                
                                 if writer != None:
                                     writer.add_scalar('loss/minibatch_val',loss, val_mb_iter)
                              
@@ -370,10 +376,13 @@ def train(train_loader,valid_loader,battery = False,lr_i=c.lr_init,writer=None):
                         if c.verbose:
                                 print('Validation | Sub Epoch: {:d} \t Epoch loss: {:4f}'.format(sub_epoch,mean_valid_loss))
                         
+                        if c.debug:
+                            print('loss/epoch_val: ',j)
+                        
                         if writer != None:
                             writer.add_scalar('loss/epoch_val',mean_valid_loss, j)
                             
-                    j += 1
+                        j += 1
                 
                 if c.mnist:
                     val_accuracy, train_accuracy = eval_mnist(model,valid_loader,train_loader)
@@ -512,14 +521,11 @@ def train_feat_extractor(feat_extractor,trainloader,validloader,criterion = nn.C
                 
                 with torch.set_grad_enabled(phase == 'train'):
                     outputs = feat_extractor(images)
-                    _, preds = torch.max(outputs, 1)
-                    
-                    if c.debug:
-                        print('preds: ',preds)
+                    _, preds = torch.max(outputs, 1)                    
                     
                     loss = criterion(outputs,binary_labels)
                     minibatch_count += 1
-                                
+                
                     if writer != None:
                          writer.add_scalar('loss/minibatch_{}'.format(phase),loss.item(), minibatch_count)
                          
@@ -533,6 +539,7 @@ def train_feat_extractor(feat_extractor,trainloader,validloader,criterion = nn.C
                 running_corrects += torch.sum(preds == binary_labels.data)
                 
                 if c.debug:
+                    print('minibatch: ',minibatch_count)
                     print('binary_labels.data: ',binary_labels.data)
                     print('preds: ',preds)
                     print('running corrects: ',running_corrects)
@@ -544,7 +551,7 @@ def train_feat_extractor(feat_extractor,trainloader,validloader,criterion = nn.C
                 print('{} Loss: {:.4f} Acc: {:.4f}'.format(phase, epoch_loss, epoch_acc)) 
             
             if writer != None:
-                #writer.add_scalar('acc/epoch_{}'.format(phase),epoch_acc, epoch) # TODO
+                writer.add_scalar('acc/epoch_{}'.format(phase),epoch_acc, epoch) # TODO
                 writer.add_scalar('loss/epoch_{}'.format(phase),epoch_loss, epoch)
             
             running_loss = 0.0; running_corrects = 0

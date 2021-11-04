@@ -5,7 +5,7 @@ proj_dir = "/home/matthew/Desktop/laptop_desktop/clones/cow_flow/data"
 import torch
 import arguments as a
 
-gpu = False
+gpu = True
 
 ## Data Options ------
 mnist = False 
@@ -14,7 +14,7 @@ balanced = True # whether to have a 1:1 mixture of empty:annotated images
 annotations_only = False # whether to only use image patches that have annotations
 data_prop = 0.1 # proportion of the full dataset to use     
 test_train_split = 70 # percentage of data to allocate to train set
-scale = 1 # 4, 2 = downscale four/two fold, 1 = unchanged
+scale = 4 # 4, 2 = downscale four/two fold, 1 = unchanged
 
 ## Density Map Options ------
 filter_size = 45 # as per single image mcnn paper
@@ -52,7 +52,7 @@ clamp_alpha = 1.9
 
 # vectorised params must always be passed as lists
 lr_init = [2e-3]
-batch_size = [1] # actual batch size is this value multiplied by n_transforms(_test)
+batch_size = [12] # actual batch size is this value multiplied by n_transforms(_test)
 
 # total epochs = meta_epochs * sub_epochs
 # evaluation after <sub_epochs> epochs
@@ -63,7 +63,7 @@ sub_epochs = 1
 schema = 'tb_test' # if debug, ignored
 debug = False # report loads of info/debug info
 tb = True # write metrics, hyper params to tb files
-verbose = True # report stats per sub epoch and other info
+verbose = False # report stats per sub epoch and other info
 report_freq = -1 # nth minibatch to report minibatch loss on (1 = always,-1 = turn off)
 dmap_viz = True
 hide_tqdm_bar = True
