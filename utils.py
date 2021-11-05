@@ -58,7 +58,7 @@ class AddGaussianNoise(object):
         return self.__class__.__name__ + '(mean={0}, std={1})'.format(self.mean, self.std)
     
 class AddUniformNoise(object):
-    def __init__(self, r1=0., r2=1e-5):
+    def __init__(self, r1=0., r2=1e-2):
         self.r1 = r1
         self.r2 = r2
         
@@ -74,7 +74,7 @@ class AddUniformNoise(object):
 # https://stackoverflow.com/questions/49433936/how-to-initialize-weights-in-pytorch
 def init_weights(m):
     if isinstance(m, torch.nn.Conv2d):
-        torch.nn.init.xavier_uniform(m.weight)
+        torch.nn.init.xavier_uniform_(m.weight)
         m.bias.data.fill_(0.01)
 
 class UnNormalize(object):
@@ -220,7 +220,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
                 
                 if not mdl.mnist:
                     # TODO - remove hard coding dims here
-                    if (loader.dataset.count and not mdl.gap) or not c.downsampling:
+                    if (loader.dataset.count and not mdl.gap) or (not c.downsampling and c.subnet_type == 'conv'):
                         dummy_z = (randn(loader.batch_size,c.channels*4,(c.density_map_h) // 2,(c.density_map_w) // 2)).to(c.device) 
                     elif loader.dataset.count and mdl.gap:
                         dummy_z = (randn(loader.batch_size,1)).to(c.device) 
@@ -231,7 +231,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
                             in_channels = 2                      
                         
                         
-                        dummy_z = (randn(c.batch_size[0], in_channels,ft_dims[0],ft_dims[1])).to(c.device)
+                        dummy_z = (randn(loader.batch_size, in_channels,ft_dims[0],ft_dims[1])).to(c.device)
                 else:
                     if sampling == 'ones':
                         dummy_z = (torch.ones(loader.batch_size, c.channels*4 , c.density_map_h // 2,c.density_map_w  // 2).to(c.device))
@@ -310,7 +310,10 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
                         if mdl.feat_extractor.__class__.__name__ == 'NothingNet':
                             dmap_rev_np = dmap_rev_np[1,:,:] # select only data from first duplicated channel
                         
-                        ax[0].imshow((255-dmap_rev_np* 255).astype(np.uint8))#, cmap='viridis', interpolation='nearest')
+                        if not (loader.dataset.count and mdl.gap):
+                            ax[0].imshow((255-dmap_rev_np* 255).astype(np.uint8))#, cmap='viridis', interpolation='nearest')
+                        else:
+                            fig.delaxes(ax[0])
                         
                         if mdl.count:
                             # no dmaps provided by dataloader if mdl.count
@@ -373,28 +376,34 @@ def counts_preds_vs_actual(mdl,loader,plot=False):
         images,dmaps,labels,counts = data
         if not mdl.gap:  
             num = 0
-            dummy_z = (randn(loader.batch_size,c.channels*4,c.density_map_h // 2,c.density_map_w // 2, requires_grad=False)).to(c.device)
+            dummy_z = (randn(images.size()[0],c.channels*4,c.density_map_h // 2,c.density_map_w // 2, requires_grad=False)).to(c.device)
         else:
             num = 1
-            dummy_z = (randn(loader.batch_size,c.channels, requires_grad=False)).to(c.device)
-            
+            dummy_z = (randn(images.size()[0],c.channels,requires_grad=False)).to(c.device)
+        
         images = images.float().to(c.device)
         dummy_z = dummy_z.float().to(c.device)
         mdl = mdl.to(c.device)
         x, _ = mdl(images,dummy_z,rev=True)
-
-        mean_preds = x.mean(dim = tuple(range(1,len(x.shape)-num))).detach().cpu().numpy()
-        means.append(mean_preds)
+        
+        if mdl.subnet_type == 'conv':
+            mean_preds = x.mean(dim = tuple(range(1,len(x.shape)-num))).detach().cpu().numpy()
+            means.append(mean_preds)
+        else:
+             mean_preds = x.squeeze().detach().cpu().numpy().tolist()
+             
+             if not isinstance(mean_preds, list):
+                means.append(mean_preds) 
+             else:
+                means.extend(mean_preds)
+    
         actuals.append(counts.detach().cpu().numpy())
     
     if mdl.gap:
         means = [means]
-        
+    
     means = np.concatenate(means, axis=0)
     actuals = np.concatenate(actuals, axis=0)
-    
-    print(means.shape)
-    print(actuals.shape)
     
     correlation_matrix = np.corrcoef(means, actuals)
     correlation_xy = correlation_matrix[0,1]
