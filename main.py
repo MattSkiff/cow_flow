@@ -13,7 +13,7 @@ import os
 import pickle 
 from train import train, train_battery
 #from utils import load_datasets, make_dataloaders
-from data_loader import CowObjectsDataset, CustToTensor,AerialNormalize, DmapAddUniformNoise, CustCrop, CustResize, train_valid_split
+from data_loader import CowObjectsDataset, CustToTensor,AerialNormalize, DmapAddUniformNoise, CustCrop, CustResize, train_val_split
 
 empty_cache() # free up memory for cuda
 
@@ -46,12 +46,12 @@ if c.mnist:
     if len(c.batch_size) == 1:
         train_loader = DataLoader(mnist_train,batch_size = c.batch_size[0],pin_memory=True,
                                       shuffle=False,sampler=toy_sampler)
-        valid_loader = DataLoader(mnist_test,batch_size = c.batch_size[0],pin_memory=True,
+        val_loader = DataLoader(mnist_test,batch_size = c.batch_size[0],pin_memory=True,
                                       shuffle=False,sampler=toy_sampler)
         if len(c.lr_init) == 1:
-                mdl = train(train_loader,valid_loader,lr_i=c.lr_init)
+                mdl = train(train_loader,val_loader,lr_i=c.lr_init)
         else:
-                mdl = train_battery([train_loader],[valid_loader],lr_i=c.lr_init)
+                mdl = train_battery([train_loader],[val_loader],lr_i=c.lr_init)
                 
     else:
         tls,vls = [],[]
@@ -77,32 +77,32 @@ else:
     # create test train split
     # https://stackoverflow.com/questions/27745500/how-to-save-a-list-to-a-file-and-read-it-as-a-list-type
     if not c.fixed_indices:
-        train_indices, valid_indices = train_valid_split(dataset = transformed_dataset, 
+        train_indices, val_indices = train_val_split(dataset = transformed_dataset, 
                                                          train_percent = c.test_train_split,
                                                          annotations_only = c.annotations_only,
                                                          balanced = c.balanced)
         
         with open("train_indices.txt", "wb") as fp:   # Pickling
             pickle.dump(train_indices, fp)
-        with open("valid_indices.txt", "wb") as fp:   # Pickling
-            pickle.dump(valid_indices, fp)
+        with open("val_indices.txt", "wb") as fp:   # Pickling
+            pickle.dump(val_indices, fp)
 
     else:
         with open("train_indices.txt", "rb") as fp:   # Unpickling
             train_indices = pickle.load(fp)
-        with open("valid_indices.txt", "rb") as fp:   # Unpickling
-            valid_indices = pickle.load(fp)
+        with open("val_indices.txt", "rb") as fp:   # Unpickling
+            val_indices = pickle.load(fp)
     
     # Creating data samplers and loaders:
     # only train part for dev purposes 
     
     if not c.annotations_only:
         train_sampler = SubsetRandomSampler(train_indices[:round(c.data_prop*len(train_indices))])
-        valid_sampler = SubsetRandomSampler(valid_indices[:round(c.data_prop*len(valid_indices))])
+        val_sampler = SubsetRandomSampler(val_indices[:round(c.data_prop*len(val_indices))])
     
     if c.annotations_only:
         train_sampler = SubsetRandomSampler(train_indices)
-        valid_sampler = SubsetRandomSampler(valid_indices)
+        val_sampler = SubsetRandomSampler(val_indices)
         
     if len(c.batch_size) != 1 or len(c.lr_init) != 1 and a.args.feat_extract_only:
         ValueError('Training batteries not available for Feature Extractor only runs')
@@ -113,18 +113,18 @@ else:
                             num_workers=2,collate_fn=transformed_dataset.custom_collate_aerial,
                             pin_memory=True,sampler=train_sampler)
     
-        valid_loader = DataLoader(transformed_dataset, batch_size=c.batch_size[0],shuffle=False, 
+        val_loader = DataLoader(transformed_dataset, batch_size=c.batch_size[0],shuffle=False, 
                             num_workers=2,collate_fn=transformed_dataset.custom_collate_aerial,
-                            pin_memory=True,sampler=valid_sampler)
+                            pin_memory=True,sampler=val_sampler)
         
         if len(c.lr_init) == 1:
             if a.args.feat_extract_only:
-                feat_extractor = model.select_feat_extractor(c.feat_extractor,train_loader,valid_loader)
+                feat_extractor = model.select_feat_extractor(c.feat_extractor,train_loader,val_loader)
             else:
                 #pass
-                mdl = train(train_loader,valid_loader,lr_i=c.lr_init)
+                mdl = train(train_loader,val_loader,lr_i=c.lr_init)
         else:
-                mdl = train_battery([train_loader],[valid_loader],lr_i=c.lr_init)
+                mdl = train_battery([train_loader],[val_loader],lr_i=c.lr_init)
                 
     else:
         tls,vls = [],[]
@@ -136,6 +136,6 @@ else:
             
             vls.append(DataLoader(transformed_dataset, batch_size=bs,shuffle=False, 
                             num_workers=0,collate_fn=transformed_dataset.custom_collate_density,
-                            pin_memory=True,sampler=valid_sampler))
+                            pin_memory=True,sampler=val_sampler))
             
             mdl = train_battery(tls,vls,lr_i=c.lr_init)

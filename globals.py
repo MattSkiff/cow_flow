@@ -1,5 +1,0 @@
-FEAT_MOD_DIR = './models/feat_extractors/'
-VIZ_DIR = './viz'
-WEIGHT_DIR = './weights'
-MODEL_DIR = './models'
-C_DIR = './cstates'

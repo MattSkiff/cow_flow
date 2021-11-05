@@ -5,14 +5,14 @@ import torch
 
 # TODO extra args: plot = True, save=True,hist=True
 # TODO: don't shift computation over to cpu after sampling from model
-def eval_mnist(model, validloader, trainloader,samples = 1,confusion = False, preds = False): 
-    ''' currently the confusion matrix is calculated across both train and validation splits'''
+def eval_mnist(model, valloader, trainloader,samples = 1,confusion = False, preds = False): 
+    ''' currently the confusion matrix is calculated across both train and val splits'''
     model.eval()
     accuracies = []
     p = []
     l = []
     
-    for loader in [validloader,trainloader]:
+    for loader in [valloader,trainloader]:
         
         tally = 0
 
@@ -80,8 +80,8 @@ def eval_mnist(model, validloader, trainloader,samples = 1,confusion = False, pr
     if preds:
         out = out + (raw_preds,)
 
-    return  out # train, valid
+    return  out # train, val
 
-def eval_model(model, validloader, trainloader, plot = True, save=True,hist=True):
+def eval_model(model, valloader, trainloader, plot = True, save=True,hist=True):
     
     return -99,-99
