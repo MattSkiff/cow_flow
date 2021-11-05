@@ -417,6 +417,9 @@ def train(train_loader,val_loader,battery = False,lr_i=c.lr_init,writer=None): #
                     if c.verbose:
                         print("Train R2: ",train_R2)
                     
+                    writer.add_scalar('acc/meta_epoch_val',val_acc, l)
+                    model_metric_dict['acc/meta_epoch_val'] = val_acc
+                    
                     if c.validation:
                         _,_,val_R2 = counts_preds_vs_actual(mdl,val_loader,plot=c.viz)
                         writer.add_scalar('R2/meta_epoch_val',val_R2, l)
