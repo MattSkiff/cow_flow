@@ -14,6 +14,10 @@ import random
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
+# silent warning on 447 (torch.stack(images))
+import warnings
+warnings.filterwarnings("ignore", message=r"Passing", category=FutureWarning)
+
 # https://docs.opencv.org/4.5.2/d4/d13/tutorial_py_filtering.html
 import scipy
 
@@ -304,6 +308,11 @@ class CowObjectsDataset(Dataset):
         
         sample = self[sample_no]
         
+        if self.count:
+            print("Count:")
+            print(sample["counts"])
+            return
+        
         # TODO - plot annotations as well (i.e. pre dmap)
         
         if self.density:
@@ -565,7 +574,7 @@ class CustResize(object):
 # Dataset is highly imbalanced, want test set to mirror train set imbalance
 # TODO: implement 'balanced' argument
 # TODO: get split function to only iterate over txt files, not images 
-def train_valid_split(dataset,train_percent,balanced = False,annotations_only = False):
+def train_val_split(dataset,train_percent,balanced = False,annotations_only = False):
     ''' 
      Args:
          dataset: pytorch dataset
@@ -577,7 +586,7 @@ def train_valid_split(dataset,train_percent,balanced = False,annotations_only = 
         tuple of two lists of shuffled indices - one for train and test
         
     Notes:
-        class balance (in terms of proportion of annotations in valid & train) is preserved
+        class balance (in terms of proportion of annotations in val & train) is preserved
         iterates over entire dataset (inc. images, so quite slow)
      
      '''
@@ -587,7 +596,7 @@ def train_valid_split(dataset,train_percent,balanced = False,annotations_only = 
     
     l = len(dataset)
     
-    valid_indices = []
+    val_indices = []
     train_indices = []
     
 
@@ -622,11 +631,11 @@ def train_valid_split(dataset,train_percent,balanced = False,annotations_only = 
     train_indices.extend(annotation_indices[:split_a])
     
     if not annotations_only:
-        valid_indices.extend(empty_indices[split_e:])
+        val_indices.extend(empty_indices[split_e:])
         
-    valid_indices.extend(annotation_indices[split_a:])
+    val_indices.extend(annotation_indices[split_a:])
     
-    np.random.shuffle(valid_indices)
+    np.random.shuffle(val_indices)
     np.random.shuffle(train_indices)
     
         
@@ -634,7 +643,7 @@ def train_valid_split(dataset,train_percent,balanced = False,annotations_only = 
     if c.verbose:
         print("Finished creating indicies")
     
-    return train_indices, valid_indices
+    return train_indices, val_indices
 
 # TODO
 # class Normalize(object):
