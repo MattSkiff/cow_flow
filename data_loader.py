@@ -534,10 +534,12 @@ class CustCrop(object):
             
             pd = 0
             
-            if c.feat_extractor == 'resnet18':
+            if c.feat_extractor == 'resnet18' and c.downsampling:
                 pd = 8
-            elif c.feat_extractor == 'alexnet':
+            elif c.feat_extractor == 'alexnet' and c.downsampling:
                 density = density[:544,:768]
+#            elif c.feat_extractor == 'vgg16_bn':
+#                density = density[:544,:768]
             
             # (padding_left,padding_right, padding, padding, padding_top,padding_bottom)
             density = F.pad(input=density, pad=(0,0,pd,0), mode='constant', value=0)

@@ -9,7 +9,7 @@ gpu = True
 
 ## Data Options ------
 mnist = False 
-counts = True # must be off for pretraining feature extractor (#TODO)
+counts = False # must be off for pretraining feature extractor (#TODO)
 balanced = True # whether to have a 1:1 mixture of empty:annotated images
 annotations_only = False # whether to only use image patches that have annotations
 data_prop = 0.1 # proportion of the full dataset to use     
@@ -29,7 +29,7 @@ pretrained = True
 feat_extractor = "resnet18" # alexnet, vgg16_bn,resnet18, none # TODO mnist_resnet, efficient net
 feat_extractor_epochs = 50
 train_feat_extractor = False # whether to finetune or load finetuned model 
-load_feat_extractor_str = 'resnet18_FTE_50_21_10_2021_10_27_59_PT_True' # 'resnet18_FTE_50_21_10_2021_10_27_59_PT_True' to train from scratch, loads FE 
+load_feat_extractor_str = '' # '' to train from scratch, loads FE 
 # nb: pretraining FE saves regardless of save flag
 
 ## Architecture Options ------
@@ -42,7 +42,7 @@ n_coupling_blocks = 1
 batchnorm = False
 filters = 32
 width = 800
-subnet_type = 'fc' # options = fc, conv
+subnet_type = 'conv' # options = fc, conv
 
 # Hyper Params and Optimisation ------
 scheduler = 'none' # exponential, none
@@ -60,14 +60,14 @@ meta_epochs = 2
 sub_epochs = 1
 
 ## Output Settings ----
-schema = 'count_tb_test' # if debug, ignored
+schema = 'resnet_test_tb' # if debug, ignored
 debug = False # report loads of info/debug info
 tb = True # write metrics, hyper params to tb files
-verbose = False # report stats per sub epoch and other info
+verbose = True # report stats per sub epoch and other info
 report_freq = -1 # nth minibatch to report minibatch loss on (1 = always,-1 = turn off)
-viz = False # visualise outputs and stats
+viz = True # visualise outputs and stats
 hide_tqdm_bar = True
-save_model = False # also saves a copy of the config file with the name of the model
+save_model = True # also saves a copy of the config file with the name of the model
 checkpoints = False # saves after every meta epoch
 
 # nb: same as the defaults specified for the pretrained pytorch model zoo
@@ -132,7 +132,7 @@ img_dims = [3] + list(img_size) # RGB + x-y
 
 # TODO: rename this parameter
 # this effects the padding applied to the density maps
-if not mnist and not counts:
+if not mnist and not counts and downsampling:
     density_map_w = 800//scale #img_size[0]
     if feat_extractor == 'resnet18':
         density_map_h = 608//scale #img_size[1]
@@ -143,6 +143,9 @@ if not mnist and not counts:
         density_map_h = 576//scale #img_size[1]
     elif feat_extractor == 'none':
         density_map_h = 600//scale
+elif not mnist and not counts and not downsampling:
+    density_map_w = 800//scale
+    density_map_h = 600//scale
 elif not mnist:
     # size of count expanded to map spatial feature dimensions
     density_map_h = 19 * 2 # need at least 2 channels, expand x2, then downsample (haar)
