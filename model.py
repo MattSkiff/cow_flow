@@ -10,6 +10,7 @@ import torch.nn as nn
 from torchvision.models import alexnet, resnet18, vgg16_bn  # feature extractors
 from torchvision.models.resnet import ResNet, BasicBlock
 import torch.nn.functional as F
+import numpy as np
 
 import os # save model
 import collections
@@ -119,6 +120,17 @@ class ResNetPyramid(ResNet):
 class NothingNet():
     def __init__(self):
         self.features = torch.nn.Identity()
+
+# from https://github.com/VLL-HD/conditional_INNs
+def random_orthog(n):
+    w = np.random.randn(n, n)
+    w = w + w.T
+    w, S, V = np.linalg.svd(w)
+    
+    out = torch.FloatTensor(w)
+    out.requires_grad_()
+    
+    return out 
 
 def select_feat_extractor(feat_extractor,train_loader=None,valid_loader=None):
     
@@ -291,15 +303,16 @@ def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,m
     
     if c.counts and c.gap:
         nodes = [Ff.InputNode(1,name='input')] # single count value
-    elif c.subnet_type == 'conv':
-        nodes = [Ff.InputNode(c.channels,input_dim[0],input_dim[1],name='input')] 
+    #elif c.subnet_type == 'conv':
     else:
-        nodes = [Ff.InputNode(c.channels,name='input')] 
+        nodes = [Ff.InputNode(c.channels,input_dim[0],input_dim[1],name='input')] 
+#    else:
+#        nodes = [Ff.InputNode(c.channels,name='input')] 
     
     # haar downsampling to resolves input data only having a single channel (from unsqueezed singleton dimension)
     # affine coupling performs channel wise split
     # https://github.com/VLL-HD/FrEIA/issues/8
-    if (c.mnist or (c.counts and not c.gap) or c.feat_extractor == 'none' or not c.downsampling) and c.subnet_type == 'conv':
+    if (c.mnist or (c.counts and not c.gap) or c.feat_extractor == 'none' or not c.downsampling):# and c.subnet_type == 'conv':
         nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling'))
             
     elif not c.counts and c.feat_extractor != 'none' and c.downsampling:
@@ -309,14 +322,18 @@ def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,m
         nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling3'))
         nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling4'))
         nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling5'))
-        
+    
     for k in range(c.n_coupling_blocks):
         if c.verbose:
             print("creating layer {:d}".format(k))
         
         # Don't need permutation layer if flow is univariate
         if not (c.counts and c.subnet_type == 'fc'):
-            nodes.append(Ff.Node(nodes[-1], Fm.PermuteRandom, {'seed': k}, name='permute_{}'.format(k)))
+            
+            if c.fixed1x1conv:
+                nodes.append(Ff.Node(nodes[-1], Fm.Fixed1x1Conv,{'M': random_orthog(c.channels*4).to(c.device) }, name='1x1_conv_{}'.format(k)))
+            else:
+                nodes.append(Ff.Node(nodes[-1], Fm.PermuteRandom, {'seed': k}, name='permute_{}'.format(k)))
         
         if c.verbose:
             print(condition)
@@ -331,6 +348,7 @@ def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,m
        
     # perform haar upsampling (reshape) to ensure loss calculation is correct
     # nodes.append(Ff.Node(nodes[-1], Fm.HaarUpsampling, {}, name = 'Upsampling'))
+    
     if a.args.unconditional:
         out = Ff.ReversibleGraphNet(nodes + [Ff.OutputNode(nodes[-1], name='output')], verbose=c.verbose)
     else:
@@ -367,6 +385,7 @@ class CowFlow(nn.Module):
         self.finetuned = c.train_feat_extractor
         self.scheduler = c.scheduler
         self.pyramid = c.pyramid
+        self.fixed1x1conv = c.fixed1x1conv
         self.scale = c.scale
         self.density_map_h = c.density_map_h
         self.density_map_w = c.density_map_w
@@ -486,6 +505,7 @@ class MNISTFlow(nn.Module):
         self.modelname = modelname
         self.gap = c.gap
         self.n_coupling_blocks = c.n_coupling_blocks
+        self.fixed1x1conv = c.fixed1x1conv
         self.joint_optim = c.joint_optim
         self.pretrained = c.pretrained
         self.scheduler = c.scheduler

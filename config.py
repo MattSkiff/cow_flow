@@ -8,45 +8,45 @@ import arguments as a
 gpu = True
 
 ## Data Options ------
-mnist = True 
+mnist = False 
 counts = False # must be off for pretraining feature extractor (#TODO)
 balanced = True # whether to have a 1:1 mixture of empty:annotated images
 weighted = True # whether to weight minibatch samples
 annotations_only = False # whether to only use image patches that have annotations
-data_prop = 1 # proportion of the full dataset to use     
+test_run = False # use only a small fraction of data to check everything works
+validation = True # whether to run validation per meta epoch
+data_prop = 0.1 # proportion of the full dataset to use     
 test_train_split = 70 # percentage of data to allocate to train set
-scale = 1 # 4, 2 = downscale four/two fold, 1 = unchanged
 
 ## Density Map Options ------
 filter_size = 45 # as per single image mcnn paper
 sigma = 12.0 # "   -----    " 
-
-test_run = False # use only a small fraction of data to check everything works
-validation = True # whether to run validation per meta epoch
+scale = 1 # 4, 2 = downscale dmaps four/two fold, 1 = unchanged
 
 ## Feature Extractor Options ------
-joint_optim = False
-pretrained = True
-feat_extractor = "alexnet" # alexnet, vgg16_bn,resnet18, none # TODO mnist_resnet, efficient net
+pretrained = False
+feat_extractor = "resnet18" # alexnet, vgg16_bn,resnet18, none # TODO mnist_resnet, efficient net
 feat_extractor_epochs = 50
 train_feat_extractor = False # whether to finetune or load finetuned model 
 load_feat_extractor_str = '' # '' to train from scratch, loads FE 
 # nb: pretraining FE saves regardless of save flag
 
 ## Architecture Options ------
+fixed1x1conv = True 
 pyramid = False # only implemented for resnet18
 gap = True # global average pooling
 downsampling = False # whether to downsample (5 ds layers) dmaps by converting spatial dims to channel dims
 n_coupling_blocks = 2
 
 ## Subnet Architecture Options
-subnet_type = 'fc' # options = fc, conv
+subnet_type = 'conv' # options = fc, conv
 filters = 32 # conv ('64' recommended min)
 batchnorm = False # conv
 width = 400 # fc ('128' recommended min)
 dropout_p = 0.0 # fc - 0 for no dropout
 
 # Hyper Params and Optimisation ------
+joint_optim = False # jointly optimse feature extractor and flow
 scheduler = 'none' # exponential, none
 weight_decay = 1e-4 # differnet: 1e-5
 clip_value = 1 # gradient clipping
@@ -54,17 +54,17 @@ clamp_alpha = 1.9
 
 # vectorised params must always be passed as lists
 lr_init = [2e-3]
-batch_size = [200] # actual batch size is this value multiplied by n_transforms(_test)
+batch_size = [1] # actual batch size is this value multiplied by n_transforms(_test)
 
 # total epochs = meta_epochs * sub_epochs
 # evaluation after <sub_epochs> epochs
-meta_epochs = 2
-sub_epochs = 5
+meta_epochs = 1
+sub_epochs = 1
 
 ## Output Settings ----
-schema = 'mnist_FC400' # if debug, ignored
-debug = False # report loads of info/debug info
-tb = True # write metrics, hyper params to tb files
+schema = '1x1_test' # if debug, ignored
+debug = True # report loads of info/debug info
+tb = False # write metrics, hyper params to tb files
 verbose = True # report stats per sub epoch and other info
 report_freq = -1 # nth minibatch to report minibatch loss on (1 = always,-1 = turn off)
 viz = False # visualise outputs and stats
@@ -171,6 +171,7 @@ if a.args.gpu_number != 0:
     assert gpu
 
 # Checks ------ 
+assert not (pyramid and fixed1x1conv)
 assert not (feat_extractor == 'none' and gap == True)
 assert gap != downsampling
 assert subnet_type in ['conv','fc']
@@ -179,7 +180,8 @@ assert scheduler in ['exponential','none']
 
 if subnet_type == 'fc':
     assert gap
-
+    assert mnist or counts
+    
 if mnist:
     assert not counts
 

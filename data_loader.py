@@ -259,7 +259,7 @@ class CowObjectsDataset(Dataset):
                 ax[i,0].axis('off')
                 ax[i,1].axis('off')
                 ax[i,0].imshow(density, cmap='hot', interpolation='nearest')
-                ax[i,1].imshow((255-image * 255).astype(np.uint8))
+                ax[i,1].imshow((image * 255).astype(np.uint8))
         else:
         
             annotations_batch = sample_batched[1]
@@ -324,7 +324,7 @@ class CowObjectsDataset(Dataset):
                 
                 fig, ax = plt.subplots(1,2)
                 ax[0].imshow(sample['density'], cmap='viridis', interpolation='nearest')
-                ax[1].imshow((255-im * 255).astype(np.uint8))
+                ax[1].imshow((im * 255).astype(np.uint8))
         else:
             """Show image with landmarks"""
             image = sample['image']
@@ -480,7 +480,7 @@ class CustToTensor(object):
     """Convert ndarrays in sample to Tensors."""
 
     def __call__(self, sample):
-             
+        
         image = sample['image']
 
         # swap color axis because
@@ -488,7 +488,20 @@ class CustToTensor(object):
         # torch image: C x H x W
         image = image.transpose((2, 0, 1))
         
-        sample['image'] =  torch.from_numpy(image).float()
+        # since we are skipping pytorch ToTensor(), we need to manually scale to 0-1
+        # RGB normalization
+        # to align with transforms expected by pytorch model zoo models
+        # issue: https://discuss.pytorch.org/t/how-to-preprocess-input-for-pre-trained-networks/683/3
+        # code: https://discuss.pytorch.org/t/how-to-efficiently-normalize-a-batch-of-tensor-to-0-1/65122/5
+        
+        # edit: normalization is v. simply - simply divide by 255
+        image = torch.from_numpy(image).float().div(255)
+        
+        # add random noise to prevent NaNs from cases where min=max (0 division)
+#        image += torch.rand(image.size()[0],image.size()[1],image.size()[2]) / 100
+#        image = (image-image.min(0)[0])/image.max(0)[0]
+        
+        sample['image'] =  image
         
         if 'density' in sample.keys():
             sample['density'] = torch.from_numpy(sample['density'])
@@ -496,7 +509,7 @@ class CustToTensor(object):
             sample['annotations'] = torch.from_numpy(sample['annotations'])
         if 'labels' in sample.keys():
             sample['labels'] = torch.from_numpy(sample['labels'])
-        
+
         return sample
     
 class AerialNormalize(object):
@@ -505,8 +518,8 @@ class AerialNormalize(object):
     def __call__(self, sample):
             
         sample['image'] = TF.normalize(sample['image'], 
-                                       mean =c.norm_mean,
-                                       std=c.norm_std)
+                                       mean = c.norm_mean,
+                                       std= c.norm_std)
  
         return sample
 
