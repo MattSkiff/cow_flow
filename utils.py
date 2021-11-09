@@ -361,12 +361,15 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
 
     return out
 
-def counts_preds_vs_actual(mdl,loader,plot=False):
+def counts_preds_vs_actual(mdl,loader,plot=False,ignore_zeros=False):
     """Plots predicted versus actual counts from the data and returns the R^2 value. Required: count dataloader and count model."""
     assert mdl.count
     assert loader.dataset.count
     assert not mdl.mnist
     assert mdl.modelname 
+    
+    if ignore_zeros:
+        assert loader.batch_size == 1
     
     means = []
     actuals = []
@@ -374,6 +377,10 @@ def counts_preds_vs_actual(mdl,loader,plot=False):
     for i, data in enumerate(tqdm(loader, disable=c.hide_tqdm_bar)):
         
         images,dmaps,labels,counts = data
+        
+        if len(labels) == 0:
+            continue
+        
         if not mdl.gap:  
             num = 0
             dummy_z = (randn(images.size()[0],c.channels*4,c.density_map_h // 2,c.density_map_w // 2, requires_grad=False)).to(c.device)

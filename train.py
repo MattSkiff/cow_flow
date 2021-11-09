@@ -97,7 +97,7 @@ def train(train_loader,val_loader,battery = False,lr_i=c.lr_init,writer=None): #
             if c.weight_decay != 1e-5:
                 parts.extend(["WD",str(c.weight_decay)])
                 
-            if c.train_feat_extractor:
+            if c.train_feat_extractor or c.load_feat_extractor_str != '':
                 parts.append('FT')
                 
             if c.filter_size != 15 and not c.mnist:
@@ -568,5 +568,5 @@ def train_feat_extractor(feat_extractor,trainloader,valloader,criterion = nn.Cro
         print("Finetuning finished.")
         
     feat_extractor.load_state_dict(best_model_wts)
-    model.save_model(model=feat_extractor,filename=filename,loc=g.FEAT_MOD_DIR)
+    model.save_model(feat_extractor,filename=filename,loc=g.FEAT_MOD_DIR)
     return feat_extractor
