@@ -90,7 +90,10 @@ def train(train_loader,val_loader,battery = False,lr_i=c.lr_init,writer=None): #
                 
             if c.counts and not c.mnist:
                 parts.append('CT')
-                
+            
+            if c.fixed1x1conv:
+                parts.append('1x1')
+            
             if c.mnist:
                 parts.append('MNIST')
                 
@@ -130,6 +133,7 @@ def train(train_loader,val_loader,battery = False,lr_i=c.lr_init,writer=None): #
                                 'annotations only?':c.annotations_only,
                                 'pretrained?':c.pretrained,
                                 'feature pyramid?':c.pyramid,
+                                '1x1convs?':c.fixed1x1conv,
                                 'finetuned?':c.train_feat_extractor,
                                 'mnist?':c.mnist,
                                 'counts?':c.counts,

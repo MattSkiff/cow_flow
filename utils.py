@@ -324,13 +324,13 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
                             
                             im = unnorm(images[lb_idx])
                             
-                            im = 255-im.permute(1,2,0).cpu().numpy()
+                            im = im.permute(1,2,0).cpu().numpy()
                          
                         if mdl.feat_extractor.__class__.__name__ == 'NothingNet':
                             dmap_rev_np = dmap_rev_np[1,:,:] # select only data from first duplicated channel
                         
                         if not (mdl.count and mdl.gap) and not (mdl.mnist and c.subnet_type == 'fc'):
-                            ax[0].imshow((255-dmap_rev_np* 255).astype(np.uint8))#, cmap='viridis', interpolation='nearest')
+                            ax[0].imshow((dmap_rev_np* 255).astype(np.uint8))#, cmap='viridis', interpolation='nearest')
                         else:
                             fig.delaxes(ax[0])
                         
