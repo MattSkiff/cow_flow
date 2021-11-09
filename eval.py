@@ -5,9 +5,9 @@ import torch
 
 # TODO extra args: plot = True, save=True,hist=True
 # TODO: don't shift computation over to cpu after sampling from model
-def eval_mnist(model, valloader, trainloader,samples = 1,confusion = False, preds = False): 
+def eval_mnist(mdl, valloader, trainloader,samples = 1,confusion = False, preds = False): 
     ''' currently the confusion matrix is calculated across both train and val splits'''
-    model.eval()
+    mdl.eval()
     accuracies = []
     p = []
     l = []
@@ -22,29 +22,41 @@ def eval_mnist(model, valloader, trainloader,samples = 1,confusion = False, pred
                 
             # Z shape: torch.Size([2, 4, 300, 400]) (batch size = 2)
             # channels * 4 is a result of haar downsampling
-            dummy_z = (randn(loader.batch_size, c.channels*4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True)).to(c.device)
+            if c.subnet_type == 'conv':
+                dummy_z = (randn(loader.batch_size, c.channels*4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True)).to(c.device)
+            else:
+                dummy_z = (randn(loader.batch_size, c.channels, requires_grad=True)).to(c.device)
             
             images = images.float().to(c.device)
             dummy_z = dummy_z.float().to(c.device)
             
-            model = model.to(c.device)
+            mdl = mdl.to(c.device)
             
             mean_array = []
             
             for i in range(samples):
-                x, _ = model(images,dummy_z,rev=True) # TODO: investigate eval use for log det j?
+                x, _ = mdl(images,dummy_z,rev=True) # TODO: investigate eval use for log det j?
                 
                 if c.one_hot:
-                    x = x.argmax(-3).to(torch.float)
+                    if c.subnet_type == 'conv':
+                        x = x.argmax(-3).to(torch.float)
+                    else:
+                        x = x.argmax(-1).to(torch.float)
                     
 #                dims = (1,2,3)
 #                 
 #                if c.one_hot:
 #                    dims = (1,2)
                 
-                x = torch.reshape(x,(loader.batch_size,c.density_map_h * c.density_map_w)) # torch.Size([200, 12, 12])
+                if c.subnet_type == 'conv':
+                    x = torch.reshape(x,(loader.batch_size,c.density_map_h * c.density_map_w)) # torch.Size([200, 12, 12])
+                
                 raw_preds = x  # torch.Size([200, 144])
-                x = torch.mode(x,dim = 1).values.cpu().detach().numpy() #print(x.shape) (200,)
+                
+                if c.subnet_type == 'conv':
+                    x = torch.mode(x,dim = 1).values.cpu().detach().numpy() #print(x.shape) (200,)
+                else:
+                    x = x.cpu().detach().numpy()
                 
                 #mean_preds = np.round(x.mean(dim = dims).cpu().detach().numpy()) # calculate using mean of preds, not mode
                 mean_array.append(x) # mean_preds
@@ -53,7 +65,6 @@ def eval_mnist(model, valloader, trainloader,samples = 1,confusion = False, pred
             #mean_preds = np.mean(mean_array,axis=0)
                 
             labels = labels.cpu().detach().numpy()
-            
             tally += (labels == x).sum() # mean_preds
             #print(tally)
             
@@ -82,6 +93,6 @@ def eval_mnist(model, valloader, trainloader,samples = 1,confusion = False, pred
 
     return  out # train, val
 
-def eval_model(model, valloader, trainloader, plot = True, save=True,hist=True):
+def eval_model(mdl, valloader, trainloader, plot = True, save=True,hist=True):
     
     return -99,-99

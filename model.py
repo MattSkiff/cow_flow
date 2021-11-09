@@ -196,10 +196,10 @@ def sub_fc(dims_in,dims_out,internal_size):
     net = nn.Sequential(
         nn.Linear(dims_in, internal_size), # internal_size
         nn.ReLU(),
-        nn.Dropout(),
+        nn.Dropout(p=c.dropout_p),
         nn.Linear(internal_size, internal_size), 
         nn.ReLU(),
-        nn.Dropout(),
+        nn.Dropout(p=c.dropout_p),
         nn.Linear(internal_size,dims_out)
         )
     
@@ -481,6 +481,8 @@ class MNISTFlow(nn.Module):
         
         self.nf = nf_head(mnist=True) 
         self.mnist = True
+        self.count = False
+        self.unconditional = a.args.unconditional
         self.modelname = modelname
         self.gap = c.gap
         self.n_coupling_blocks = c.n_coupling_blocks
