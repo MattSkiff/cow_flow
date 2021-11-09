@@ -137,8 +137,9 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
     if not mdl.mnist and digit != None:
         print('Digit argument ignored for non-MNIST models')
         
-    if mdl.count != loader.dataset.count:
-        raise ValueError("model and loader count properties do not match!")
+    if not mdl.mnist :
+        if mdl.count != loader.dataset.count:
+            raise ValueError("model and loader count properties do not match!")
     
     if mdl.mnist:
         if plot_n != None and digit != None:
@@ -233,14 +234,19 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
                         
                         dummy_z = (randn(loader.batch_size, in_channels,ft_dims[0],ft_dims[1])).to(c.device)
                 else:
-                    if sampling == 'ones':
-                        dummy_z = (torch.ones(loader.batch_size, c.channels*4 , c.density_map_h // 2,c.density_map_w  // 2).to(c.device))
-                    elif sampling == "zeros":
-                        dummy_z = torch.zeros(loader.batch_size, c.channels*4 , c.density_map_h // 2,c.density_map_w  // 2).to(c.device)
-                    elif sampling == "randn":
-                        dummy_z = (randn(loader.batch_size, c.channels*4, c.density_map_h // 2,c.density_map_w  // 2)).to(c.device)
+                    
+                    if c.subnet_type == 'conv':
+                       
+                        if sampling == 'ones':
+                            dummy_z = (torch.ones(loader.batch_size, c.channels*4, c.density_map_h // 2,c.density_map_w  // 2).to(c.device))
+                        elif sampling == "zeros":
+                            dummy_z = torch.zeros(loader.batch_size, c.channels*4, c.density_map_h // 2,c.density_map_w  // 2).to(c.device)
+                        elif sampling == "randn":
+                            dummy_z = (randn(loader.batch_size, c.channels*4, c.density_map_h // 2,c.density_map_w  // 2)).to(c.device)
+                        else:
+                            ValueError("Invalid function arg (sampling). Try 'randn', 'zeros' or 'ones'.")
                     else:
-                        ValueError("Invalid function arg (sampling). Try 'randn', 'zeros' or 'ones'.")
+                        dummy_z = (randn(loader.batch_size, c.channels)).to(c.device)
                 
                 ## sample from model ---
                 images = images.float().to(c.device)
@@ -253,7 +259,10 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
                 
                 if c.one_hot:
                     
-                    x = x.argmax(-3).to(torch.float)
+                    if c.subnet_type == 'conv':
+                        x = x.argmax(-3).to(torch.float)
+                    else:
+                        x = x.argmax(-1).to(torch.float)
                 
                 if  plot_n != None:
                     lb_idx = range(loader.batch_size)
@@ -270,11 +279,21 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
                         mode = torch.mode(x_flat,dim = 1).values.cpu().detach().numpy()
                     elif mdl.count and mdl.gap:
                         x_flat = x
-                        mode = torch.mode(x_flat,dim = 1).values.cpu().detach().numpy()
+                                            
+                    if mdl.mnist and c.subnet_type == 'conv':
+                        x = torch.mode(x,dim = 1).values.cpu().detach().numpy() #print(x.shape) (200,)
+                    else:
+                        x = torch.mode(x,dim = 0).values.cpu().detach().numpy()
                     
                     # TODO!
-                    sum_pred = x[lb_idx].sum()
-                    
+                    if mdl.mnist and c.subnet_type == 'conv':
+                        sum_pred = x[lb_idx].sum()
+                    else:  
+                        mode = x
+                        sum_pred = x
+
+                    print(x)
+                        
                     if plot:
                         
                         #assert mdl.subnet_type != 'fc'
@@ -310,7 +329,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
                         if mdl.feat_extractor.__class__.__name__ == 'NothingNet':
                             dmap_rev_np = dmap_rev_np[1,:,:] # select only data from first duplicated channel
                         
-                        if not (loader.dataset.count and mdl.gap):
+                        if not (mdl.count and mdl.gap) and not (mdl.mnist and c.subnet_type == 'fc'):
                             ax[0].imshow((255-dmap_rev_np* 255).astype(np.uint8))#, cmap='viridis', interpolation='nearest')
                         else:
                             fig.delaxes(ax[0])

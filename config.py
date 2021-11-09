@@ -5,7 +5,7 @@ proj_dir = "/home/matthew/Desktop/laptop_desktop/clones/cow_flow/data"
 import torch
 import arguments as a
 
-gpu = False
+gpu = True
 
 ## Data Options ------
 mnist = True 
@@ -27,46 +27,47 @@ validation = True # whether to run validation per meta epoch
 ## Feature Extractor Options ------
 joint_optim = False
 pretrained = True
-feat_extractor = "resnet18" # alexnet, vgg16_bn,resnet18, none # TODO mnist_resnet, efficient net
+feat_extractor = "alexnet" # alexnet, vgg16_bn,resnet18, none # TODO mnist_resnet, efficient net
 feat_extractor_epochs = 50
 train_feat_extractor = False # whether to finetune or load finetuned model 
-load_feat_extractor_str = 'resnet18_FTE_20_20_10_2021_16_01_27_PT_True' # '' to train from scratch, loads FE 
+load_feat_extractor_str = '' # '' to train from scratch, loads FE 
 # nb: pretraining FE saves regardless of save flag
 
 ## Architecture Options ------
 pyramid = False # only implemented for resnet18
 gap = True # global average pooling
 downsampling = False # whether to downsample (5 ds layers) dmaps by converting spatial dims to channel dims
-n_coupling_blocks = 1
+n_coupling_blocks = 2
 
 ## Subnet Architecture Options
-batchnorm = False
-filters = 32
-width = 800
 subnet_type = 'fc' # options = fc, conv
+filters = 32 # conv ('64' recommended min)
+batchnorm = False # conv
+width = 400 # fc ('128' recommended min)
+dropout_p = 0.0 # fc - 0 for no dropout
 
 # Hyper Params and Optimisation ------
 scheduler = 'none' # exponential, none
-weight_decay = 1e-5 # differnet: 1e-5
+weight_decay = 1e-4 # differnet: 1e-5
 clip_value = 1 # gradient clipping
 clamp_alpha = 1.9 
 
 # vectorised params must always be passed as lists
 lr_init = [2e-3]
-batch_size = [1] # actual batch size is this value multiplied by n_transforms(_test)
+batch_size = [200] # actual batch size is this value multiplied by n_transforms(_test)
 
 # total epochs = meta_epochs * sub_epochs
 # evaluation after <sub_epochs> epochs
 meta_epochs = 2
-sub_epochs = 1
+sub_epochs = 5
 
 ## Output Settings ----
-schema = 'mnist_tests' # if debug, ignored
-debug = True # report loads of info/debug info
-tb = False # write metrics, hyper params to tb files
+schema = 'mnist_FC400' # if debug, ignored
+debug = False # report loads of info/debug info
+tb = True # write metrics, hyper params to tb files
 verbose = True # report stats per sub epoch and other info
 report_freq = -1 # nth minibatch to report minibatch loss on (1 = always,-1 = turn off)
-viz = True # visualise outputs and stats
+viz = False # visualise outputs and stats
 hide_tqdm_bar = True
 save_model = True # also saves a copy of the config file with the name of the model
 checkpoints = False # saves after every meta epoch

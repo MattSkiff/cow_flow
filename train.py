@@ -294,8 +294,8 @@ def train(train_loader,val_loader,battery = False,lr_i=c.lr_init,writer=None): #
                         # todo: account for validation iterations
                         total_iter = len(train_loader) * c.sub_epochs * c.meta_epochs + (len(val_loader) * c.meta_epochs)
                         #passed_iter = len(train_loader) * j + (len(val_loader) * j / c.sub_epochs) + i
-                        est_total_time = round(((t2-t1) * (total_iter-k)) / 60,2)
-                        est_remain_time = round(((t2-t1) * (total_iter-k)) / 60,2)
+                        #est_total_time = round(((t2-t1) * (total_iter-k)) / 60,2)
+                        #est_remain_time = round(((t2-t1) * (total_iter-k)) / 60,2)
                         
                         if k % c.report_freq == 0 and c.verbose and k != 0 and c.report_freq != -1:
                                 print('\nTrain | Mini-Batch Time: {:.1f}, Mini-Batch: {:d}, Mini-Batch loss: {:.4f}'.format(t2-t1,i+1, loss_t))
@@ -314,7 +314,7 @@ def train(train_loader,val_loader,battery = False,lr_i=c.lr_init,writer=None): #
                         t_e2 = time.perf_counter()
                         print("\nTrain | Sub Epoch Time (s): {:f}, Epoch loss: {:.4f}".format(t_e2-t_e1,mean_train_loss))
                         print('Meta Epoch: {:d}, Sub Epoch: {:d}, | Epoch {:d} out of {:d} Total Epochs'.format(meta_epoch, sub_epoch,meta_epoch*c.sub_epochs + sub_epoch,c.meta_epochs*c.sub_epochs))
-                        print('Total Training Time (mins): {:.2f} | Remaining Time (mins): {:.2f}'.format(est_total_time,est_remain_time))
+                        #print('Total Training Time (mins): {:.2f} | Remaining Time (mins): {:.2f}'.format(est_total_time,est_remain_time))
                     
                     if c.debug:
                         print("loss/epoch_train:",j)
@@ -325,7 +325,6 @@ def train(train_loader,val_loader,battery = False,lr_i=c.lr_init,writer=None): #
                     if c.validation: 
                         val_loss = list()
                         val_z = list()
-                        val_counts = list()
                         # val_coords = list() # todo
                         
                         with torch.no_grad():
@@ -335,26 +334,13 @@ def train(train_loader,val_loader,battery = False,lr_i=c.lr_init,writer=None): #
                                 # Validation
                                 # TODO - DRY violation...
                                 if not c.mnist and not c.counts:
-                                     images,dmaps,labels = data
-                                     dmaps = dmaps.float().to(c.device)
-                                     images = images.float().to(c.device)
-                                     z, log_det_jac = mdl(images,dmaps)
-                                     
-                                     val_counts.append(dmaps.sum())
-                                     
-                                elif not c.mnist: 
-                                     images,dmaps,labels,counts = data
-                                     counts = counts.float().to(c.device)
-                                     images = images.float().to(c.device)
-                                     z, log_det_jac = mdl(images,counts)
-                                     
-                                     val_counts.append(counts.mean())
-                                     
+                                    input_data = (images,dmaps) # inputs features,dmaps
+                                elif not c.mnist:
+                                    input_data = (images,counts) 
                                 else:
-                                    images,labels = data
-                                    labels = torch.Tensor([labels]).to(c.device)
-                                    images = images.float().to(c.device)
-                                    z, log_det_jac = mdl(images,labels)
+                                    input_data = (images,labels)
+                            
+                                z, log_det_jac = mdl(*input_data)
                                     
                                 val_z.append(z)
                                 
@@ -387,12 +373,12 @@ def train(train_loader,val_loader,battery = False,lr_i=c.lr_init,writer=None): #
                         j += 1
                 
                 if c.mnist:
-                    val_acc, train_acc = eval_mnist(model,val_loader,train_loader)
+                    val_acc, train_acc = eval_mnist(mdl,val_loader,train_loader)
                     print("\n")
                     print("Training Accuracy: ", train_acc,"| Epoch: ",l)
                     print("val Accuracy: ",val_acc,"| Epoch: ",l)
                 else:
-                    val_acc, train_acc = eval_model(model,val_loader,train_loader) # does nothing for now
+                    val_acc, train_acc = eval_model(mdl,val_loader,train_loader) # does nothing for now
                 
                 if (c.save_model or battery) and c.checkpoints:
                     mdl.to('cpu')
