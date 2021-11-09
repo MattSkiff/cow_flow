@@ -121,8 +121,8 @@ else:
             if a.args.feat_extract_only:
                 feat_extractor = model.select_feat_extractor(c.feat_extractor,train_loader,val_loader)
             else:
-                #pass
-                mdl = train(train_loader,val_loader,lr_i=c.lr_init)
+                pass
+                #mdl = train(train_loader,val_loader,lr_i=c.lr_init)
         else:
                 mdl = train_battery([train_loader],[val_loader],lr_i=c.lr_init)
                 

@@ -96,7 +96,7 @@ class ResNetPyramid(ResNet):
             self.fc = nn.Linear(num_ftrs, 2)  
             finetuned_fe = load_model(c.load_feat_extractor_str,loc=g.FEAT_MOD_DIR)
             self.load_state_dict(finetuned_fe.state_dict())
-            del finetuned_fe
+            #del finetuned_fe
             
     def _forward_impl_my(self, x):
         # change forward here
@@ -279,9 +279,9 @@ def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,m
     # https://github.com/VLL-HD/FrEIA/issues/9
     
     # condition = exacted image features
-    if c.mnist or (c.counts and not c.gap):
+    if (c.mnist or (c.counts and not c.gap)) and c.subnet_type == 'conv':
         condition = [Ff.ConditionNode(condition_dim,input_dim[0] // 2,input_dim[1] // 2, name = 'condition')]
-    elif c.counts and c.gap:
+    elif (c.counts and c.gap) or (c.subnet_type == 'fc' and c.mnist):
         condition = [Ff.ConditionNode(condition_dim,name = 'condition')]
     else:
         # TODO: avoid hardcoding feature spatial dimensions in
@@ -291,13 +291,15 @@ def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,m
     
     if c.counts and c.gap:
         nodes = [Ff.InputNode(1,name='input')] # single count value
-    else:
+    elif c.subnet_type == 'conv':
         nodes = [Ff.InputNode(c.channels,input_dim[0],input_dim[1],name='input')] 
+    else:
+        nodes = [Ff.InputNode(c.channels,name='input')] 
     
     # haar downsampling to resolves input data only having a single channel (from unsqueezed singleton dimension)
     # affine coupling performs channel wise split
     # https://github.com/VLL-HD/FrEIA/issues/8
-    if c.mnist or (c.counts and not c.gap) or c.feat_extractor == 'none' or not c.downsampling and c.subnet_type == 'conv':
+    if (c.mnist or (c.counts and not c.gap) or c.feat_extractor == 'none' or not c.downsampling) and c.subnet_type == 'conv':
         nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling'))
             
     elif not c.counts and c.feat_extractor != 'none' and c.downsampling:
@@ -470,7 +472,13 @@ class MNISTFlow(nn.Module):
     
     def __init__(self,modelname,feat_extractor):
         super(MNISTFlow,self).__init__()
-        self.feat_extractor = feat_extractor
+        
+        if c.feat_extractor == 'resnet18':
+            modules = list(feat_extractor.children())[:-2]
+            self.feat_extractor = nn.Sequential(*modules)
+        else:
+            self.feat_extractor = feat_extractor
+        
         self.nf = nf_head(mnist=True) 
         self.mnist = True
         self.modelname = modelname
@@ -491,7 +499,10 @@ class MNISTFlow(nn.Module):
             print('preprocessed mnist imgs size')
             print(images.size(),"\n")
         
-        feat_s = self.feat_extractor.features(images) # extract features
+        if self.feat_extractor.__class__.__name__ != 'Sequential':
+            feat_s = self.feat_extractor.features(images) # extract features
+        else:
+            feat_s = self.feat_extractor(images)
         
 
         if c.debug:
@@ -524,7 +535,7 @@ class MNISTFlow(nn.Module):
             print(feats.size(),"\n")
         
         if not rev:
-            if c.feat_extractor != "none":
+            if c.feat_extractor != "none" and c.subnet_type == 'conv':
                 if c.gap:
                     feats = feats.unsqueeze(2).unsqueeze(3).expand(-1, -1, c.density_map_h // 2,c.density_map_w // 2)
         
@@ -541,8 +552,9 @@ class MNISTFlow(nn.Module):
         
         if not rev:
             if c.one_hot:
-                labels = F.one_hot(labels.to(torch.int64),num_classes=10)
-                labels = labels.unsqueeze(2).unsqueeze(3).expand(-1, -1, c.density_map_h,c.density_map_w).to(torch.float)
+                labels = F.one_hot(labels.to(torch.int64),num_classes=10).to(torch.float)
+                if c.subnet_type == 'conv':
+                    labels = labels.unsqueeze(2).unsqueeze(3).expand(-1, -1, c.density_map_h,c.density_map_w)
             else:
                 labels = labels.unsqueeze(1).unsqueeze(2).unsqueeze(3).expand(-1, -1, c.density_map_h,c.density_map_w)
         

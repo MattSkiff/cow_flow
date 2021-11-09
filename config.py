@@ -5,14 +5,15 @@ proj_dir = "/home/matthew/Desktop/laptop_desktop/clones/cow_flow/data"
 import torch
 import arguments as a
 
-gpu = True
+gpu = False
 
 ## Data Options ------
-mnist = False 
+mnist = True 
 counts = False # must be off for pretraining feature extractor (#TODO)
 balanced = True # whether to have a 1:1 mixture of empty:annotated images
+weighted = True # whether to weight minibatch samples
 annotations_only = False # whether to only use image patches that have annotations
-data_prop = 0.1 # proportion of the full dataset to use     
+data_prop = 1 # proportion of the full dataset to use     
 test_train_split = 70 # percentage of data to allocate to train set
 scale = 1 # 4, 2 = downscale four/two fold, 1 = unchanged
 
@@ -29,7 +30,7 @@ pretrained = True
 feat_extractor = "resnet18" # alexnet, vgg16_bn,resnet18, none # TODO mnist_resnet, efficient net
 feat_extractor_epochs = 50
 train_feat_extractor = False # whether to finetune or load finetuned model 
-load_feat_extractor_str = '' # '' to train from scratch, loads FE 
+load_feat_extractor_str = 'resnet18_FTE_20_20_10_2021_16_01_27_PT_True' # '' to train from scratch, loads FE 
 # nb: pretraining FE saves regardless of save flag
 
 ## Architecture Options ------
@@ -42,7 +43,7 @@ n_coupling_blocks = 1
 batchnorm = False
 filters = 32
 width = 800
-subnet_type = 'conv' # options = fc, conv
+subnet_type = 'fc' # options = fc, conv
 
 # Hyper Params and Optimisation ------
 scheduler = 'none' # exponential, none
@@ -52,7 +53,7 @@ clamp_alpha = 1.9
 
 # vectorised params must always be passed as lists
 lr_init = [2e-3]
-batch_size = [2] # actual batch size is this value multiplied by n_transforms(_test)
+batch_size = [1] # actual batch size is this value multiplied by n_transforms(_test)
 
 # total epochs = meta_epochs * sub_epochs
 # evaluation after <sub_epochs> epochs
@@ -60,9 +61,9 @@ meta_epochs = 2
 sub_epochs = 1
 
 ## Output Settings ----
-schema = 'resnet_test_tb' # if debug, ignored
-debug = False # report loads of info/debug info
-tb = True # write metrics, hyper params to tb files
+schema = 'mnist_tests' # if debug, ignored
+debug = True # report loads of info/debug info
+tb = False # write metrics, hyper params to tb files
 verbose = True # report stats per sub epoch and other info
 report_freq = -1 # nth minibatch to report minibatch loss on (1 = always,-1 = turn off)
 viz = True # visualise outputs and stats
@@ -176,7 +177,10 @@ assert feat_extractor in ['none' ,'alexnet','vgg16_bn','resnet18']
 assert scheduler in ['exponential','none']
 
 if subnet_type == 'fc':
-    assert counts # TODO
+    assert gap
+
+if mnist:
+    assert not counts
 
 if counts:
     assert subnet_type == 'fc' and gap or subnet_type == 'conv' and not gap
