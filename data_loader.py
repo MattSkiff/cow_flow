@@ -11,6 +11,7 @@ import torch
 import pandas as pd
 import numpy as np
 import random
+from tqdm import tqdm # progress bar
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
@@ -48,7 +49,7 @@ mk_size = 25
 class CowObjectsDataset(Dataset):
     """Cow Objects dataset."""
 
-    def __init__(self, root_dir,transform=None,convert_to_points=False,generate_density=False,count=False,classification=False):
+    def __init__(self, root_dir,transform=None,convert_to_points=False,generate_density=False,count=False,classification=False,ram=False):
         """
         Args:
             root_dir (string): Directory with the following structure:
@@ -69,6 +70,7 @@ class CowObjectsDataset(Dataset):
         self.density = generate_density
         self.count = count
         self.classification = classification
+        self.ram = ram
         
         names = []
         with open(os.path.join(self.root_dir,"object.names")) as f:
@@ -101,13 +103,21 @@ class CowObjectsDataset(Dataset):
             
         self.train_im_paths = train_im_paths
         
+        if self.ram:
+            self.images = []
+            for img_path in tqdm(self.train_im_paths,desc="Loading files in RAM"): 
+                
+                self.images.append(io.imread(img_path))
         
     def __len__(self):
-        with open(os.path.join(self.root_dir,"train.txt")) as f:
-                  train_ims = f.readlines()
+        if self.ram:
+            out = len(self.images)
+        else:
+            with open(os.path.join(self.root_dir,"train.txt")) as f:
+                      train_ims = f.readlines()
+            out = len(train_ims)
         
-        
-        return len(train_ims)
+        return out
 
     def __getitem__(self, idx):
         if torch.is_tensor(idx):
@@ -122,7 +132,10 @@ class CowObjectsDataset(Dataset):
 
         # yolo object annotation columns
         # <object-class> <x> <y> <width> <height>
-        image = io.imread(img_path)
+        if self.ram:
+            image = self.images[idx]
+        else:
+            image = io.imread(img_path)
         
         # check if annotations file is empty
         header_list = ['class', 'x', 'y', 'width', 'height']
@@ -486,6 +499,10 @@ class CustToTensor(object):
         # swap color axis because
         # numpy image: H x W x C
         # torch image: C x H x W
+        if c.debug:
+            print("image transposed from numpy format")
+            print("Image rescaled to 0-1 range")
+        
         image = image.transpose((2, 0, 1))
         
         # since we are skipping pytorch ToTensor(), we need to manually scale to 0-1
@@ -532,8 +549,12 @@ class DmapAddUniformNoise(object):
     def __call__(self, sample):
         # uniform tensor in pytorch: 
         # https://stackoverflow.com/questions/44328530/how-to-get-a-uniform-distribution-in-a-range-r1-r2-in-pytorch
+        
         if 'density' in sample.keys():
             sample['density'] = sample['density'] + torch.FloatTensor(sample['density'].size()).uniform_(self.r1, self.r2)
+        
+        if c.debug:
+            print("uniform noise ({},{}) added".format(self.r1, self.r2))
         
         return sample
     
@@ -558,6 +579,9 @@ class CustCrop(object):
             density = F.pad(input=density, pad=(0,0,pd,0), mode='constant', value=0)
             sample['density'] = density
             
+            if c.debug:
+                print("image padded by {}".format(pd))
+            
             if c.pyramid:
                 # adding padding so high level features match dmap dims after downsampling (37,38)
                 image = sample['image']
@@ -580,6 +604,9 @@ class CustResize(object):
             density = density.unsqueeze(0).unsqueeze(0)
             density = TF.resize(density,(sz[0]//c.scale,sz[1]//c.scale))
             density = density.squeeze().squeeze()
+            
+            if c.debug:
+                print("image scaled down factor by {}".format(c.scale))
             
             sample['density'] = density
         
@@ -611,54 +638,78 @@ def train_val_split(dataset,train_percent,balanced = False,annotations_only = Fa
     
     l = len(dataset)
     
-    val_indices = []
-    train_indices = []
+    v_indices = []; v_weights = []
+    t_indices = []; t_weights = []
     
-
-    empty_indices = []
-    annotation_indices = []
+    e_indices = []
+    a_indices = []
     
     for i in range(l):
         if len(dataset.get_annotations(i)) != 0:
-            annotation_indices.append(i)
+            a_indices.append(i)
         else:
-            empty_indices.append(i)
+            e_indices.append(i)
             
     if c.debug:
-        print(len(annotation_indices))
-        print(len(empty_indices))
-        
+        print(len(a_indices))
+        print(len(e_indices))
+    
     # modify lists to be random
-    np.random.shuffle(annotation_indices)
-    np.random.shuffle(empty_indices)
+    np.random.shuffle(a_indices)
+    np.random.shuffle(e_indices)
     
     if balanced:
-        empty_indices = empty_indices[:len(annotation_indices)]
+        e_indices = e_indices[:len(a_indices)]
     
-    split_e = round(train_percent * len(empty_indices) / 100)
-    split_a = round(train_percent * len(annotation_indices) / 100)
+    split_e = round(train_percent * len(e_indices) / 100)
+    split_a = round(train_percent * len(a_indices) / 100)
     
+    # add second dimension to indicate empty or not, add weights
+    if annotations_only:
+        weight_a=1
+        weight_e=1
+    else:
+        # so weight = 1 for both
+        weight_a=len(a_indices)
+        weight_e=len(e_indices)
+    
+    a_weights = ((np.ones(len(a_indices))/weight_a).tolist())
+    e_weights = ((np.ones(len(e_indices))/weight_e).tolist())
+    
+    # only split if not annotations ony
+    # TODO: DRY (and ugly)
+    if not annotations_only:
+        t_indices.extend(e_indices[:split_e])
+        t_weights.extend(e_weights[:split_e])
+        v_weights.extend(e_weights[split_e:])
+        v_indices.extend(e_indices[split_e:])
+        
+    t_indices.extend(a_indices[:split_a])
+    t_weights.extend(a_weights[:split_a]) 
+    v_indices.extend(a_indices[split_a:])
+    v_weights.extend(a_weights[split_a:])
+        
+    # shuffle in unison
+    t = list(zip(t_indices,t_weights))
+    v = list(zip(v_indices, v_weights))
+    
+    random.shuffle(t)
+    train_indices, train_weights = zip(*t)
+    
+    random.shuffle(v)
+    val_indices, val_weights = zip(*v)
+    
+ 
+    t_indices = t_indices[:round(c.data_prop*len(t_indices))]
+    t_weights = t_weights[:round(c.data_prop*len(t_weights))]
 
-    
-    if not annotations_only:
-        train_indices.extend(empty_indices[:split_e])
-        
-    train_indices.extend(annotation_indices[:split_a])
-    
-    if not annotations_only:
-        val_indices.extend(empty_indices[split_e:])
-        
-    val_indices.extend(annotation_indices[split_a:])
-    
-    np.random.shuffle(val_indices)
-    np.random.shuffle(train_indices)
-    
-        
+    v_indices = v_indices[:round(c.data_prop*len(v_indices))]
+    v_weights = v_weights[:round(c.data_prop*len(v_weights))]
     
     if c.verbose:
         print("Finished creating indicies")
     
-    return train_indices, val_indices
+    return t_indices, t_weights, v_indices, v_weights
 
 # TODO
 # class Normalize(object):

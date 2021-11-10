@@ -9,10 +9,10 @@ gpu = True
 
 ## Data Options ------
 mnist = False 
-counts = False # must be off for pretraining feature extractor (#TODO)
-balanced = True # whether to have a 1:1 mixture of empty:annotated images
-weighted = True # whether to weight minibatch samples
-annotations_only = False # whether to only use image patches that have annotations
+counts = True # must be off for pretraining feature extractor (#TODO)
+balanced = False # whether to have a 1:1 mixture of empty:annotated images
+weighted = False # whether to weight minibatch samples
+annotations_only = True # whether to only use image patches that have annotations
 test_run = False # use only a small fraction of data to check everything works
 validation = True # whether to run validation per meta epoch
 data_prop = 0.1 # proportion of the full dataset to use     
@@ -32,14 +32,14 @@ load_feat_extractor_str = '' # '' to train from scratch, loads FE
 # nb: pretraining FE saves regardless of save flag
 
 ## Architecture Options ------
-fixed1x1conv = True 
+fixed1x1conv = False 
 pyramid = False # only implemented for resnet18
 gap = True # global average pooling
 downsampling = False # whether to downsample (5 ds layers) dmaps by converting spatial dims to channel dims
 n_coupling_blocks = 2
 
 ## Subnet Architecture Options
-subnet_type = 'conv' # options = fc, conv
+subnet_type = 'fc' # options = fc, conv
 filters = 32 # conv ('64' recommended min)
 batchnorm = False # conv
 width = 400 # fc ('128' recommended min)
@@ -54,7 +54,7 @@ clamp_alpha = 1.9
 
 # vectorised params must always be passed as lists
 lr_init = [2e-3]
-batch_size = [1] # actual batch size is this value multiplied by n_transforms(_test)
+batch_size = [4] # actual batch size is this value multiplied by n_transforms(_test)
 
 # total epochs = meta_epochs * sub_epochs
 # evaluation after <sub_epochs> epochs
@@ -63,11 +63,11 @@ sub_epochs = 1
 
 ## Output Settings ----
 schema = '1x1_test' # if debug, ignored
-debug = True # report loads of info/debug info
-tb = False # write metrics, hyper params to tb files
+debug = False # report loads of info/debug info
+tb = True # write metrics, hyper params to tb files
 verbose = True # report stats per sub epoch and other info
 report_freq = -1 # nth minibatch to report minibatch loss on (1 = always,-1 = turn off)
-viz = False # visualise outputs and stats
+viz = True # visualise outputs and stats
 hide_tqdm_bar = True
 save_model = True # also saves a copy of the config file with the name of the model
 checkpoints = False # saves after every meta epoch
@@ -81,13 +81,6 @@ if not gpu:
 else: 
     device = 'cuda' 
     torch.cuda.set_device(0)
-
-if annotations_only:
-    fixed_indices = False # must be off for annotations only runs
-    assert not fixed_indices
-else:
-    fixed_indices = False # turn this off for actual experiments, on to speed up code
-    # save/load is now redundant
 
 # "condition dim"
 if feat_extractor == "alexnet":
@@ -172,8 +165,10 @@ if a.args.gpu_number != 0:
 
 # Checks ------ 
 assert not (pyramid and fixed1x1conv)
+#assert not (weighted and annotations_only)
 assert not (feat_extractor == 'none' and gap == True)
 assert gap != downsampling
+
 assert subnet_type in ['conv','fc']
 assert feat_extractor in ['none' ,'alexnet','vgg16_bn','resnet18']
 assert scheduler in ['exponential','none']
@@ -181,6 +176,10 @@ assert scheduler in ['exponential','none']
 if subnet_type == 'fc':
     assert gap
     assert mnist or counts
+    assert not fixed1x1conv
+    
+if subnet_type == 'conv':
+    assert dropout_p == 0
     
 if mnist:
     assert not counts

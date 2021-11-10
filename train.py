@@ -97,6 +97,9 @@ def train(train_loader,val_loader,battery = False,lr_i=c.lr_init,writer=None): #
             if c.mnist:
                 parts.append('MNIST')
                 
+            if c.dropout_p != 0:
+                parts.append('DP_{}'.format(c.dropout_p))
+                
             if c.weight_decay != 1e-5:
                 parts.extend(["WD",str(c.weight_decay)])
                 
@@ -137,6 +140,7 @@ def train(train_loader,val_loader,battery = False,lr_i=c.lr_init,writer=None): #
                                 'finetuned?':c.train_feat_extractor,
                                 'mnist?':c.mnist,
                                 'counts?':c.counts,
+                                'fc_subnets?':c.subnet_type == 'fc',
                                 #'test run?':c.test_run, # unused
                                 'prop. of data':c.data_prop,
                                 'clamp alpha':c.clamp_alpha,

@@ -4,13 +4,12 @@ from torchvision.transforms import Compose, ToTensor, Normalize, Resize
 from utils import AddUniformNoise #, AddGaussianNoise
 from torch.cuda import empty_cache
 from torch.utils.data import DataLoader # Dataset                                                                                                                                                                    
-from torch.utils.data.sampler import SubsetRandomSampler # RandomSampling
+from torch.utils.data.sampler import SubsetRandomSampler, WeightedRandomSampler # RandomSampling
 # from torchvision import transforms
 import config as c
 import arguments as a
 import model
 import os
-import pickle 
 from train import train, train_battery
 #from utils import load_datasets, make_dataloaders
 from data_loader import CowObjectsDataset, CustToTensor,AerialNormalize, DmapAddUniformNoise, CustCrop, CustResize, train_val_split
@@ -68,42 +67,40 @@ else:
     # instantiate class
     transformed_dataset = CowObjectsDataset(root_dir=c.proj_dir,transform = dmaps_pre,
                                             convert_to_points=True,generate_density=True,
-                                            count = c.counts,classification = c.train_feat_extractor)
+                                            count = c.counts,
+                                            classification = c.train_feat_extractor,ram=True)
     
     # check dataloader if running interactively
     if any('SPYDER' in name for name in os.environ):
         transformed_dataset.show_annotations(5809)
     
     # create test train split
-    # https://stackoverflow.com/questions/27745500/how-to-save-a-list-to-a-file-and-read-it-as-a-list-type
-    if not c.fixed_indices:
-        train_indices, val_indices = train_val_split(dataset = transformed_dataset, 
-                                                         train_percent = c.test_train_split,
-                                                         annotations_only = c.annotations_only,
-                                                         balanced = c.balanced)
-        
-        with open("train_indices.txt", "wb") as fp:   # Pickling
-            pickle.dump(train_indices, fp)
-        with open("val_indices.txt", "wb") as fp:   # Pickling
-            pickle.dump(val_indices, fp)
+    t_indices, t_weights, v_indices, v_weights  = train_val_split(dataset = transformed_dataset,
+                                                                  train_percent = c.test_train_split,
+                                                                  annotations_only = c.annotations_only,
+                                                                  balanced = c.balanced)
 
-    else:
-        with open("train_indices.txt", "rb") as fp:   # Unpickling
-            train_indices = pickle.load(fp)
-        with open("val_indices.txt", "rb") as fp:   # Unpickling
-            val_indices = pickle.load(fp)
-    
     # Creating data samplers and loaders:
     # only train part for dev purposes 
     
     if not c.annotations_only:
-        train_sampler = SubsetRandomSampler(train_indices[:round(c.data_prop*len(train_indices))])
-        val_sampler = SubsetRandomSampler(val_indices[:round(c.data_prop*len(val_indices))])
+        train_sampler = SubsetRandomSampler(t_indices)
+        val_sampler = SubsetRandomSampler(v_indices)
     
     if c.annotations_only:
-        train_sampler = SubsetRandomSampler(train_indices)
-        val_sampler = SubsetRandomSampler(val_indices)
-        
+        train_sampler = SubsetRandomSampler(t_indices)
+        val_sampler = SubsetRandomSampler(v_indices)
+    
+    if c.weighted:
+        # the weight sizes correspond to whether each indices 0...5900 is null-annotated or not
+        # the weights correspond to the probability that that indice is sampled, they don't have to sum to one
+        train_sampler = WeightedRandomSampler(weights=t_weights,
+                                              num_samples=len(t_weights),
+                                              replacement=True)
+        val_sampler = WeightedRandomSampler(weights=v_weights,
+                                            num_samples=len(v_weights),
+                                            replacement=True)
+    
     if len(c.batch_size) != 1 or len(c.lr_init) != 1 and a.args.feat_extract_only:
         ValueError('Training batteries not available for Feature Extractor only runs')
         
@@ -121,8 +118,8 @@ else:
             if a.args.feat_extract_only:
                 feat_extractor = model.select_feat_extractor(c.feat_extractor,train_loader,val_loader)
             else:
-                pass
-                #mdl = train(train_loader,val_loader,lr_i=c.lr_init)
+                #pass
+                mdl = train(train_loader,val_loader,lr_i=c.lr_init)
         else:
                 mdl = train_battery([train_loader],[val_loader],lr_i=c.lr_init)
                 
