@@ -312,9 +312,9 @@ def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,m
     # haar downsampling to resolves input data only having a single channel (from unsqueezed singleton dimension)
     # affine coupling performs channel wise split
     # https://github.com/VLL-HD/FrEIA/issues/8
-    if (c.mnist or (c.counts and not c.gap) or c.feat_extractor == 'none' or not c.downsampling):# and c.subnet_type == 'conv':
+    if (c.mnist or (c.counts and not c.gap) or c.feat_extractor == 'none' or not c.downsampling) and c.subnet_type == 'conv':
         nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling'))
-            
+        
     elif not c.counts and c.feat_extractor != 'none' and c.downsampling:
         # downsamples density maps (not needed for counts)
         nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling1'))
@@ -327,13 +327,10 @@ def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,m
         if c.verbose:
             print("creating layer {:d}".format(k))
         
-        # Don't need permutation layer if flow is univariate
-        if not (c.counts and c.subnet_type == 'fc'):
-            
-            if c.fixed1x1conv:
-                nodes.append(Ff.Node(nodes[-1], Fm.Fixed1x1Conv,{'M': random_orthog(c.channels*4).to(c.device) }, name='1x1_conv_{}'.format(k)))
-            else:
-                nodes.append(Ff.Node(nodes[-1], Fm.PermuteRandom, {'seed': k}, name='permute_{}'.format(k)))
+        if not (c.counts and c.subnet_type == 'fc') and c.fixed1x1conv:
+            nodes.append(Ff.Node(nodes[-1], Fm.Fixed1x1Conv,{'M': random_orthog(c.channels*4).to(c.device) }, name='1x1_conv_{}'.format(k)))
+        else:
+            nodes.append(Ff.Node(nodes[-1], Fm.PermuteRandom, {'seed': k}, name='permute_{}'.format(k)))
         
         if c.verbose:
             print(condition)

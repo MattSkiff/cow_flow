@@ -286,9 +286,9 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
                         x = torch.mode(x,dim = 0).values.cpu().detach().numpy()
                     
                     # TODO!
-                    if mdl.mnist and c.subnet_type == 'conv':
+                    if mdl.mnist or c.subnet_type == 'conv':
                         sum_pred = x[lb_idx].sum()
-                    else:  
+                    elif c.subnet_type == 'fc' and mdl.gap:  
                         mode = x
                         sum_pred = x
 
@@ -397,8 +397,8 @@ def counts_preds_vs_actual(mdl,loader,plot=False,ignore_zeros=False):
         
         images,dmaps,labels,counts = data
         
-        if len(labels) == 0:
-            continue
+#        if len(labels) == 0:
+#            continue
         
         if not mdl.gap:  
             num = 0
