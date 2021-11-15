@@ -356,6 +356,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
                         
                         if writer != None:
                             writer.add_figure('{} Dmap Pred: epoch {}'.format(writer_mode,writer_epoch), fig)
+                            writer.close()
                         
                         # saving and outs
                         if save:

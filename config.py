@@ -9,19 +9,19 @@ gpu = True
 
 ## Dataset Options ------
 mnist = False 
-load_stored_dmaps = False # speeds up precomputation (with RAM = True)
+load_stored_dmaps = True # speeds up precomputation (with RAM = True)
 store_dmaps = False # this will save dmap objects (numpy arrays) to file
-ram = False # load aerial imagery and precompute dmaps and load both into ram before training
+ram = True # load aerial imagery and precompute dmaps and load both into ram before training
 counts = False # must be off for pretraining feature extractor (#TODO)
 
 ## Training Options ------
 train_model = True # (if false, will only prep dataset,dataloaders)
 balanced = False # whether to have a 1:1 mixture of empty:annotated images
-weighted = False # whether to weight minibatch samples
+weighted = True # whether to weight minibatch samples
 annotations_only = False # whether to only use image patches that have annotations
 test_run = False # use only a small fraction of data to check everything works
-validation = False # whether to run validation per meta epoch
-data_prop = 0.1 # proportion of the full dataset to use     
+validation = True # whether to run validation per meta epoch
+data_prop = 1 # proportion of the full dataset to use     
 test_train_split = 70 # percentage of data to allocate to train set
 
 ## Density Map Options ------
@@ -30,7 +30,7 @@ sigma = 4.0 # "   -----    "
 scale = 4 # 4, 2 = downscale dmaps four/two fold, 1 = unchanged
 
 ## Feature Extractor Options ------
-pretrained = False
+pretrained = True
 feat_extractor = "resnet18" # alexnet, vgg16_bn,resnet18, none # TODO mnist_resnet, efficient net
 feat_extractor_epochs = 50
 train_feat_extractor = False # whether to finetune or load finetuned model 
@@ -38,7 +38,7 @@ load_feat_extractor_str = '' # '' to train from scratch, loads FE
 # nb: pretraining FE saves regardless of save flag
 
 ## Architecture Options ------
-fixed1x1conv = False 
+fixed1x1conv = True 
 pyramid = False # only implemented for resnet18
 gap = True # global average pooling
 downsampling = False # whether to downsample (5 ds layers) dmaps by converting spatial dims to channel dims
@@ -52,7 +52,7 @@ width = 400 # fc ('128' recommended min)
 dropout_p = 0.0 # fc - 0 for no dropout
 
 # Hyper Params and Optimisation ------
-joint_optim = False # jointly optimse feature extractor and flow
+joint_optim = True # jointly optimse feature extractor and flow
 scheduler = 'none' # exponential, none
 weight_decay = 1e-4 # differnet: 1e-5
 clip_value = 1 # gradient clipping
@@ -64,18 +64,18 @@ batch_size = [4] # actual batch size is this value multiplied by n_transforms(_t
 
 # total epochs = meta_epochs * sub_epochs
 # evaluation after <sub_epochs> epochs
-meta_epochs = 2
+meta_epochs = 5
 sub_epochs = 1
 
 ## Output Settings ----
-schema = 'gpu_util_test' # if debug, ignored
+schema = 'new_features_test' # if debug, ignored
 debug = False # report loads of info/debug info
 tb = True # write metrics, hyper params to tb files
 verbose = False # report stats per sub epoch and other info
 report_freq = -1 # nth minibatch to report minibatch loss on (1 = always,-1 = turn off)
 viz = False # visualise outputs and stats
 hide_tqdm_bar = False
-save_model = False # also saves a copy of the config file with the name of the model
+save_model = True # also saves a copy of the config file with the name of the model
 checkpoints = False # saves after every meta epoch
 
 # debug opts
