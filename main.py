@@ -48,8 +48,10 @@ if c.mnist:
         val_loader = DataLoader(mnist_test,batch_size = c.batch_size[0],pin_memory=True,
                                       shuffle=False,sampler=toy_sampler)
         if len(c.lr_init) == 1:
+            if c.train_model:
                 mdl = train(train_loader,val_loader,lr_i=c.lr_init)
         else:
+            if c.train_model:
                 mdl = train_battery([train_loader],[val_loader],lr_i=c.lr_init)
                 
     else:
@@ -61,14 +63,15 @@ if c.mnist:
             vls.append(DataLoader(mnist_test,batch_size = bs,pin_memory=True,
                                       shuffle=False,sampler=toy_sampler))
             
-            mdl = train_battery(tls,vls,lr_i=c.lr_init)
+            if c.train_model:
+                mdl = train_battery(tls,vls,lr_i=c.lr_init)
        
 else:
     # instantiate class
     transformed_dataset = CowObjectsDataset(root_dir=c.proj_dir,transform = dmaps_pre,
                                             convert_to_points=True,generate_density=True,
                                             count = c.counts,
-                                            classification = c.train_feat_extractor,ram=True)
+                                            classification = c.train_feat_extractor,ram=c.ram)
     
     # check dataloader if running interactively
     if any('SPYDER' in name for name in os.environ):
@@ -106,22 +109,25 @@ else:
         
     
     if len(c.batch_size) == 1:
+        # CPU tensors can't be pinned; leave false
         train_loader = DataLoader(transformed_dataset, batch_size=c.batch_size[0],shuffle=False, 
-                            num_workers=2,collate_fn=transformed_dataset.custom_collate_aerial,
-                            pin_memory=True,sampler=train_sampler)
+                            num_workers=0,collate_fn=transformed_dataset.custom_collate_aerial,
+                            pin_memory=False,sampler=train_sampler)
     
         val_loader = DataLoader(transformed_dataset, batch_size=c.batch_size[0],shuffle=False, 
-                            num_workers=2,collate_fn=transformed_dataset.custom_collate_aerial,
-                            pin_memory=True,sampler=val_sampler)
+                            num_workers=0,collate_fn=transformed_dataset.custom_collate_aerial,
+                            pin_memory=False,sampler=val_sampler)
         
         if len(c.lr_init) == 1:
             if a.args.feat_extract_only:
-                feat_extractor = model.select_feat_extractor(c.feat_extractor,train_loader,val_loader)
+                if c.train_model:
+                    feat_extractor = model.select_feat_extractor(c.feat_extractor,train_loader,val_loader)
             else:
-                #pass
-                mdl = train(train_loader,val_loader,lr_i=c.lr_init)
+                if c.train_model:
+                    mdl = train(train_loader,val_loader,lr_i=c.lr_init)
         else:
-                mdl = train_battery([train_loader],[val_loader],lr_i=c.lr_init)
+                if c.train_model:
+                    mdl = train_battery([train_loader],[val_loader],lr_i=c.lr_init)
                 
     else:
         tls,vls = [],[]
@@ -135,4 +141,5 @@ else:
                             num_workers=0,collate_fn=transformed_dataset.custom_collate_density,
                             pin_memory=True,sampler=val_sampler))
             
-            mdl = train_battery(tls,vls,lr_i=c.lr_init)
+            if c.train_model:
+                mdl = train_battery(tls,vls,lr_i=c.lr_init)

@@ -380,8 +380,55 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
 
     return out
 
+def torch_r2(mdl,loader):
+    """calcs r2 (on torch only)"""
+    assert mdl.count
+    assert loader.dataset.count
+    assert not mdl.mnist
+    assert mdl.modelname 
+    
+    mdl = mdl.to(c.device)
+    actuals = []
+    means = []
+    
+    with torch.no_grad():
+        for i, data in enumerate(tqdm(loader, disable=c.hide_tqdm_bar,desc="Calculating R2")):
+            
+            images,dmaps,labels,counts = data
+            
+            if not mdl.gap:  
+                num = 0
+                dummy_z = (randn(images.size()[0],c.channels*4,c.density_map_h // 2,c.density_map_w // 2, requires_grad=False,device=c.device))
+            else:
+                num = 1
+                dummy_z = (randn(images.size()[0],c.channels,requires_grad=False,device=c.device))
+            
+            dummy_z = dummy_z.float()
+            x, _ = mdl(images,dummy_z,rev=True)
+            
+            if mdl.subnet_type == 'conv':
+                mean_preds = x.mean(dim = tuple(range(1,len(x.shape)-num)))
+                means.append(mean_preds)
+            else:
+                means.append(x)
+                 
+            actuals.append(counts)
+        
+        y_hat = torch.cat(means,dim=0).squeeze()
+        y = torch.cat(actuals)
+        print(y)
+        y_bar = y.mean()
+        
+        ss_res = torch.sum((y-y_hat)**2)
+        ss_tot = torch.sum((y-y_bar)**2)
+        
+        r2 = 1 - (ss_res / ss_tot)
+             
+    return r2   
+
 def counts_preds_vs_actual(mdl,loader,plot=False,ignore_zeros=False):
     """Plots predicted versus actual counts from the data and returns the R^2 value. Required: count dataloader and count model."""
+    
     assert mdl.count
     assert loader.dataset.count
     assert not mdl.mnist
@@ -393,12 +440,15 @@ def counts_preds_vs_actual(mdl,loader,plot=False,ignore_zeros=False):
     means = []
     actuals = []
     
-    for i, data in enumerate(tqdm(loader, disable=c.hide_tqdm_bar)):
+    if plot:
+        desc = "Plotting Counts vs Actuals"
+    else:
+        desc = "Calculating R2"
+        
+    for i, data in enumerate(tqdm(loader, disable=c.hide_tqdm_bar,desc=desc)):
         
         images,dmaps,labels,counts = data
-        
-#        if len(labels) == 0:
-#            continue
+
         
         if not mdl.gap:  
             num = 0

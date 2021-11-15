@@ -11,7 +11,7 @@ import os
 from datetime import datetime 
 
 from eval import eval_mnist, eval_model
-from utils import get_loss, plot_preds, counts_preds_vs_actual, t2np
+from utils import get_loss, plot_preds, counts_preds_vs_actual, t2np, torch_r2
 import model # importing entire file fixes 'cyclical import' issues
 #from model import CowFlow, MNISTFlow, select_feat_extractor, save_model #, save_weights
 
@@ -385,8 +385,8 @@ def train(train_loader,val_loader,battery = False,lr_i=c.lr_init,writer=None): #
                     print("\n")
                     print("Training Accuracy: ", train_acc,"| Epoch: ",l)
                     print("val Accuracy: ",val_acc,"| Epoch: ",l)
-                else:
-                    val_acc, train_acc = eval_model(mdl,val_loader,train_loader) # does nothing for now
+                #else:
+                    #val_acc, train_acc = eval_model(mdl,val_loader,train_loader) # does nothing for now
                 
                 if (c.save_model or battery) and c.checkpoints:
                     mdl.to('cpu')
@@ -404,18 +404,19 @@ def train(train_loader,val_loader,battery = False,lr_i=c.lr_init,writer=None): #
                     model_metric_dict['acc/meta_epoch_val'] = val_acc
                     
                 if writer != None and mdl.count:
-                    _,_,train_R2 = counts_preds_vs_actual(mdl,train_loader,plot=c.viz)
+                    train_R2 = torch_r2(mdl,train_loader)
                     writer.add_scalar('R2/meta_epoch_train',train_R2, l)
                     model_metric_dict['R2/meta_epoch_train'] = train_R2
                     
                     if c.verbose:
                         print("Train R2: ",train_R2)
                     
-                    writer.add_scalar('acc/meta_epoch_val',val_acc, l)
-                    model_metric_dict['acc/meta_epoch_val'] = val_acc
+                    # TODO (MAPE or RMSE)
+                    #writer.add_scalar('acc/meta_epoch_val',val_acc, l)
+                    #model_metric_dict['acc/meta_epoch_val'] = val_acc
                     
                     if c.validation:
-                        _,_,val_R2 = counts_preds_vs_actual(mdl,val_loader,plot=c.viz)
+                        val_R2 = torch_r2(mdl,val_loader)
                         writer.add_scalar('R2/meta_epoch_val',val_R2, l)
                         model_metric_dict['R2/meta_epoch_val'] = val_R2
                         
@@ -438,6 +439,10 @@ def train(train_loader,val_loader,battery = False,lr_i=c.lr_init,writer=None): #
             if c.viz:
             
                 plot_preds(mdl, val_loader, plot = True)
+                
+                if c.counts:
+                    print("Plotting Train R2")
+                    counts_preds_vs_actual(mdl,train_loader,plot=c.viz)
             
             # save final model, unless models are being saved at end of every meta peoch
             if c.save_model and not c.checkpoints:

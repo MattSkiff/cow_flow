@@ -37,7 +37,11 @@ from skimage import io
 from PIL import Image
 
 import config as c
+import gvars as g
 from utils import UnNormalize
+
+# save numpy array as npz file
+from numpy import savez_compressed, load
 
 proj_dir = c.proj_dir
 random_flag = False
@@ -48,7 +52,7 @@ mk_size = 25
 
 class CowObjectsDataset(Dataset):
     """Cow Objects dataset."""
-
+    
     def __init__(self, root_dir,transform=None,convert_to_points=False,generate_density=False,count=False,classification=False,ram=False):
         """
         Args:
@@ -71,6 +75,14 @@ class CowObjectsDataset(Dataset):
         self.count = count
         self.classification = classification
         self.ram = ram
+        
+        self.images = []
+        self.annotations_list = []
+        self.density_list = []
+        self.labels_list = []
+        self.count_list = []
+        self.binary_labels_list = []
+        self.im_names = []
         
         names = []
         with open(os.path.join(self.root_dir,"object.names")) as f:
@@ -100,14 +112,143 @@ class CowObjectsDataset(Dataset):
             # and everything prior will be discarded
             # https://stackoverflow.com/questions/1945920/why-doesnt-os-path-join-work-in-this-case
             train_im_paths.append(os.path.join(self.root_dir,'obj/',line.strip()))
+            self.im_names.append(line)
             
         self.train_im_paths = train_im_paths
         
-        if self.ram:
-            self.images = []
-            for img_path in tqdm(self.train_im_paths,desc="Loading files in RAM"): 
+        def compute_labels(idx):
+            
+            """ computes and returns labels for a single annotation file"""
+            labels = []
+            img_path = os.path.join(self.root_dir,
+                                    self.train_im_paths[idx])
+            txt_path = img_path[:-3]+'txt'
+            image = io.imread(img_path)
+            
+            # check if annotations file is empty
+            header_list = ['class', 'x', 'y', 'width', 'height']
+            
+            with open(txt_path) as annotations:
+                count = len(annotations.readlines())
+            
+            dmap_path = g.DMAP_DIR+self.im_names[idx]
+            
+            if c.load_stored_dmaps:
+                if not os.path.exists(dmap_path):
+                    ValueError("Dmaps must have been previously stored!")
                 
-                self.images.append(io.imread(img_path))
+                store = load(dmap_path[:-4]+'npz',allow_pickle=True)
+                density_map = store['arr_0'][0]
+                labels = store['arr_0'][1]
+                annotations = store['arr_0'][2]
+                    
+            else:
+            
+                if count == 0:
+                        
+                    annotations = np.array([])
+                    density_map = np.zeros((c.img_size[1], c.img_size[0]), dtype=np.float32)
+                    
+                else:        
+                    annotations = pd.read_csv(txt_path,names=header_list,delim_whitespace=True)
+                    annotations = annotations.to_numpy()
+                    
+                    if self.points:
+                        # convert annotations to points 
+                        # delete height and width columns, which won't be used in density map
+                        # becomes: <object-class> <centre-x> <centre-y>
+                        annotations = np.delete(arr = annotations,obj = [3,4],axis = 1) # np 2d: row = axis 0, col = axis 1
+                        
+                    if self.density:
+                        if not self.points:
+                            print("Generation of maps requires conversion to points")
+                            
+                        assert self.points  
+                        
+                        # running gaussian filter over points as in crowdcount mcnn
+                        # https://github.com/svishwa/crowdcount-mcnn/blob/master/data_preparation/get_density_map_gaussian.m
+                        # https://stackoverflow.com/questions/17190649/how-to-obtain-a-gaussian-filter-in-python
+                        
+                        # map generation
+                        # set density map image size equal to data image size
+                        
+                        density_map = np.zeros((c.img_size[1], c.img_size[0]), dtype=np.float32)
+                       
+                        # add points onto basemap
+                        for point in annotations:
+                            # error introduced here as float position annotation centre converted to int
+                            base_map = np.zeros((c.img_size[1], c.img_size[0]), dtype=np.float32)
+                            
+                            if c.debug_dataloader:
+                                print(point)
+                                
+                            # subtract 1 to account for 0 indexing
+                            base_map[int(round(point[2]*c.img_size[1])-1),int(round(point[1]*c.img_size[0])-1)] += 1
+        
+                            density_map += scipy.ndimage.filters.gaussian_filter(base_map, sigma = c.sigma, mode='constant')
+                            
+                            labels.append(point[0])
+                            
+                            if c.debug_dataloader:
+                                print("base map sum ",base_map.sum())
+                                print("density map sum ",density_map.sum())    
+                                
+                labels = np.array(labels) # list into default collate function produces empty tensors
+                
+                # store dmaps/labels/annotations
+                if c.store_dmaps:
+                    if not os.path.exists(g.DMAP_DIR):
+                        os.makedirs(g.DMAP_DIR)
+                    
+                    store = [density_map,labels,annotations]
+                    savez_compressed(dmap_path[:-5],store)
+            
+            sample = {'image': image}
+            
+            if not self.density:
+                sample['annotations'] = annotations
+                
+            if self.density and not self.count:  
+                sample['density'] = density_map; sample['labels'] = labels
+                
+            if self.count:
+                sample['counts'] = torch.as_tensor(count).float().to(c.device)
+            
+            if self.classification:
+                positive = (len(annotations) == 0)
+                sample['binary_labels'] = torch.tensor(positive).type(torch.LongTensor).to(c.device)
+                
+            return sample
+        
+        self.compute_labels = compute_labels
+        
+        if self.ram:
+
+            # for img_path in tqdm(self.train_im_paths,desc="Loading aerial images into RAM"): 
+                
+            #     self.images.append(io.imread(img_path))
+            
+            if ram and c.load_stored_dmaps:
+                desc = "Loading images, annotations, dmaps and labels into RAM"
+            elif ram and c.store_dmaps:
+                desc = "Storing dmaps, annotations and labels to file"
+            
+            for idx in tqdm(range(len(self.train_im_paths)),desc=desc):
+                
+                sample = compute_labels(idx)
+                
+                self.images.append(sample['image'])
+                
+                if not self.density:
+                    self.annotations_list.append(sample['annotations'])
+                if self.density and not self.count:  
+                    self.density_list.append(sample['density'])
+                    self.labels_list.append(sample['labels'])
+                if self.count:
+                    self.count_list.append(sample['counts'])
+                if self.classification:
+                    self.binary_labels_list.append(sample['binary_labels'])
+        
         
     def __len__(self):
         if self.ram:
@@ -115,6 +256,7 @@ class CowObjectsDataset(Dataset):
         else:
             with open(os.path.join(self.root_dir,"train.txt")) as f:
                       train_ims = f.readlines()
+                      
             out = len(train_ims)
         
         return out
@@ -123,97 +265,29 @@ class CowObjectsDataset(Dataset):
         if torch.is_tensor(idx):
             idx = idx.tolist()
 
-        labels = []
-
-        img_path = os.path.join(self.root_dir,
-                                self.train_im_paths[idx])
-        
-        txt_path = img_path[:-3]+'txt'
-
+        sample = {}
         # yolo object annotation columns
         # <object-class> <x> <y> <width> <height>
         if self.ram:
-            image = self.images[idx]
-        else:
-            image = io.imread(img_path)
-        
-        # check if annotations file is empty
-        header_list = ['class', 'x', 'y', 'width', 'height']
-        
-        positive = True
-        
-        if os.stat(txt_path).st_size == 0:
             
+            sample['image'] = self.images[idx]
+            
+            if not self.density:
+                sample['annotations'] = self.annotations_list[idx]
+            if self.density and not self.count:  
+                sample['density'] = self.density_list[idx]
+                sample['labels'] = self.labels_list[idx]
+            if self.count:
+                sample['counts'] = self.count_list[idx]
             if self.classification:
-                positive = False
+                sample['binary_labels'] = self.binary_labels_list[idx]
                 
-            annotations = np.array([])
-            density_map = np.zeros((c.img_size[1], c.img_size[0]), dtype=np.uint8)
-        else:        
-            annotations = pd.read_csv(txt_path,names=header_list,delim_whitespace=True)
-            annotations = annotations.to_numpy()
+        else:
+            sample = self.compute_labels(idx)
             
-            if self.points:
-                # convert annotations to points 
-                # delete height and width columns, which won't be used in density map
-                # becomes: <object-class> <centre-x> <centre-y>
-                annotations = np.delete(arr = annotations,obj = [3,4],axis = 1) # np 2d: row = axis 0, col = axis 1
-                
-            if self.density:
-                if not self.points:
-                    print("Generation of maps requires conversion to points")
-                    
-                assert self.points  
-                
-                # running gaussian filter over points as in crowdcount mcnn
-                # https://github.com/svishwa/crowdcount-mcnn/blob/master/data_preparation/get_density_map_gaussian.m
-                # https://stackoverflow.com/questions/17190649/how-to-obtain-a-gaussian-filter-in-python
-                
-                # map generation
-                # set density map image size equal to data image size
-                # gauss2dkern = matlab_style_gauss2D(shape = (c.filter_size,c.filter_size),sigma = c.sigma)
-                density_map = np.zeros((c.img_size[1], c.img_size[0]), dtype=np.float32)
-               
-                # add points onto basemap
-                for point in annotations:
-                    # error introduced here as float position annotation centre converted to int
-                    
-                    base_map = np.zeros((c.img_size[1], c.img_size[0]), dtype=np.float32)
-                    
-#                    if c.debug:
-#                        print(point)
-                        
-                    # subtract 1 to account for 0 indexing
-                    base_map[int(round(point[2]*c.img_size[1])-1),int(round(point[1]*c.img_size[0])-1)] += 1
-                    density_map += scipy.ndimage.filters.gaussian_filter(base_map, sigma = c.sigma, mode='constant')
-                    
-                    labels.append(point[0])
-                    
-#                    if c.debug:
-#                        print("base map sum ",base_map.sum())
-#                        print("density map sum ",density_map.sum())            
-                
-        labels = np.array(labels) # list into default collate function produces empty tensors
-        
-        sample = {'image': image}
-        
-        if not self.density:
-             {'annotations': annotations}
-            
-        if self.density and not self.count:  
-            sample['density'] = density_map; sample['labels'] = labels
-            
-        if self.count:
-            count_tensor = torch.as_tensor(np.array(density_map.sum()).astype(float))
-            sample['counts'] = count_tensor
-        
-        if self.classification:
-            
-            sample['binary_labels'] = torch.tensor(positive).type(torch.LongTensor)
-        
         if self.transform:
             sample = self.transform(sample)
-
+            
         return sample
 
     def get_annotations(self, idx):
@@ -330,13 +404,14 @@ class CowObjectsDataset(Dataset):
         
         if self.density:
                 im = sample['image']
+                dmap = sample['density'].cpu().numpy()
                 
                 unnorm = UnNormalize(mean =tuple(c.norm_mean),std=tuple(c.norm_std))
                 im = unnorm(im)
                 im = im.permute(1,2,0).cpu().numpy()
                 
                 fig, ax = plt.subplots(1,2)
-                ax[0].imshow(sample['density'], cmap='viridis', interpolation='nearest')
+                ax[0].imshow(dmap, cmap='viridis', interpolation='nearest')
                 ax[1].imshow((im * 255).astype(np.uint8))
         else:
             """Show image with landmarks"""
@@ -452,7 +527,7 @@ class CowObjectsDataset(Dataset):
                 labels.append(b['labels'])
             
             if self.count:
-                counts.append(b['counts'])
+                counts.append(b['counts']) 
                 
             if self.classification:
                  binary_labels.append(b['binary_labels'])
@@ -499,11 +574,12 @@ class CustToTensor(object):
         # swap color axis because
         # numpy image: H x W x C
         # torch image: C x H x W
+        image = torch.from_numpy(image)
+        image = image.permute(2,0,1)
+
         if c.debug:
             print("image transposed from numpy format")
             print("Image rescaled to 0-1 range")
-        
-        image = image.transpose((2, 0, 1))
         
         # since we are skipping pytorch ToTensor(), we need to manually scale to 0-1
         # RGB normalization
@@ -512,20 +588,16 @@ class CustToTensor(object):
         # code: https://discuss.pytorch.org/t/how-to-efficiently-normalize-a-batch-of-tensor-to-0-1/65122/5
         
         # edit: normalization is v. simply - simply divide by 255
-        image = torch.from_numpy(image).float().div(255)
+        image = image.float().div(255).to(c.device)
         
-        # add random noise to prevent NaNs from cases where min=max (0 division)
-#        image += torch.rand(image.size()[0],image.size()[1],image.size()[2]) / 100
-#        image = (image-image.min(0)[0])/image.max(0)[0]
-        
-        sample['image'] =  image
+        sample['image'] =  image.float()
         
         if 'density' in sample.keys():
-            sample['density'] = torch.from_numpy(sample['density'])
+            sample['density'] = torch.from_numpy(sample['density']).to(c.device)
         if 'annotations' in sample.keys():
-            sample['annotations'] = torch.from_numpy(sample['annotations'])
+            sample['annotations'] = torch.from_numpy(sample['annotations']).to(c.device)
         if 'labels' in sample.keys():
-            sample['labels'] = torch.from_numpy(sample['labels'])
+            sample['labels'] = torch.from_numpy(sample['labels']).to(c.device)
 
         return sample
     
@@ -533,6 +605,10 @@ class AerialNormalize(object):
     """Call Normalize transform only on images ."""
 
     def __call__(self, sample):
+        
+        if c.debug_dataloader:
+            print('aerial normalize size')
+            print(sample['image'].size())
             
         sample['image'] = TF.normalize(sample['image'], 
                                        mean = c.norm_mean,
@@ -551,10 +627,11 @@ class DmapAddUniformNoise(object):
         # https://stackoverflow.com/questions/44328530/how-to-get-a-uniform-distribution-in-a-range-r1-r2-in-pytorch
         
         if 'density' in sample.keys():
-            sample['density'] = sample['density'] + torch.FloatTensor(sample['density'].size()).uniform_(self.r1, self.r2)
+            pass
+            sample['density'] =  sample['density'] + torch.FloatTensor(sample['density'].size()).uniform_(self.r1, self.r2).to(c.device)
         
-        if c.debug:
-            print("uniform noise ({},{}) added".format(self.r1, self.r2))
+            if c.debug:
+                print("uniform noise ({},{}) added to dmap".format(self.r1, self.r2))
         
         return sample
     
@@ -694,11 +771,10 @@ def train_val_split(dataset,train_percent,balanced = False,annotations_only = Fa
     v = list(zip(v_indices, v_weights))
     
     random.shuffle(t)
-    train_indices, train_weights = zip(*t)
+    t_indices, t_weights = zip(*t)
     
     random.shuffle(v)
-    val_indices, val_weights = zip(*v)
-    
+    v_indices, v_weights = zip(*v)
  
     t_indices = t_indices[:round(c.data_prop*len(t_indices))]
     t_weights = t_weights[:round(c.data_prop*len(t_weights))]
@@ -710,17 +786,6 @@ def train_val_split(dataset,train_percent,balanced = False,annotations_only = Fa
         print("Finished creating indicies")
     
     return t_indices, t_weights, v_indices, v_weights
-
-# TODO
-# class Normalize(object):
-#     """Normalise ndarrays in sample"""
-    
-#     def __call__(self, sample):
-#         image, annotations = sample['image'], sample['annotations']
-        
-#         image = image.transpose((2, 0, 1))
-#         return {'image': torch.from_numpy(image),
-#                 'annotations': torch.from_numpy(annotations)
 
 # demonstrate class and methods:
 if demo:
