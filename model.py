@@ -316,19 +316,28 @@ def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,m
         nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling'))
         
     elif not c.counts and c.feat_extractor != 'none' and c.downsampling:
+        
+        if c.scale == 1:
+            n_ds = 5
+        elif c.scale == 2:
+            n_ds = 4
+        elif c.scale == 4:
+            n_ds = 3
         # downsamples density maps (not needed for counts)
-        nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling1'))
-        nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling2'))
-        nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling3'))
-        nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling4'))
-        nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling5'))
-    
+        for i in range(n_ds):
+            nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling{}'.format(i+1)))
+
     for k in range(c.n_coupling_blocks):
         if c.verbose:
             print("creating layer {:d}".format(k))
+            
+        if not c.downsampling:
+            multiplier = 4
+        else:
+            multiplier = 4**n_ds
         
         if not (c.counts and c.subnet_type == 'fc') and c.fixed1x1conv:
-            nodes.append(Ff.Node(nodes[-1], Fm.Fixed1x1Conv,{'M': random_orthog(c.channels*4).to(c.device) }, name='1x1_conv_{}'.format(k)))
+            nodes.append(Ff.Node(nodes[-1], Fm.Fixed1x1Conv,{'M': random_orthog(c.channels*multiplier).to(c.device) }, name='1x1_conv_{}'.format(k)))
         else:
             nodes.append(Ff.Node(nodes[-1], Fm.PermuteRandom, {'seed': k}, name='permute_{}'.format(k)))
         
@@ -387,6 +396,7 @@ class CowFlow(nn.Module):
         self.density_map_h = c.density_map_h
         self.density_map_w = c.density_map_w
         self.downsampling = c.downsampling
+        self.scale = c.scale
 
     def forward(self,images,labels,rev=False): # label = dmaps or counts
         # no multi-scale architecture (yet) as per differnet paper
@@ -431,7 +441,7 @@ class CowFlow(nn.Module):
             feats = torch.cat(feat_cat) # concatenation (does nothing at single scale feature extraction)
 
         if c.debug and not c.pyramid: 
-            print("concatenated and pooled feature size..")
+            print("concatenated and pooled:{} feature size..".format(c.gap))
             print(feats.size(),"\n")
         
         # adding spatial dimensions....

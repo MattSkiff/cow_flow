@@ -21,13 +21,13 @@ weighted = True # whether to weight minibatch samples
 annotations_only = False # whether to only use image patches that have annotations
 test_run = False # use only a small fraction of data to check everything works
 validation = True # whether to run validation per meta epoch
-data_prop = 1 # proportion of the full dataset to use     
+data_prop = 0.1 # proportion of the full dataset to use
 test_train_split = 70 # percentage of data to allocate to train set
 
 ## Density Map Options ------
 filter_size = 15 # as per single image mcnn paper
 sigma = 4.0 # "   -----    " 
-scale = 4 # 4, 2 = downscale dmaps four/two fold, 1 = unchanged
+scale = 1 # 4, 2 = downscale dmaps four/two fold, 1 = unchanged
 
 ## Feature Extractor Options ------
 pretrained = True
@@ -40,9 +40,9 @@ load_feat_extractor_str = '' # '' to train from scratch, loads FE
 ## Architecture Options ------
 fixed1x1conv = True 
 pyramid = False # only implemented for resnet18
-gap = True # global average pooling
-downsampling = False # whether to downsample (5 ds layers) dmaps by converting spatial dims to channel dims
-n_coupling_blocks = 2
+gap = False # global average pooling
+downsampling = True # whether to downsample (5 ds layers) dmaps by converting spatial dims to channel dims
+n_coupling_blocks = 4
 
 ## Subnet Architecture Options
 subnet_type = 'conv' # options = fc, conv
@@ -64,13 +64,13 @@ batch_size = [4] # actual batch size is this value multiplied by n_transforms(_t
 
 # total epochs = meta_epochs * sub_epochs
 # evaluation after <sub_epochs> epochs
-meta_epochs = 5
+meta_epochs = 1
 sub_epochs = 1
 
 ## Output Settings ----
-schema = 'new_features_test' # if debug, ignored
-debug = False # report loads of info/debug info
-tb = True # write metrics, hyper params to tb files
+schema = 'test_downsampling_works' # if debug, ignored
+debug = True # report loads of info/debug info
+tb = False # write metrics, hyper params to tb files
 verbose = False # report stats per sub epoch and other info
 report_freq = -1 # nth minibatch to report minibatch loss on (1 = always,-1 = turn off)
 viz = False # visualise outputs and stats
