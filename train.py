@@ -22,7 +22,7 @@ import gvars as g
 from torch.utils.tensorboard import SummaryWriter
 
 def train_battery(train_loader,val_loader,lr_i = c.lr_init):
-        
+        assert c.train_model
         print("Starting battery: ",str(datetime.now().strftime("%d/%m/%Y %H:%M:%S")))
         t1 = time.perf_counter()
         
@@ -59,7 +59,7 @@ def train_battery(train_loader,val_loader,lr_i = c.lr_init):
                 
 
 def train(train_loader,val_loader,battery = False,lr_i=c.lr_init,writer=None): #def train(train_loader, test_loader):
-    
+            assert c.train_model
             if c.debug:
                 torch.autograd.set_detect_anomaly(True)
     
@@ -472,7 +472,7 @@ def train(train_loader,val_loader,battery = False,lr_i=c.lr_init,writer=None): #
  
 # from pytorch tutorial...           
 def train_feat_extractor(feat_extractor,trainloader,valloader,criterion = nn.CrossEntropyLoss()):
-    
+    assert c.train_model
     if c.verbose:
         print("Finetuning feature extractor...")
     

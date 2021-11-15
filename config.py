@@ -17,8 +17,8 @@ counts = False # must be off for pretraining feature extractor (#TODO)
 ## Training Options ------
 train_model = True # (if false, will only prep dataset,dataloaders)
 balanced = False # whether to have a 1:1 mixture of empty:annotated images
-weighted = True # whether to weight minibatch samples
-annotations_only = False # whether to only use image patches that have annotations
+weighted = False # whether to weight minibatch samples
+annotations_only = True # whether to only use image patches that have annotations
 test_run = False # use only a small fraction of data to check everything works
 validation = True # whether to run validation per meta epoch
 data_prop = 0.1 # proportion of the full dataset to use
@@ -27,7 +27,7 @@ test_train_split = 70 # percentage of data to allocate to train set
 ## Density Map Options ------
 filter_size = 15 # as per single image mcnn paper
 sigma = 4.0 # "   -----    " 
-scale = 1 # 4, 2 = downscale dmaps four/two fold, 1 = unchanged
+scale = 4 # 4, 2 = downscale dmaps four/two fold, 1 = unchanged
 
 ## Feature Extractor Options ------
 pretrained = True
@@ -42,7 +42,7 @@ fixed1x1conv = True
 pyramid = False # only implemented for resnet18
 gap = False # global average pooling
 downsampling = True # whether to downsample (5 ds layers) dmaps by converting spatial dims to channel dims
-n_coupling_blocks = 4
+n_coupling_blocks = 8
 
 ## Subnet Architecture Options
 subnet_type = 'conv' # options = fc, conv
@@ -54,13 +54,13 @@ dropout_p = 0.0 # fc - 0 for no dropout
 # Hyper Params and Optimisation ------
 joint_optim = True # jointly optimse feature extractor and flow
 scheduler = 'none' # exponential, none
-weight_decay = 1e-4 # differnet: 1e-5
+weight_decay = 1e-3 # differnet: 1e-5
 clip_value = 1 # gradient clipping
 clamp_alpha = 1.9 
 
 # vectorised params must always be passed as lists
 lr_init = [2e-3]
-batch_size = [4] # actual batch size is this value multiplied by n_transforms(_test)
+batch_size = [6] # actual batch size is this value multiplied by n_transforms(_test)
 
 # total epochs = meta_epochs * sub_epochs
 # evaluation after <sub_epochs> epochs
@@ -68,13 +68,13 @@ meta_epochs = 1
 sub_epochs = 1
 
 ## Output Settings ----
-schema = 'test_downsampling_works' # if debug, ignored
-debug = True # report loads of info/debug info
-tb = False # write metrics, hyper params to tb files
-verbose = False # report stats per sub epoch and other info
+schema = 'error_replicate' # if debug, ignored
+debug = False # report loads of info/debug info
+tb = True # write metrics, hyper params to tb files
+verbose = True # report stats per sub epoch and other info
 report_freq = -1 # nth minibatch to report minibatch loss on (1 = always,-1 = turn off)
 viz = False # visualise outputs and stats
-hide_tqdm_bar = False
+hide_tqdm_bar = True
 save_model = True # also saves a copy of the config file with the name of the model
 checkpoints = False # saves after every meta epoch
 

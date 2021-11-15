@@ -224,16 +224,24 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
                 
                 if not mdl.mnist:
                     # TODO - remove hard coding dims here
-                    if (loader.dataset.count and not mdl.gap) or (not c.downsampling and c.subnet_type == 'conv'):
+                    if (loader.dataset.count and not mdl.gap) or (not mdl.downsampling and mdl.subnet_type == 'conv'):
                         dummy_z = (randn(loader.batch_size,c.channels*4,(c.density_map_h) // 2,(c.density_map_w) // 2)).to(c.device) 
                     elif loader.dataset.count and mdl.gap:
                         dummy_z = (randn(loader.batch_size,1)).to(c.device) 
-                    elif c.downsampling: # self.downsampling
-                        in_channels = 1024
+                    elif mdl.downsampling: # self.downsampling
+                        
+                        if mdl.scale == 1:
+                            n_ds = 5
+                        elif mdl.scale == 2:
+                            n_ds = 4
+                        elif mdl.scale == 4:
+                            n_ds = 3
+                            
+                        in_channels = c.channels*4**n_ds
                         ft_dims = ft_dims_select(mdl)
+                        
                         if mdl.feat_extractor.__class__.__name__ == 'NothingNet':
                             in_channels = 2                      
-                        
                         
                         dummy_z = (randn(loader.batch_size, in_channels,ft_dims[0],ft_dims[1])).to(c.device)
                 else:
