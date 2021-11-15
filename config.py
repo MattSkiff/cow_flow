@@ -10,12 +10,12 @@ gpu = True
 ## Dataset Options ------
 mnist = False 
 load_stored_dmaps = False # speeds up precomputation (with RAM = True)
-store_dmaps = True # this will save dmap objects (numpy arrays) to file
-ram = True # load aerial imagery and precompute dmaps and load both into ram before training
+store_dmaps = False # this will save dmap objects (numpy arrays) to file
+ram = False # load aerial imagery and precompute dmaps and load both into ram before training
 counts = False # must be off for pretraining feature extractor (#TODO)
 
 ## Training Options ------
-train_model = False # (if false, will only prep dataset,dataloaders)
+train_model = True # (if false, will only prep dataset,dataloaders)
 balanced = False # whether to have a 1:1 mixture of empty:annotated images
 weighted = False # whether to weight minibatch samples
 annotations_only = False # whether to only use image patches that have annotations
@@ -27,7 +27,7 @@ test_train_split = 70 # percentage of data to allocate to train set
 ## Density Map Options ------
 filter_size = 15 # as per single image mcnn paper
 sigma = 4.0 # "   -----    " 
-scale = 1 # 4, 2 = downscale dmaps four/two fold, 1 = unchanged
+scale = 4 # 4, 2 = downscale dmaps four/two fold, 1 = unchanged
 
 ## Feature Extractor Options ------
 pretrained = False
@@ -64,7 +64,7 @@ batch_size = [4] # actual batch size is this value multiplied by n_transforms(_t
 
 # total epochs = meta_epochs * sub_epochs
 # evaluation after <sub_epochs> epochs
-meta_epochs = 1
+meta_epochs = 2
 sub_epochs = 1
 
 ## Output Settings ----
@@ -80,6 +80,7 @@ checkpoints = False # saves after every meta epoch
 
 # debug opts
 debug_dataloader = False
+debug_utils = False
 
 # nb: same as the defaults specified for the pretrained pytorch model zoo
 norm_mean, norm_std = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225] 

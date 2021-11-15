@@ -1,10 +1,6 @@
 # we are following the YOLO format for data formatting and bounding box annotations
 # see here: https://github.com/AlexeyAB/Yolo_mark/issues/60 for a description
 
-# edited from:
-# https://pytorch.org/tutorials/beginner/data_loading_tutorial.html
-# Author: Sasank Chilamkurthy
-
 # edit tutorial to work for object annotations and YOLO format
 import os 
 import torch 
@@ -15,7 +11,7 @@ from tqdm import tqdm # progress bar
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
-# silent warning on 447 (torch.stack(images))
+# silent warning on (torch.stack(images))
 import warnings
 warnings.filterwarnings("ignore", message=r"Passing", category=FutureWarning)
 
@@ -26,11 +22,6 @@ from torch.utils.data import Dataset, DataLoader
 
 import torchvision.transforms.functional as TF
 import torch.nn.functional as F
-
-# transforms = todo
-#from torchvision import transforms
-#from skimage import transform
-#from sklearn.preprocessing import normalize # normalise data
 
 from torchvision import utils
 from skimage import io
@@ -232,6 +223,8 @@ class CowObjectsDataset(Dataset):
                 desc = "Loading images, annotations, dmaps and labels into RAM"
             elif ram and c.store_dmaps:
                 desc = "Storing dmaps, annotations and labels to file"
+            elif ram:
+                desc = "Computing dmaps, annotations and labels and storing into RAM"
             
             for idx in tqdm(range(len(self.train_im_paths)),desc=desc):
                 
