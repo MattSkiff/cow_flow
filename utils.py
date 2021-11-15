@@ -95,7 +95,8 @@ class UnNormalize(object):
         return tensor      
 
 # TODO split into minst and non mnist funcs
-def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=True,sampling="randn",plot_n=None):
+@torch.no_grad()
+def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=True,sampling="randn",plot_n=None,writer=None,writer_epoch=None,writer_mode=None):
     
     assert type(loader) == torch.utils.data.dataloader.DataLoader
     
@@ -151,7 +152,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
     
     def inner_func(mdl=mdl,hist=hist):
         
- 
+        plt.switch_backend('agg') # for tensorboardx
         idx = random.randint(0,len(loader)-1)
         
         k = 0
@@ -161,8 +162,8 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
         for i, data in enumerate(tqdm(loader, disable=c.hide_tqdm_bar)):
             
             # TODO - broken - filename doesn't match image
-#            if not mdl.mnist:
-#                sample_fname = loader.dataset.train_im_paths[i]
+    #            if not mdl.mnist:
+    #                sample_fname = loader.dataset.train_im_paths[i]
             
             if mdl.mnist:
                 images,labels = data
@@ -170,11 +171,13 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
                 images,dmaps,labels,counts = data
             else:
                 images,dmaps,labels = data
+                
+            dmaps = dmaps.cpu()
             
             lb_idx = random.randint(0,loader.batch_size-1)
                 
             if mdl.count: #  or # TODO
-
+    
                 # check annotations in batch aren't empty
                 lb_idx = None
                  
@@ -208,7 +211,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
                         break
                     else:
                         j = j + 1
-
+    
                 if lb_idx == None:
                     continue  
             
@@ -254,6 +257,9 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
                 mdl = mdl.to(c.device)
                 x, log_det_jac = mdl(images,dummy_z,rev=True)
                 
+                if c.debug_utils:
+                    print("\nsampled from model\n")
+                
                 if lb_idx == None:
                     lb_idx = 0
                 
@@ -286,17 +292,13 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
                         x = torch.mode(x,dim = 0).values.cpu().detach().numpy()
                     
                     # TODO!
-                    if mdl.mnist or c.subnet_type == 'conv':
-                        sum_pred = x[lb_idx].sum()
-                    elif c.subnet_type == 'fc' and mdl.gap:  
+                    if mdl.mnist or mdl.subnet_type == 'conv':
+                        sum_pred = x.sum() #[lb_idx]
+                    elif mdl.subnet_type == 'fc' and mdl.gap:  
                         mode = x
                         sum_pred = x
-
-                    print(x)
                         
                     if plot:
-                        
-                        #assert mdl.subnet_type != 'fc'
                         
                         if mdl.unconditional: 
                             hist = False
@@ -304,7 +306,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
                         n_plots = 3+hist-mdl.mnist-mdl.count
                                
                         fig, ax = plt.subplots(n_plots,1)
-                        plt.ioff()
+                        #plt.ioff()
                         
                         if mdl.mnist:
                             fig.suptitle('{} \n mode of reconstruction: {}'.format(title,str(mode)),y=1.0,fontsize=24) # :.2f
@@ -352,6 +354,10 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
                                     ax[3].hist(dmap_rev_np.flatten(),bins = 30)
                             
                         
+                        if writer != None:
+                            writer.add_figure('{} Dmap Pred: epoch {}'.format(writer_mode,writer_epoch), fig)
+                        
+                        # saving and outs
                         if save:
                             if not os.path.exists(g.VIZ_DIR):
                                 os.makedirs(g.VIZ_DIR)
@@ -375,7 +381,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
                                 return out
                         else:
                             return out
-                            
+                                
     out = inner_func()       
 
     return out

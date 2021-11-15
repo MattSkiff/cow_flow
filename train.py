@@ -329,6 +329,7 @@ def train(train_loader,val_loader,battery = False,lr_i=c.lr_init,writer=None): #
                     
                     if writer != None:
                         writer.add_scalar('loss/epoch_train',mean_train_loss, j)
+                        plot_preds(mdl,train_loader,writer=writer,writer_epoch=j,writer_mode='train')
                     
                     if c.validation: 
                         val_loss = list()
@@ -377,6 +378,7 @@ def train(train_loader,val_loader,battery = False,lr_i=c.lr_init,writer=None): #
                         
                         if writer != None:
                             writer.add_scalar('loss/epoch_val',mean_val_loss, j)
+                            plot_preds(mdl,val_loader,writer=writer,writer_epoch=j,writer_mode='val')
                             
                         j += 1
                 
