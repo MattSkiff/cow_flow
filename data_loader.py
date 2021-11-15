@@ -530,7 +530,9 @@ class CowObjectsDataset(Dataset):
         if 'density' in b.keys():
             density = torch.stack(density,dim = 0)
         if 'labels' in b.keys():
-            labels = np.array(labels, dtype=object)
+            # TODO
+            #labels = np.array(labels, dtype=object)
+            labels = labels
         
         if self.count:
             counts = torch.stack(counts,dim = 0)

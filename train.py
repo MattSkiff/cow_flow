@@ -97,6 +97,9 @@ def train(train_loader,val_loader,battery = False,lr_i=c.lr_init,writer=None): #
             if c.mnist:
                 parts.append('MNIST')
                 
+            if c.scale != 1:
+                parts.append('SC_{}'.format(c.scale))
+                
             if c.dropout_p != 0:
                 parts.append('DP_{}'.format(c.dropout_p))
                 
@@ -133,6 +136,7 @@ def train(train_loader,val_loader,battery = False,lr_i=c.lr_init,writer=None): #
                                 'image width':c.density_map_w,
                                 'joint optimisation?':c.joint_optim,
                                 'global average pooling?':c.gap,
+                                'scale:':c.scale,
                                 'annotations only?':c.annotations_only,
                                 'pretrained?':c.pretrained,
                                 'feature pyramid?':c.pyramid,
