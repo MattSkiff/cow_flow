@@ -9,13 +9,13 @@ gpu = True
 
 ## Dataset Options ------
 mnist = False 
-load_stored_dmaps = True # speeds up precomputation (with RAM = True)
-store_dmaps = False # this will save dmap objects (numpy arrays) to file
+load_stored_dmaps = False # speeds up precomputation (with RAM = True)
+store_dmaps = True # this will save dmap objects (numpy arrays) to file
 ram = True # load aerial imagery and precompute dmaps and load both into ram before training
 counts = False # must be off for pretraining feature extractor (#TODO)
 
 ## Training Options ------
-train = False # (if false, will only prep dataset,dataloaders)
+train_model = False # (if false, will only prep dataset,dataloaders)
 balanced = False # whether to have a 1:1 mixture of empty:annotated images
 weighted = False # whether to weight minibatch samples
 annotations_only = False # whether to only use image patches that have annotations
@@ -194,7 +194,7 @@ if load_stored_dmaps or store_dmaps:
     assert ram
  
 if store_dmaps:
-    assert not train    
+    assert not train_model 
 
 if subnet_type == 'conv':
     assert dropout_p == 0
