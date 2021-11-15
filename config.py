@@ -7,20 +7,26 @@ import arguments as a
 
 gpu = True
 
-## Data Options ------
+## Dataset Options ------
 mnist = False 
-counts = True # must be off for pretraining feature extractor (#TODO)
+load_stored_dmaps = True # speeds up precomputation (with RAM = True)
+store_dmaps = False # this will save dmap objects (numpy arrays) to file
+ram = True # load aerial imagery and precompute dmaps and load both into ram before training
+counts = False # must be off for pretraining feature extractor (#TODO)
+
+## Training Options ------
+train = False # (if false, will only prep dataset,dataloaders)
 balanced = False # whether to have a 1:1 mixture of empty:annotated images
 weighted = False # whether to weight minibatch samples
-annotations_only = True # whether to only use image patches that have annotations
+annotations_only = False # whether to only use image patches that have annotations
 test_run = False # use only a small fraction of data to check everything works
-validation = True # whether to run validation per meta epoch
+validation = False # whether to run validation per meta epoch
 data_prop = 0.1 # proportion of the full dataset to use     
 test_train_split = 70 # percentage of data to allocate to train set
 
 ## Density Map Options ------
-filter_size = 45 # as per single image mcnn paper
-sigma = 12.0 # "   -----    " 
+filter_size = 15 # as per single image mcnn paper
+sigma = 4.0 # "   -----    " 
 scale = 1 # 4, 2 = downscale dmaps four/two fold, 1 = unchanged
 
 ## Feature Extractor Options ------
@@ -39,7 +45,7 @@ downsampling = False # whether to downsample (5 ds layers) dmaps by converting s
 n_coupling_blocks = 2
 
 ## Subnet Architecture Options
-subnet_type = 'fc' # options = fc, conv
+subnet_type = 'conv' # options = fc, conv
 filters = 32 # conv ('64' recommended min)
 batchnorm = False # conv
 width = 400 # fc ('128' recommended min)
@@ -62,15 +68,18 @@ meta_epochs = 1
 sub_epochs = 1
 
 ## Output Settings ----
-schema = '1x1_test' # if debug, ignored
+schema = 'gpu_util_test' # if debug, ignored
 debug = False # report loads of info/debug info
 tb = True # write metrics, hyper params to tb files
-verbose = True # report stats per sub epoch and other info
+verbose = False # report stats per sub epoch and other info
 report_freq = -1 # nth minibatch to report minibatch loss on (1 = always,-1 = turn off)
-viz = True # visualise outputs and stats
-hide_tqdm_bar = True
-save_model = True # also saves a copy of the config file with the name of the model
+viz = False # visualise outputs and stats
+hide_tqdm_bar = False
+save_model = False # also saves a copy of the config file with the name of the model
 checkpoints = False # saves after every meta epoch
+
+# debug opts
+debug_dataloader = False
 
 # nb: same as the defaults specified for the pretrained pytorch model zoo
 norm_mean, norm_std = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225] 
@@ -177,7 +186,16 @@ if subnet_type == 'fc':
     assert gap
     assert mnist or counts
     assert not fixed1x1conv
-    
+
+assert not (load_stored_dmaps and store_dmaps)
+
+if load_stored_dmaps or store_dmaps:
+    assert filter_size == 15 and sigma == 4.0 
+    assert ram
+ 
+if store_dmaps:
+    assert not train    
+
 if subnet_type == 'conv':
     assert dropout_p == 0
     

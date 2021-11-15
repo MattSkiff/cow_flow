@@ -22,5 +22,5 @@ elif host == 'quartet':
 elif host == 'quatern' or host == 'deuce':
     assert args.gpu_number < 2
 else:
-    assert args.gpu_number < 1
+    assert args.gpu_number < 1 
     
