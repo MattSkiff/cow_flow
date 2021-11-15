@@ -1,4 +1,5 @@
 **/obj
+**/data/precompute/
 *.jpg
 **/__pycache__
 **/runs
