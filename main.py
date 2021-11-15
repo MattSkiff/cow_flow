@@ -48,11 +48,9 @@ if c.mnist:
         val_loader = DataLoader(mnist_test,batch_size = c.batch_size[0],pin_memory=True,
                                       shuffle=False,sampler=toy_sampler)
         if len(c.lr_init) == 1:
-            if c.train_model:
-                mdl = train(train_loader,val_loader,lr_i=c.lr_init)
+            mdl = train(train_loader,val_loader,lr_i=c.lr_init)
         else:
-            if c.train_model:
-                mdl = train_battery([train_loader],[val_loader],lr_i=c.lr_init)
+            mdl = train_battery([train_loader],[val_loader],lr_i=c.lr_init)
                 
     else:
         tls,vls = [],[]
@@ -63,8 +61,7 @@ if c.mnist:
             vls.append(DataLoader(mnist_test,batch_size = bs,pin_memory=True,
                                       shuffle=False,sampler=toy_sampler))
             
-            if c.train_model:
-                mdl = train_battery(tls,vls,lr_i=c.lr_init)
+            mdl = train_battery(tls,vls,lr_i=c.lr_init)
        
 else:
     # instantiate class
@@ -120,14 +117,11 @@ else:
         
         if len(c.lr_init) == 1:
             if a.args.feat_extract_only:
-                if c.train_model:
-                    feat_extractor = model.select_feat_extractor(c.feat_extractor,train_loader,val_loader)
+                feat_extractor = model.select_feat_extractor(c.feat_extractor,train_loader,val_loader)
             else:
-                if c.train_model:
-                    mdl = train(train_loader,val_loader,lr_i=c.lr_init)
+                mdl = train(train_loader,val_loader,lr_i=c.lr_init)
         else:
-                if c.train_model:
-                    mdl = train_battery([train_loader],[val_loader],lr_i=c.lr_init)
+            mdl = train_battery([train_loader],[val_loader],lr_i=c.lr_init)
                 
     else:
         tls,vls = [],[]
@@ -141,5 +135,4 @@ else:
                             num_workers=0,collate_fn=transformed_dataset.custom_collate_density,
                             pin_memory=True,sampler=val_sampler))
             
-            if c.train_model:
-                mdl = train_battery(tls,vls,lr_i=c.lr_init)
+            mdl = train_battery(tls,vls,lr_i=c.lr_init)
