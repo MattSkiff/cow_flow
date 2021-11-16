@@ -8,7 +8,7 @@ The network has been modified to take in density maps instead of pictures of ano
 
 When running this repository, there are 5 folders that will store outputs. VIZ stores images of density map reconstructions. RUNS stores tensorboard logging. MODELS and WEIGHTS saves the model objects and state dictionaries for trained models. CSTATE stores copies of the config.py file used to define the parameters of the hyper parameters of each model and general training options. 
 
-This repository uses PyTorch and FrEIA. 
+This repository uses PyTorch and [FrEIA](https://github.com/VLL-HD/FrEIA). 
 
 # License
 
