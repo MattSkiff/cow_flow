@@ -111,7 +111,7 @@ class ResNetPyramid(ResNet):
         x3 = self.layer3(x2)
         x4 = self.layer4(x3)
     
-        return [x0,x1,x2,x3,x4]
+        return [x0,x1,x2,x3,x4]#[:c.levels]  
     
     def forward(self, x):
         
@@ -217,14 +217,15 @@ def sub_fc(dims_in,dims_out,internal_size):
     
     return net
 
-# TODO: turn func into loop
 def nf_pyramid(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat):
     assert c.subnet_type == 'conv'
     assert not c.gap and not c.counts and not c.mnist
     
     # TODO - will break because of ref to config file
     mdl = ResNetPyramid()
-    feats = mdl(torch.randn(c.batch_size[0],3,c.density_map_h,c.density_map_w,requires_grad=False))
+    # TODO: take out hardcoding activation channels (64)
+    channels = 3
+    feats = mdl(torch.randn(c.batch_size[0],channels,c.density_map_h,c.density_map_w,requires_grad=False))
     del mdl
     
     if c.verbose:
@@ -232,55 +233,25 @@ def nf_pyramid(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_fea
         [print(f.shape) for f in feats]
         
     p_dims = [f.shape for f in feats]
+    #assert p_dims[0][1] == channels
     
     nodes = [Ff.InputNode(c.channels,input_dim[0],input_dim[1],name='input')] 
+    conditions = []
     
-    # Conditions
-    condition0 = [Ff.ConditionNode(p_dims[0][1],p_dims[0][2],p_dims[0][3],name = 'condition0')]
-    condition1 = [Ff.ConditionNode(p_dims[1][1],p_dims[1][2],p_dims[1][3],name = 'condition1')]
-    condition2 = [Ff.ConditionNode(p_dims[2][1],p_dims[2][2],p_dims[2][3],name = 'condition2')]
-    condition3 = [Ff.ConditionNode(p_dims[3][1],p_dims[3][2],p_dims[3][3],name = 'condition3')]
-    condition4 = [Ff.ConditionNode(p_dims[4][1],p_dims[4][2],p_dims[4][3],name = 'condition4')]
+    for k in range(c.levels):
+        conditions.append(Ff.ConditionNode(p_dims[k][1],p_dims[k][2],p_dims[k][3],name = 'condition{}'.format(k)))
     
-    # block 1
-    k=0
-    nodes.append(Ff.Node(nodes[-1], Fm.PermuteRandom, {'seed': k}, name='permute_{}'.format(k)))
-    nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling_{}'.format(k)))
-    nodes.append(Ff.Node(nodes[-1], Fm.GLOWCouplingBlock,{'clamp': c.clamp_alpha, 
-                         'subnet_constructor':subnet},conditions=condition0,name = 'couple_{}'.format(k)))
-      
-    # block 2
-    k+=1
-    nodes.append(Ff.Node(nodes[-1], Fm.PermuteRandom, {'seed': k}, name='permute_{}'.format(k)))
-    nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling_{}'.format(k)))
-    nodes.append(Ff.Node(nodes[-1], Fm.GLOWCouplingBlock,{'clamp': c.clamp_alpha, 
-                         'subnet_constructor':subnet},conditions=condition1,name = 'couple_{}'.format(k)))
-     
-    # block 3
-    k+=1
-    nodes.append(Ff.Node(nodes[-1], Fm.PermuteRandom, {'seed': k}, name='permute_{}'.format(k)))
-    nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling_{}'.format(k)))
-    nodes.append(Ff.Node(nodes[-1], Fm.GLOWCouplingBlock,{'clamp': c.clamp_alpha, 
-                         'subnet_constructor':subnet},conditions=condition2,name = 'couple_{}'.format(k)))
+    for k in range(c.levels):
+        nodes.append(Ff.Node(nodes[-1], Fm.PermuteRandom, {'seed': k}, name='permute_{}'.format(k)))
+        nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling_{}'.format(k)))
+        
+        for j in range(c.n_pyramid_blocks):
+            nodes.append(Ff.Node(nodes[-1], Fm.GLOWCouplingBlock,{'clamp': c.clamp_alpha,
+                                                                  'subnet_constructor':subnet},conditions=conditions[k],name = 'couple_{}_{}'.format(k,j)))
     
-    # block 4
-    k+=1
-    nodes.append(Ff.Node(nodes[-1], Fm.PermuteRandom, {'seed': k}, name='permute_{}'.format(k)))
-    nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling_{}'.format(k)))
-    nodes.append(Ff.Node(nodes[-1], Fm.GLOWCouplingBlock,{'clamp': c.clamp_alpha, 
-                         'subnet_constructor':subnet},conditions=condition3,name = 'couple_{}'.format(k)))
-    
-    # block 5
-    k+=1
-    nodes.append(Ff.Node(nodes[-1], Fm.PermuteRandom, {'seed': k}, name='permute_{}'.format(k)))
-    nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling_{}'.format(k)))
-    nodes.append(Ff.Node(nodes[-1], Fm.GLOWCouplingBlock,{'clamp': c.clamp_alpha, 
-                         'subnet_constructor':subnet},conditions=condition4,name = 'couple_{}'.format(k)))
-    
-    out = Ff.ReversibleGraphNet(nodes + condition0 + condition1 + condition2 + condition3 + condition4 + [Ff.OutputNode(nodes[-1], name='output')], verbose=c.verbose)
+    out = Ff.ReversibleGraphNet(nodes + conditions + [Ff.OutputNode(nodes[-1], name='output')], verbose=c.verbose)
     
     return out
-    
     
 def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,mnist=False):
     
@@ -316,15 +287,9 @@ def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,m
         nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling'))
         
     elif not c.counts and c.feat_extractor != 'none' and c.downsampling:
-        
-        if c.scale == 1:
-            n_ds = 5
-        elif c.scale == 2:
-            n_ds = 4
-        elif c.scale == 4:
-            n_ds = 3
+            
         # downsamples density maps (not needed for counts)
-        for i in range(n_ds):
+        for i in range(c.levels):
             nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling{}'.format(i+1)))
 
     for k in range(c.n_coupling_blocks):
@@ -334,7 +299,7 @@ def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,m
         if not c.downsampling:
             multiplier = 4
         else:
-            multiplier = 4**n_ds
+            multiplier = 4**c.levels
         
         if not (c.counts and c.subnet_type == 'fc') and c.fixed1x1conv:
             nodes.append(Ff.Node(nodes[-1], Fm.Fixed1x1Conv,{'M': random_orthog(c.channels*multiplier).to(c.device) }, name='1x1_conv_{}'.format(k)))
@@ -485,8 +450,8 @@ class CowFlow(nn.Module):
         # hence ambiguity in notation
         
         if c.pyramid:
-            # feats = list of 4 tensors
-            z = self.nf(x_or_z = labels,c = feats,rev=rev)
+            # feats = list of 5 tensors
+            z = self.nf(x_or_z = labels,c = feats,rev=rev) # [-c.levels:]
         elif self.unconditional:
             z = self.nf(x_or_z = labels,rev=rev)
         else:
@@ -592,4 +557,5 @@ class MNISTFlow(nn.Module):
             print(labels.size(),"\n") 
         
         z = self.nf(x_or_z = labels,c = feats,rev=rev)
+        
         return z

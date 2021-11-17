@@ -404,6 +404,8 @@ class CowObjectsDataset(Dataset):
                 im = im.permute(1,2,0).cpu().numpy()
                 
                 fig, ax = plt.subplots(1,2)
+                # TODO - bug here! mismatch impaths and data
+                #fig.suptitle(os.path.basename(os.path.normpath(self.train_im_paths[sample_no])))
                 ax[0].imshow(dmap, cmap='viridis', interpolation='nearest')
                 ax[1].imshow((im * 255).astype(np.uint8))
         else:
@@ -657,14 +659,13 @@ class CustCrop(object):
             if c.pyramid:
                 # adding padding so high level features match dmap dims after downsampling (37,38)
                 image = sample['image']
-                #image = image[:,0:c.img_size[1]-1,0:c.img_size[0]-1]
                 image = F.pad(input=image, pad=(0,0,pd,0), mode='constant', value=0)
                 sample['image'] =  image
         
         return sample
     
 class CustResize(object):
-    """Resize density."""
+    """Resize density, according to config scale parameter."""
 
     def __call__(self, sample):
               
