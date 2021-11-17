@@ -21,13 +21,13 @@ weighted = False # whether to weight minibatch samples
 annotations_only = True # whether to only use image patches that have annotations
 test_run = False # use only a small fraction of data to check everything works
 validation = True # whether to run validation per meta epoch
-data_prop = 0.1 # proportion of the full dataset to use
+data_prop = 1 # proportion of the full dataset to use
 test_train_split = 70 # percentage of data to allocate to train set
 
 ## Density Map Options ------
 filter_size = 15 # as per single image mcnn paper
 sigma = 4.0 # "   -----    " 
-scale = 4 # 4, 2 = downscale dmaps four/two fold, 1 = unchanged
+scale = 1 # 4, 2 = downscale dmaps four/two fold, 1 = unchanged
 
 ## Feature Extractor Options ------
 pretrained = True
@@ -38,11 +38,12 @@ load_feat_extractor_str = '' # '' to train from scratch, loads FE
 # nb: pretraining FE saves regardless of save flag
 
 ## Architecture Options ------
-fixed1x1conv = True 
-pyramid = False # only implemented for resnet18
+fixed1x1conv = False 
+pyramid = True # only implemented for resnet18
+n_pyramid_blocks = 3
 gap = False # global average pooling
 downsampling = True # whether to downsample (5 ds layers) dmaps by converting spatial dims to channel dims
-n_coupling_blocks = 8
+n_coupling_blocks = 5 # if pyramid, total blocks will be n_pyramid_blocks x 5
 
 ## Subnet Architecture Options
 subnet_type = 'conv' # options = fc, conv
@@ -64,11 +65,11 @@ batch_size = [6] # actual batch size is this value multiplied by n_transforms(_t
 
 # total epochs = meta_epochs * sub_epochs
 # evaluation after <sub_epochs> epochs
-meta_epochs = 1
+meta_epochs = 2
 sub_epochs = 1
 
 ## Output Settings ----
-schema = 'error_replicate' # if debug, ignored
+schema = 'pyramid_test' # if debug, ignored
 debug = False # report loads of info/debug info
 tb = True # write metrics, hyper params to tb files
 verbose = True # report stats per sub epoch and other info
@@ -91,6 +92,16 @@ if not gpu:
 else: 
     device = 'cuda' 
     torch.cuda.set_device(0)
+
+# if dmap is scaled down outside of flow
+# less downsample 'levels' are needed'
+levels = 5
+# if scale == 1:
+#     levels = 5
+# elif scale == 2:
+#     levels = 4
+# elif scale == 4:
+#     levels = 3
 
 # "condition dim"
 if feat_extractor == "alexnet":
@@ -121,9 +132,7 @@ else:
     # TODO - this is a massive hack to test feature extractor-less  NF
     channels = 2 # duplicate dmap over channel dimension (1->2)
 
-if debug and tb:
-    schema = 'schema/debug' # aka ignore debugs
-elif debug:
+if debug:
     schema = 'debug' # aka ignore debugs
 
 if mnist and feat_extractor == "none":
@@ -174,7 +183,7 @@ if a.args.gpu_number != 0:
     assert gpu
 
 # Checks ------ 
-assert not (pyramid and fixed1x1conv)
+#assert not (pyramid and fixed1x1conv)
 #assert not (weighted and annotations_only)
 assert not (feat_extractor == 'none' and gap == True)
 assert gap != downsampling
@@ -207,10 +216,11 @@ if counts:
     assert subnet_type == 'fc' and gap or subnet_type == 'conv' and not gap
 
 if pyramid:
-    n_coupling_blocks = 5 # for recording purposes
+    assert n_coupling_blocks == 5 # for recording purposes
     assert (pyramid and feat_extractor == 'resnet18')
     assert (pyramid and downsampling) # pyramid nf head has  downsmapling
     assert (pyramid and not train_feat_extractor) # TODO
+    # TODO - get pyramid working with other scales!
     assert scale == 1
 
 assert scale in (1,2,4)
