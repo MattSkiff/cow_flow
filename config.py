@@ -5,23 +5,23 @@ proj_dir = "/home/matthew/Desktop/laptop_desktop/clones/cow_flow/data"
 import torch
 import arguments as a
 
-gpu = True
+gpu = False
 
 ## Dataset Options ------
 mnist = False 
-load_stored_dmaps = True # speeds up precomputation (with RAM = True)
+load_stored_dmaps = False # speeds up precomputation (with RAM = True)
 store_dmaps = False # this will save dmap objects (numpy arrays) to file
-ram = True # load aerial imagery and precompute dmaps and load both into ram before training
+ram = False # load aerial imagery and precompute dmaps and load both into ram before training
 counts = False # must be off for pretraining feature extractor (#TODO)
 
 ## Training Options ------
-train_model = True # (if false, will only prep dataset,dataloaders)
+train_model = False # (if false, will only prep dataset,dataloaders)
 balanced = False # whether to have a 1:1 mixture of empty:annotated images
 weighted = False # whether to weight minibatch samples
 annotations_only = True # whether to only use image patches that have annotations
 test_run = False # use only a small fraction of data to check everything works
 validation = True # whether to run validation per meta epoch
-data_prop = 1 # proportion of the full dataset to use
+data_prop = 0.1 # proportion of the full dataset to use
 test_train_split = 70 # percentage of data to allocate to train set
 
 ## Density Map Options ------
@@ -38,9 +38,10 @@ load_feat_extractor_str = '' # '' to train from scratch, loads FE
 # nb: pretraining FE saves regardless of save flag
 
 ## Architecture Options ------
-fixed1x1conv = False 
+fixed1x1conv = True 
+freq_1x1 = 3 # 1 for always | how many x coupling blocks to have a 1x1 conv permutation layer
 pyramid = True # only implemented for resnet18
-n_pyramid_blocks = 3
+n_pyramid_blocks = 1
 gap = False # global average pooling
 downsampling = True # whether to downsample (5 ds layers) dmaps by converting spatial dims to channel dims
 n_coupling_blocks = 5 # if pyramid, total blocks will be n_pyramid_blocks x 5
@@ -50,7 +51,7 @@ subnet_type = 'conv' # options = fc, conv
 filters = 32 # conv ('64' recommended min)
 batchnorm = False # conv
 width = 400 # fc ('128' recommended min)
-dropout_p = 0.0 # fc - 0 for no dropout
+dropout_p = 0.0 # fc only param - 0 for no dropout
 
 # Hyper Params and Optimisation ------
 joint_optim = True # jointly optimse feature extractor and flow
@@ -69,7 +70,7 @@ meta_epochs = 2
 sub_epochs = 1
 
 ## Output Settings ----
-schema = 'pyramid_test' # if debug, ignored
+schema = 'debug' # if debug, ignored
 debug = False # report loads of info/debug info
 tb = True # write metrics, hyper params to tb files
 verbose = True # report stats per sub epoch and other info
@@ -200,7 +201,6 @@ if subnet_type == 'fc':
 assert not (load_stored_dmaps and store_dmaps)
 
 if load_stored_dmaps or store_dmaps:
-    assert filter_size == 15 and sigma == 4.0 
     assert ram
  
 if store_dmaps:
@@ -224,3 +224,4 @@ if pyramid:
     assert scale == 1
 
 assert scale in (1,2,4)
+assert freq_1x1 != 0
