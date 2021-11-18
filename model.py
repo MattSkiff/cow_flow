@@ -125,6 +125,8 @@ class NothingNet():
 def random_orthog(n):
     w = np.random.randn(n, n)
     w = w + w.T
+    
+    # unitary (w), vectors with singular (S), unitary (w)
     w, S, V = np.linalg.svd(w)
     
     out = torch.FloatTensor(w)
@@ -242,7 +244,12 @@ def nf_pyramid(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_fea
         conditions.append(Ff.ConditionNode(p_dims[k][1],p_dims[k][2],p_dims[k][3],name = 'condition{}'.format(k)))
     
     for k in range(c.levels):
-        nodes.append(Ff.Node(nodes[-1], Fm.PermuteRandom, {'seed': k}, name='permute_{}'.format(k)))
+        
+        if c.fixed1x1conv and k != 0: # c.channels*4**k
+            nodes.append(Ff.Node(nodes[-1], Fm.Fixed1x1Conv,{'M': random_orthog(c.channels*4**k).to(c.device) }, name='1x1_conv_{}'.format(k)))
+        else:
+            nodes.append(Ff.Node(nodes[-1], Fm.PermuteRandom, {'seed': k}, name='permute_{}'.format(k)))
+            
         nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling_{}'.format(k)))
         
         for j in range(c.n_pyramid_blocks):
@@ -301,7 +308,7 @@ def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,m
         else:
             multiplier = 4**c.levels
         
-        if not (c.counts and c.subnet_type == 'fc') and c.fixed1x1conv:
+        if not (c.counts and c.subnet_type == 'fc') and c.fixed1x1conv and k % c.freq_1x1 == 0:
             nodes.append(Ff.Node(nodes[-1], Fm.Fixed1x1Conv,{'M': random_orthog(c.channels*multiplier).to(c.device) }, name='1x1_conv_{}'.format(k)))
         else:
             nodes.append(Ff.Node(nodes[-1], Fm.PermuteRandom, {'seed': k}, name='permute_{}'.format(k)))

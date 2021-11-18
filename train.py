@@ -86,7 +86,7 @@ def train(train_loader,val_loader,battery = False,lr_i=c.lr_init,writer=None): #
                 parts.append('PT')
                 
             if c.pyramid:
-                parts.append('PY')
+                parts.append('PY_{}'.format(c.n_pyramid_blocks))
                 
             if c.counts and not c.mnist:
                 parts.append('CT')
@@ -144,6 +144,7 @@ def train(train_loader,val_loader,battery = False,lr_i=c.lr_init,writer=None): #
                                 'finetuned?':c.train_feat_extractor,
                                 'mnist?':c.mnist,
                                 'counts?':c.counts,
+                                'n pyramid blocks?':c.n_pyramid_blocks,
                                 'fc_subnets?':c.subnet_type == 'fc',
                                 #'test run?':c.test_run, # unused
                                 'prop. of data':c.data_prop,

@@ -96,7 +96,7 @@ class UnNormalize(object):
 
 # TODO split into minst and non mnist funcs
 @torch.no_grad()
-def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=True,sampling="randn",plot_n=None,writer=None,writer_epoch=None,writer_mode=None):
+def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=False,sampling="randn",plot_n=None,writer=None,writer_epoch=None,writer_mode=None):
     
     assert type(loader) == torch.utils.data.dataloader.DataLoader
     
@@ -171,7 +171,8 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
                 images,dmaps,labels,counts = data
             else:
                 images,dmaps,labels = data
-                
+            
+            # TODO - intermittent bug here
             dmaps = dmaps.cpu()
             
             lb_idx = random.randint(0,loader.batch_size-1)
@@ -314,14 +315,15 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
                         n_plots = 3+hist-mdl.mnist-mdl.count
                                
                         fig, ax = plt.subplots(n_plots,1)
-                        #plt.ioff()
+                        plt.subplots_adjust(left=0.1, right=0.9, top=0.9, bottom=0.1)
+                        [axi.set_axis_off() for axi in ax.ravel()] # turn off subplot axes
                         
                         if mdl.mnist:
-                            fig.suptitle('{} \n mode of reconstruction: {}'.format(title,str(mode)),y=1.0,fontsize=24) # :.2f
+                            fig.suptitle('{} \n mode of reconstruction: {}'.format(title,str(mode)),y=1.0,fontsize=16) # :.2f
                         if mdl.count:   
-                            fig.suptitle('{} \n Predicted count: {:.2f}'.format(title,mean_pred),y=1.0,fontsize=24)
+                            fig.suptitle('{} \n Predicted count: {:.2f}'.format(title,mean_pred),y=1.0,fontsize=16)
                         else:
-                            fig.suptitle('{} \n Predicted count: {:.2f}'.format(title,sum_pred),y=1.0,fontsize=24)
+                            fig.suptitle('{} \n Predicted count: {:.2f}'.format(title,sum_pred),y=1.0,fontsize=16)
                             
                         fig.set_size_inches(8*1,12*1)
                         fig.set_dpi(100)
@@ -340,25 +342,32 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=T
                             dmap_rev_np = dmap_rev_np[1,:,:] # select only data from first duplicated channel
                         
                         if not (mdl.count and mdl.gap) and not (mdl.mnist and c.subnet_type == 'fc'):
+                            ax[0].title.set_text('Density Map Prediction')
                             ax[0].imshow((dmap_rev_np* 255).astype(np.uint8))#, cmap='viridis', interpolation='nearest')
                         else:
                             fig.delaxes(ax[0])
                         
                         if mdl.count:
                             # no dmaps provided by dataloader if mdl.count
+                            ax[1].title.set_text('Conditioning Aerial Image')
                             ax[1].imshow((im * 255).astype(np.uint8))
                             if hist:
                                 ax[2].hist(dmap_rev_np.flatten(),bins = 30)
                         else:
                         
                             if mdl.mnist:
+                                ax[1].title.set_text('Conditioning Digit')
                                 ax[1].imshow(im)
                                 if hist:
+                                    ax[2].title.set_text('Histogram of Reconstruction Values')
                                     ax[2].hist(dmap_rev_np.flatten(),bins = 30)
                             else:
+                                ax[1].title.set_text('Conditioning Aerial Image')
                                 ax[1].imshow((im * 255).astype(np.uint8))
+                                ax[2].title.set_text('Density Map Ground Truth')
                                 ax[2].imshow(dmaps[lb_idx])
                                 if hist:
+                                    ax[3].title.set_text('Histogram of Reconstruction Values')
                                     ax[3].hist(dmap_rev_np.flatten(),bins = 30)
                             
                         
