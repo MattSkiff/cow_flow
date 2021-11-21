@@ -5,7 +5,7 @@ proj_dir = "/home/matthew/Desktop/laptop_desktop/clones/cow_flow/data"
 import torch
 import arguments as a
 
-gpu = False
+gpu = True
 
 ## Dataset Options ------
 mnist = False 
