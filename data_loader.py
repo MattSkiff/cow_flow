@@ -67,6 +67,11 @@ class CowObjectsDataset(Dataset):
         self.classification = classification
         self.ram = ram
         
+        if not self.density:
+            self.sigma = 0
+        else:
+            self.sigma = c.sigma
+        
         self.images = []
         self.annotations_list = []
         self.density_list = []

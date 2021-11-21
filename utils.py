@@ -11,6 +11,10 @@ from prettytable import PrettyTable
 import config as c
 import gvars as g
 
+from scipy import ndimage as ndi
+from skimage.feature import peak_local_max # 
+from skimage import data, img_as_float
+
 def ft_dims_select(mdl=None):
     
     if mdl == None:
@@ -247,7 +251,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=F
                         dummy_z = (randn(loader.batch_size, in_channels,ft_dims[0],ft_dims[1])).to(c.device)
                 else:
                     
-                    if c.subnet_type == 'conv':
+                    if mdl.subnet_type == 'conv':
                        
                         if sampling == 'ones':
                             dummy_z = (torch.ones(loader.batch_size, c.channels*4, c.density_map_h // 2,c.density_map_w  // 2).to(c.device))
@@ -403,6 +407,58 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=F
     out = inner_func()       
 
     return out
+
+@torch.no_grad()
+def find_peaks(mdl, loader, plot=False):
+    assert not mdl.count
+    assert mdl.subnet_type == 'conv'
+
+    import random
+    idx = random.randint(0,loader.batch_size)
+    
+    for i, data in enumerate(tqdm(loader, disable=False)):
+        dummy_z = (randn(loader.batch_size,c.channels*4,(c.density_map_h) // 2,(c.density_map_w) // 2)).to(c.device) 
+        images,dmaps,labels = data
+         
+        if mdl.scale == 1:
+            n_ds = 5
+        elif mdl.scale == 2:
+            n_ds = 4
+        elif mdl.scale == 4:
+            n_ds = 3
+                            
+        in_channels = c.channels*4**n_ds
+        ft_dims = ft_dims_select(mdl)               
+        dummy_z = (randn(loader.batch_size, in_channels,ft_dims[0],ft_dims[1])).to(c.device)
+                        
+        ## sample from model ---
+        images = images.float().to(c.device)
+        dummy_z = dummy_z.float().to(c.device)
+        mdl = mdl.to(c.device)
+        x, log_det_jac = mdl(images,dummy_z,rev=True)
+        
+        # get back to correct image data
+        unnorm = UnNormalize(mean=tuple(c.norm_mean),
+                             std=tuple(c.norm_std))                  
+        im = unnorm(images[idx])
+        im = images[idx].permute(1,2,0).cpu().numpy()
+        
+        dmap_rev_np = x[idx].squeeze().cpu().detach().numpy()
+        
+        if plot:
+            dmap_rev_np = (dmap_rev_np* 255).astype(np.uint8)
+            fig, ax = plt.subplots(2,1)
+            plt.subplots_adjust(left=0.1, right=0.9, top=0.9, bottom=0.1)
+            [axi.set_axis_off() for axi in ax.ravel()] 
+            
+            ax[0].imshow((dmap_rev_np* 255).astype(np.uint8))
+            ax[1].imshow((im * 255).astype(np.uint8))
+        
+        # Comparison between image_max and im to find the coordinates of local maxima
+        coordinates = peak_local_max(dmap_rev_np, min_distance=int(loader.dataset.sigma))
+    
+        return coordinates
+        
 
 def torch_r2(mdl,loader):
     """calcs r2 (on torch only)"""
