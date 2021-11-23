@@ -25,8 +25,8 @@ data_prop = 0.1 # proportion of the full dataset to use
 test_train_split = 70 # percentage of data to allocate to train set
 
 ## Density Map Options ------
-filter_size = 15 # as per single image mcnn paper
-sigma = 4.0 # "   -----    " 
+filter_size = 32 # as per single image mcnn paper
+sigma = 8.0 # "   -----    " 
 scale = 1 # 4, 2 = downscale dmaps four/two fold, 1 = unchanged
 
 ## Feature Extractor Options ------

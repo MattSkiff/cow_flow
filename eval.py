@@ -93,6 +93,8 @@ def eval_mnist(mdl, valloader, trainloader,samples = 1,confusion = False, preds 
 
     return  out # train, val
 
-def eval_model(mdl, valloader, trainloader, plot = True, save=True,hist=True):
+def dmap_count_metrics(y,y_n,y_hat_n,y_hat_n_dists,y_hat_coords):
     
-    return -99,-99
+    rmse,mae,mnae,mape = 0,0,0,0
+    
+    return  rmse,mae,mnae,mape

@@ -10,8 +10,8 @@ import copy
 import os
 from datetime import datetime 
 
-from eval import eval_mnist, eval_model
-from utils import get_loss, plot_preds, counts_preds_vs_actual, t2np, torch_r2
+from eval import eval_mnist, dmap_count_metrics
+from utils import get_loss, plot_preds, counts_preds_vs_actual, t2np, torch_r2, find_peaks
 import model # importing entire file fixes 'cyclical import' issues
 #from model import CowFlow, MNISTFlow, select_feat_extractor, save_model #, save_weights
 
@@ -382,17 +382,15 @@ def train(train_loader,val_loader,battery = False,lr_i=c.lr_init,writer=None): #
                         
                         if writer != None:
                             writer.add_scalar('loss/epoch_val',mean_val_loss, j)
-                            plot_preds(mdl,val_loader,writer=writer,writer_epoch=j,writer_mode='val')
                             
                         j += 1
                 
-                if c.mnist:
+                #### Meta epoch code ------
+                if mdl.mnist:
                     val_acc, train_acc = eval_mnist(mdl,val_loader,train_loader)
                     print("\n")
                     print("Training Accuracy: ", train_acc,"| Epoch: ",l)
                     print("val Accuracy: ",val_acc,"| Epoch: ",l)
-                #else:
-                    #val_acc, train_acc = eval_model(mdl,val_loader,train_loader) # does nothing for now
                 
                 if (c.save_model or battery) and c.checkpoints:
                     mdl.to('cpu')
@@ -403,15 +401,37 @@ def train(train_loader,val_loader,battery = False,lr_i=c.lr_init,writer=None): #
                 model_metric_dict = {}
                 
                 if writer != None:
+                    
+                    # add images to TB writer
+                    plot_preds(mdl,val_loader,writer=writer,writer_epoch=j,writer_mode='val')
                     plot_preds(mdl,train_loader,writer=writer,writer_epoch=j,writer_mode='train')
+                    
+                    # DMAP Count Metrics
+                    train_preds = find_peaks(mdl,train_loader,full=True,n=c.eval_n)
+                    val_preds = find_peaks(mdl,val_loader,full=True,n=c.eval_n)
+                    
+                    train_rmse,train_mae,train_mnae,train_mape = dmap_count_metrics(*train_preds)
+                    val_rmse,val_mae,val_mnae,val_mape = dmap_count_metrics(*val_preds)
+                    
+                    writer.add_scalars('train_count_metrics', {'rmse':train_rmse,
+                                    'mae':train_mae,
+                                    'mnae': train_mnae,
+                                    'mape': train_mape}, l)
+                    
+                    writer.add_scalars('train_count_metrics', {'rmse':val_rmse,
+                                    'mae':val__mae,
+                                    'mnae': val_mnae,
+                                    'mape': val_mape}, l)
                 
+                # MNIST Model metrics
                 if writer != None and mdl.mnist:
                     writer.add_scalar('acc/meta_epoch_train',train_acc, l)
                     model_metric_dict['acc/meta_epoch_train'] = train_acc
                     
                     writer.add_scalar('acc/meta_epoch_val',val_acc, l)
                     model_metric_dict['acc/meta_epoch_val'] = val_acc
-                    
+                
+                # Count Model Metrics
                 if writer != None and mdl.count:
                     train_R2 = torch_r2(mdl,train_loader)
                     writer.add_scalar('R2/meta_epoch_train',train_R2, l)
