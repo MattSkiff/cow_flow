@@ -130,7 +130,8 @@ def train(train_loader,val_loader,battery = False,lr_i=c.lr_init,writer=None): #
     
             print("Training Model: ",modelname)
     
-            model_hparam_dict = {'learning rate init.':lr_i[0],
+            model_hparam_dict = {'schema':c.schema,
+                                 'learning rate init.':lr_i[0],
                                 'batch size':val_loader.batch_size,
                                 'image height':c.density_map_h,
                                 'image width':c.density_map_w,
@@ -140,13 +141,15 @@ def train(train_loader,val_loader,battery = False,lr_i=c.lr_init,writer=None): #
                                 'annotations only?':c.annotations_only,
                                 'pretrained?':c.pretrained,
                                 'feature pyramid?':c.pyramid,
+                                'feature extractor?':c.feat_extractor,
                                 '1x1convs?':c.fixed1x1conv,
+                                'conv filters':c.filters,
+                                'fc_width':c.width,
                                 'finetuned?':c.train_feat_extractor,
                                 'mnist?':c.mnist,
                                 'counts?':c.counts,
                                 'n pyramid blocks?':c.n_pyramid_blocks,
-                                'fc_subnets?':c.subnet_type == 'fc',
-                                #'test run?':c.test_run, # unused
+                                'subnet_type?':c.subnet_type,
                                 'prop. of data':c.data_prop,
                                 'clamp alpha':c.clamp_alpha,
                                 'weight decay':c.weight_decay,
@@ -188,14 +191,13 @@ def train(train_loader,val_loader,battery = False,lr_i=c.lr_init,writer=None): #
             if c.scheduler == "exponential":
                 scheduler = ExponentialLR(optimizer, gamma=0.9)
         
-            
             mdl.to(c.device)   
             
             k = 0 # track total mini batches
             val_mb_iter = 0
             train_mb_iter = 0
             j = 0 # track total sub epochs
-            l = 0 # track epochs
+            l = 0 # track meta epochs
             
             for meta_epoch in range(c.meta_epochs):
                 
@@ -304,11 +306,7 @@ def train(train_loader,val_loader,battery = False,lr_i=c.lr_init,writer=None): #
                         
                         t2 = time.perf_counter()
                         
-                        # todo: account for validation iterations
                         total_iter = len(train_loader) * c.sub_epochs * c.meta_epochs + (len(val_loader) * c.meta_epochs)
-                        #passed_iter = len(train_loader) * j + (len(val_loader) * j / c.sub_epochs) + i
-                        #est_total_time = round(((t2-t1) * (total_iter-k)) / 60,2)
-                        #est_remain_time = round(((t2-t1) * (total_iter-k)) / 60,2)
                         
                         if k % c.report_freq == 0 and c.verbose and k != 0 and c.report_freq != -1:
                                 print('\nTrain | Mini-Batch Time: {:.1f}, Mini-Batch: {:d}, Mini-Batch loss: {:.4f}'.format(t2-t1,i+1, loss_t))
@@ -326,8 +324,7 @@ def train(train_loader,val_loader,battery = False,lr_i=c.lr_init,writer=None): #
                     if c.verbose:
                         t_e2 = time.perf_counter()
                         print("\nTrain | Sub Epoch Time (s): {:f}, Epoch loss: {:.4f}".format(t_e2-t_e1,mean_train_loss))
-                        print('Meta Epoch: {:d}, Sub Epoch: {:d}, | Epoch {:d} out of {:d} Total Epochs'.format(meta_epoch, sub_epoch,meta_epoch*c.sub_epochs + sub_epoch,c.meta_epochs*c.sub_epochs))
-                        #print('Total Training Time (mins): {:.2f} | Remaining Time (mins): {:.2f}'.format(est_total_time,est_remain_time))
+                        print('Meta Epoch: {:d}, Sub Epoch: {:d}, | Epoch {:d} out of {:d} Total Epochs'.format(meta_epoch, sub_epoch,meta_epoch*c.sub_epochs + sub_epoch+1,c.meta_epochs*c.sub_epochs))
                     
                     if c.debug:
                         print("loss/epoch_train:",j)
@@ -389,8 +386,8 @@ def train(train_loader,val_loader,battery = False,lr_i=c.lr_init,writer=None): #
                 if mdl.mnist:
                     val_acc, train_acc = eval_mnist(mdl,val_loader,train_loader)
                     print("\n")
-                    print("Training Accuracy: ", train_acc,"| Epoch: ",l)
-                    print("val Accuracy: ",val_acc,"| Epoch: ",l)
+                    print("Training Accuracy: ", train_acc,"| Epoch: ",j)
+                    print("val Accuracy: ",val_acc,"| Epoch: ",j)
                 
                 if (c.save_model or battery) and c.checkpoints:
                     mdl.to('cpu')
@@ -401,40 +398,55 @@ def train(train_loader,val_loader,battery = False,lr_i=c.lr_init,writer=None): #
                 model_metric_dict = {}
                 
                 if writer != None:
-                    
+                    # DMAP Count Metrics - y,y_n,y_hat_n,y_hat_n_dists,y_hat_coords
                     # add images to TB writer
-                    plot_preds(mdl,val_loader,writer=writer,writer_epoch=j,writer_mode='val')
-                    plot_preds(mdl,train_loader,writer=writer,writer_epoch=j,writer_mode='train')
-                    
-                    # DMAP Count Metrics
+                    if c.viz:
+                        plot_preds(mdl,train_loader,writer=writer,writer_epoch=j,writer_mode='train')
+                        
                     train_preds = find_peaks(mdl,train_loader,full=True,n=c.eval_n)
-                    val_preds = find_peaks(mdl,val_loader,full=True,n=c.eval_n)
+                    train_r2,train_rmse,train_mae,train_mape = dmap_count_metrics(*train_preds)
+                    train_count_metrics = {'train_r2':train_r2,
+                                    'train_rmse':train_rmse,
+                                    'train_mae':train_mae,
+                                    'train_mape': train_mape}
                     
-                    train_rmse,train_mae,train_mnae,train_mape = dmap_count_metrics(*train_preds)
-                    val_rmse,val_mae,val_mnae,val_mape = dmap_count_metrics(*val_preds)
+                    writer.add_scalar('counting_metrics/val_r2',train_count_metrics['train_r2'], j)
+                    writer.add_scalar('counting_metrics/val_rmse',train_count_metrics['train_rmse'] , j)
+                    writer.add_scalar('counting_metrics/val_mae',train_count_metrics['train_mae'], j)
+                    writer.add_scalar('counting_metrics/val_mape',train_count_metrics['train_mape'], j)
+                     
+                    model_metric_dict.update(train_count_metrics)
                     
-                    writer.add_scalars('train_count_metrics', {'rmse':train_rmse,
-                                    'mae':train_mae,
-                                    'mnae': train_mnae,
-                                    'mape': train_mape}, l)
+                    if c.validation:
+                        if c.viz:
+                            plot_preds(mdl,val_loader,writer=writer,writer_epoch=j,writer_mode='val')
+                            
+                        val_preds = find_peaks(mdl,val_loader,full=True,n=c.eval_n)
+                        val_r2,val_rmse,val_mae,val_mape = dmap_count_metrics(*val_preds)
+                        val_count_metrics = {'val_r2':val_r2,
+                                        'val_rmse':val_rmse,
+                                        'val_mae':val_mae,
+                                        'val_mape': val_mape}
+                        
+                    writer.add_scalar('counting_metrics/val_r2',val_count_metrics['val_r2'] , j)
+                    writer.add_scalar('counting_metrics/val_rmse',val_count_metrics['val_rmse'] , j)
+                    writer.add_scalar('counting_metrics/val_mae',val_count_metrics['val_mae'], j)
+                    writer.add_scalar('counting_metrics/val_mape',val_count_metrics['val_mape'], j)
                     
-                    writer.add_scalars('train_count_metrics', {'rmse':val_rmse,
-                                    'mae':val__mae,
-                                    'mnae': val_mnae,
-                                    'mape': val_mape}, l)
-                
+                    model_metric_dict.update(val_count_metrics)
+
                 # MNIST Model metrics
                 if writer != None and mdl.mnist:
-                    writer.add_scalar('acc/meta_epoch_train',train_acc, l)
+                    writer.add_scalar('acc/meta_epoch_train',train_acc, j)
                     model_metric_dict['acc/meta_epoch_train'] = train_acc
                     
-                    writer.add_scalar('acc/meta_epoch_val',val_acc, l)
+                    writer.add_scalar('acc/meta_epoch_val',val_acc, j)
                     model_metric_dict['acc/meta_epoch_val'] = val_acc
                 
                 # Count Model Metrics
                 if writer != None and mdl.count:
                     train_R2 = torch_r2(mdl,train_loader)
-                    writer.add_scalar('R2/meta_epoch_train',train_R2, l)
+                    writer.add_scalar('R2/meta_epoch_train',train_R2, j)
                     model_metric_dict['R2/meta_epoch_train'] = train_R2
                     
                     if c.verbose:
@@ -446,7 +458,7 @@ def train(train_loader,val_loader,battery = False,lr_i=c.lr_init,writer=None): #
                     
                     if c.validation:
                         val_R2 = torch_r2(mdl,val_loader)
-                        writer.add_scalar('R2/meta_epoch_val',val_R2, l)
+                        writer.add_scalar('R2/meta_epoch_val',val_R2, j)
                         model_metric_dict['R2/meta_epoch_val'] = val_R2
                         
                         if c.verbose:
@@ -457,11 +469,12 @@ def train(train_loader,val_loader,battery = False,lr_i=c.lr_init,writer=None): #
                     writer.add_hparams(
                                hparam_dict = model_hparam_dict,
                                metric_dict = model_metric_dict,
-                               run_name = modelname
+                               run_name = "epoch_{}".format(j)
                                )
                     
                     
                     writer.flush()
+                
                 l += 1
             
             # post training: visualise a random reconstruction

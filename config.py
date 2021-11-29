@@ -15,18 +15,20 @@ ram = False # load aerial imagery and precompute dmaps and load both into ram be
 counts = False # must be off for pretraining feature extractor (#TODO)
 
 ## Training Options ------
-train_model = False # (if false, will only prep dataset,dataloaders)
+train_model = True # (if false, will only prep dataset,dataloaders)
 balanced = False # whether to have a 1:1 mixture of empty:annotated images
 weighted = False # whether to weight minibatch samples
 annotations_only = True # whether to only use image patches that have annotations
 test_run = False # use only a small fraction of data to check everything works
-validation = True # whether to run validation per meta epoch
+validation = False # whether to run validation per meta epoch
+eval_n = 1
 data_prop = 0.1 # proportion of the full dataset to use
 test_train_split = 70 # percentage of data to allocate to train set
 
 ## Density Map Options ------
-filter_size = 32 # as per single image mcnn paper
-sigma = 8.0 # "   -----    " 
+uniform_noise = 0 # amount of uniform noise to add (sample evenly from 0-x) | 0 for none
+filter_size = 15 # as per single image mcnn paper
+sigma = 4.0 # "   -----    " 
 scale = 1 # 4, 2 = downscale dmaps four/two fold, 1 = unchanged
 
 ## Feature Extractor Options ------
@@ -62,20 +64,20 @@ clamp_alpha = 1.9
 
 # vectorised params must always be passed as lists
 lr_init = [2e-3]
-batch_size = [6] # actual batch size is this value multiplied by n_transforms(_test)
+batch_size = [2] # actual batch size is this value multiplied by n_transforms(_test)
 
 # total epochs = meta_epochs * sub_epochs
 # evaluation after <sub_epochs> epochs
-meta_epochs = 2
-sub_epochs = 1
+meta_epochs = 1
+sub_epochs = 3
 
 ## Output Settings ----
-schema = 'debug' # if debug, ignored
+schema = 'eval_test' # if debug, ignored
 debug = False # report loads of info/debug info
 tb = True # write metrics, hyper params to tb files
 verbose = True # report stats per sub epoch and other info
 report_freq = -1 # nth minibatch to report minibatch loss on (1 = always,-1 = turn off)
-viz = False # visualise outputs and stats
+viz = True # visualise outputs and stats
 hide_tqdm_bar = True
 save_model = True # also saves a copy of the config file with the name of the model
 checkpoints = False # saves after every meta epoch

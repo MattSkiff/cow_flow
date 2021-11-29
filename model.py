@@ -170,7 +170,8 @@ def sub_conv2d(dims_in,dims_out,n_filters):
                     ("conv1", nn.Conv2d(dims_in, n_filters, kernel_size = 3,padding = 1)), 
                     ('batchnorm1',nn.BatchNorm2d(n_filters)),
                     ("relu1", nn.ReLU()),
-                    ("conv2", nn.Conv2d(c.filters, n_filters*2, kernel_size = 3,padding = 1)),
+                    # use small filters in subnet per glow paper
+                    ("conv2", nn.Conv2d(c.filters, n_filters*2, kernel_size = 1,padding = 0)),
                     ('batchnorm2',nn.BatchNorm2d(n_filters*2)),
                     ("relu2", nn.ReLU()),
                     ("conv3", nn.Conv2d(n_filters*2, dims_out,kernel_size = 3,padding = 1))
