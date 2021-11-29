@@ -27,10 +27,10 @@ mnist_pre = Compose([
 
 dmaps_pre = Compose([
             CustToTensor(),
-            DmapAddUniformNoise(),
             AerialNormalize(),
+            CustResize(),
             CustCrop(),
-            CustResize()
+            DmapAddUniformNoise(),
         ])
 
 if c.mnist:

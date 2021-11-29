@@ -200,9 +200,6 @@ class CowObjectsDataset(Dataset):
                     savez_compressed(dmap_path[:-5],store)
             
             sample = {'image': image}
-            
-            if not self.density:
-                sample['annotations'] = annotations
                 
             if self.density and not self.count:  
                 sample['density'] = density_map; sample['labels'] = labels
@@ -213,6 +210,8 @@ class CowObjectsDataset(Dataset):
             if self.classification:
                 positive = (len(annotations) == 0)
                 sample['binary_labels'] = torch.tensor(positive).type(torch.LongTensor).to(c.device)
+                
+            sample['annotations'] = annotations
                 
             return sample
         
@@ -236,9 +235,7 @@ class CowObjectsDataset(Dataset):
                 sample = compute_labels(idx)
                 
                 self.images.append(sample['image'])
-                
-                if not self.density:
-                    self.annotations_list.append(sample['annotations'])
+                                  
                 if self.density and not self.count:  
                     self.density_list.append(sample['density'])
                     self.labels_list.append(sample['labels'])
@@ -246,6 +243,8 @@ class CowObjectsDataset(Dataset):
                     self.count_list.append(sample['counts'])
                 if self.classification:
                     self.binary_labels_list.append(sample['binary_labels'])
+                    
+                self.annotations_list.append(sample['annotations'])
         
         
     def __len__(self):
@@ -279,6 +278,8 @@ class CowObjectsDataset(Dataset):
                 sample['counts'] = self.count_list[idx]
             if self.classification:
                 sample['binary_labels'] = self.binary_labels_list[idx]
+                
+            sample['annotations'] = self.annotations_list[idx]
                 
         else:
             sample = self.compute_labels(idx)
@@ -385,7 +386,6 @@ class CowObjectsDataset(Dataset):
                         else:
                             ax[i].scatter(an[:,0]*c.img_size[0],an[:,1]*c.img_size[1], s=mk_size,color = 'red')
                                 
-         
         plt.show()
             
     # helper function to show annotations + example
@@ -470,40 +470,6 @@ class CowObjectsDataset(Dataset):
     
     # method to stack tensors of different sizes:
     # https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection/blob/master/datasets.py
-    
-    def custom_collate_fn(self,batch,debug = False):
-        # only needed to collate annotations
-
-        images = list()
-        boxes = list()
-        labels = list()
-        
-        for b in batch:
-            images.append(b['image'])
-    
-            if b['annotations'].numel() == 0:
-                boxes.append(torch.empty(size=(0,4)))
-
-            else:
-                bx = b['annotations'][:, 1:]
-                if debug:
-                    print("bx size:")
-                    print(bx.size())
-                    
-                boxes.append(bx)
-        
-        labels.append(b['annotations'][:, 0]) # append labels regardless
-        
-        images = torch.stack(images,dim = 0)
-
-        if debug:
-            print(type(boxes))
-            print(type(labels))
-            print(type(images))
-            print(boxes)
-            print(labels)
-    
-        return images,boxes,labels
 
     def custom_collate_aerial(self,batch,debug = False):
         # only needed to collate annotations
@@ -511,6 +477,7 @@ class CowObjectsDataset(Dataset):
         images = list()
         density = list()
         labels = list()
+        annotations = list()
         binary_labels = list()
         
         if self.count:
@@ -525,6 +492,9 @@ class CowObjectsDataset(Dataset):
             
             if 'labels' in b.keys():
                 labels.append(b['labels'])
+                
+            if 'annotations' in b.keys():
+                annotations.append(b['annotations'])
             
             if self.count:
                 counts.append(b['counts']) 
@@ -536,10 +506,12 @@ class CowObjectsDataset(Dataset):
         
         if 'density' in b.keys():
             density = torch.stack(density,dim = 0)
+          
         if 'labels' in b.keys():
-            # TODO
-            #labels = np.array(labels, dtype=object)
             labels = labels
+            
+        if 'annotations' in b.keys():
+            annotations = annotations
         
         if self.count:
             counts = torch.stack(counts,dim = 0)
@@ -560,6 +532,8 @@ class CowObjectsDataset(Dataset):
             
         if self.classification:
             out = out + (binary_labels,)
+            
+        out = out + (annotations,)
     
         return out
 
@@ -620,7 +594,7 @@ class AerialNormalize(object):
 
 class DmapAddUniformNoise(object):
     """Add uniform noise to Dmaps to stabilise training."""
-    def __init__(self, r1=0., r2=1e-3):
+    def __init__(self, r1=0., r2=0):
         self.r1 = r1
         self.r2 = r2
     

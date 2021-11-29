@@ -1,5 +1,6 @@
 from torch import randn
 from tqdm import tqdm
+import numpy as np
 import config as c
 import torch
 
@@ -7,6 +8,7 @@ import torch
 # TODO: don't shift computation over to cpu after sampling from model
 def eval_mnist(mdl, valloader, trainloader,samples = 1,confusion = False, preds = False): 
     ''' currently the confusion matrix is calculated across both train and val splits'''
+    
     mdl.eval()
     accuracies = []
     p = []
@@ -94,7 +96,27 @@ def eval_mnist(mdl, valloader, trainloader,samples = 1,confusion = False, preds 
     return  out # train, val
 
 def dmap_count_metrics(y,y_n,y_hat_n,y_hat_n_dists,y_hat_coords):
+    '''All arguments are lists from find_peaks()'''
     
-    rmse,mae,mnae,mape = 0,0,0,0
+    r2,rmse,mae,mape = -99,-99,-99,-99
     
-    return  rmse,mae,mnae,mape
+    # R2 
+    n = len(y_n)
+    y_hat_n = np.array(y_hat_n)
+    y_n = np.array(y_n)
+    
+    y_bar = y_n.mean() 
+    ss_res = np.sum((y_n-y_hat_n)**2)
+    ss_tot = np.sum((y_n-y_bar)**2) 
+    r2 = round(1 - (ss_res / ss_tot),4)
+    
+    # RMSE
+    rmse = round(sum(((y_n-y_hat_n)/n)**2)**0.5,4)
+    
+    # MAE
+    mae = round(sum(np.abs(y_n-y_hat_n))/n,4)
+    
+    # MAPE
+    mape = round(sum(np.abs(y_n-y_hat_n)/np.maximum(np.ones(len(y_n)),y_n))/n,4)
+    
+    return  r2,rmse,mae,mape

@@ -413,16 +413,16 @@ def find_peaks(mdl, loader, plot=False,full=False,n=1):
     assert not mdl.count
     assert mdl.subnet_type == 'conv'
 
-    y = []
-    y_n = []
-    y_hat_n = []
-    y_hat_n_dists = []
-    y_hat_coords = []
+    y = []; y_n = []; y_coords = []
+    
+    y_hat_n = [];  y_hat_n_dists = [];  y_hat_coords = []
+    
+    mdl = mdl.to(c.device)
     
     for i, data in enumerate(tqdm(loader, disable=False)):
         
-        dummy_z = (randn(loader.batch_size,c.channels*4,(c.density_map_h) // 2,(c.density_map_w) // 2)).to(c.device) 
-        images,dmaps,labels = data
+        images,dmaps,labels,annotations = data
+        images = images.float().to(c.device)
          
         if mdl.scale == 1:
             n_ds = 5
@@ -434,20 +434,12 @@ def find_peaks(mdl, loader, plot=False,full=False,n=1):
         in_channels = c.channels*4**n_ds
         ft_dims = ft_dims_select(mdl) 
 
-        z_list = []
         x_list = []
-
-        for i in range(n):    
-            dummy_z = (randn(loader.batch_size, in_channels,ft_dims[0],ft_dims[1])).to(c.device)
-            z_list.append(dummy_z)
                     
         ## sample from model ---
-        images = images.float().to(c.device)
-        dummy_z = dummy_z.float().to(c.device)
-        mdl = mdl.to(c.device)
-        
         for i in range(n):
-            x, _ = mdl(images,z_list[i],rev=True)
+            dummy_z = (randn(loader.batch_size, in_channels,ft_dims[0],ft_dims[1])).to(c.device)
+            x, _ = mdl(images,dummy_z,rev=True)
             x_list.append(x)
         
         # get back to correct image data
@@ -492,41 +484,43 @@ def find_peaks(mdl, loader, plot=False,full=False,n=1):
             if plot:
                 im = unnorm(images[idx])
                 im = images[idx].permute(1,2,0).cpu().numpy()
-                fig, ax = plt.subplots(3,2, figsize=(16, 22))
+                fig, ax = plt.subplots(2,3, figsize=(18, 10))
     
                 ax[0,0].imshow(dmap_rev_np, aspect="auto")
-                ax[1,0].imshow(dmap_uncertainty, aspect="auto")
-                ax[2,0].hist(dist_counts.cpu().numpy())
-                ax[0,1].imshow(ground_truth_dmap, aspect="auto")
+                ax[0,1].imshow(dmap_uncertainty, aspect="auto")
+                ax[0,2].hist(dist_counts.cpu().numpy())
+                ax[1,0].imshow(ground_truth_dmap, aspect="auto")
                 ax[1,1].imshow((im * 255).astype(np.uint8), aspect="auto")
                 
                 if len(coordinates) != 0:
                     x_coords, y_coords = zip(*coordinates)
-                    ax[2,1].scatter(y_coords, x_coords)
-                    ax[2,1].set_ylim(ax[1,0].get_ylim())
-                    ax[2,1].set_xlim(ax[1,0].get_xlim())
-                    ax[2,1].title.set_text('Localizations via Peak Finding on Reconstruction\nN = {}'.format(len(coordinates)))   
+                    ax[1,2].scatter(y_coords, x_coords)
+                    ax[1,2].scatter(y_coords, x_coords,c='red',marker='1')
+                    ax[1,2].set_ylim(ax[1,0].get_ylim())
+                    ax[1,2].set_xlim(ax[1,0].get_xlim())
+                    ax[1,2].title.set_text('Localizations via Peak Finding on Reconstruction\nN = {}'.format(len(coordinates)))   
                     
                 ax[0,0].title.set_text('Mean (N={}) Reconstructed Density Map from Aerial Imagery\nSum Density Map = {:.2f}'.format(n,sum_count))
                 #ax[1,0].title.set_text('Pixel-wise Uncertainty Estimate (normalised std. dev)')
-                ax[1,0].title.set_text('Image Differencing (Reconstruction,Ground Truth Density Map)')
-                ax[2,0].title.set_text('Sum (Integration) Prediction Distribution (N = {})'.format(n))
-                ax[0,1].title.set_text('Ground Truth Density Map\nN = {} | Sum = {:.2f}'.format(len(labels[idx]),gt_count))
+                ax[0,1].title.set_text('Image Differencing (Reconstruction,Ground Truth Density Map)')
+                ax[0,2].title.set_text('Sum (Integration) Prediction Distribution (N = {})'.format(n))
+                ax[1,0].title.set_text('Ground Truth Density Map\nN = {} | Sum = {:.2f}'.format(len(labels[idx]),gt_count))
                 ax[1,1].title.set_text('Aerial Image')
                 
                 fig.subplots_adjust(hspace=0.4)
                 
     
             if full:
-                y.append(labels[idx])
+                y.append(labels[idx].cpu().detach().numpy())
                 y_n.append(len(labels[idx]))
+                y_coords.append(annotations[idx])
                 y_hat_n.append(sum_count)
                 y_hat_n_dists.append(dist_counts)
                 y_hat_coords.append(coordinates) 
             else:
                 return coordinates
         
-    return y,y_n,y_hat_n,y_hat_n_dists,y_hat_coords
+    return y,y_n,y_hat_n,y_coords,y_hat_n_dists,y_hat_coords
         
 
 def torch_r2(mdl,loader):
@@ -565,7 +559,6 @@ def torch_r2(mdl,loader):
         
         y_hat = torch.cat(means,dim=0).squeeze()
         y = torch.cat(actuals)
-        print(y)
         y_bar = y.mean()
         
         ss_res = torch.sum((y-y_hat)**2)
