@@ -95,9 +95,98 @@ def eval_mnist(mdl, valloader, trainloader,samples = 1,confusion = False, preds 
 
     return  out # train, val
 
-def dmap_count_metrics(y,y_n,y_hat_n,y_hat_n_dists,y_hat_coords):
-    '''All arguments are lists from find_peaks()'''
+def dmap_metrics(mdl, loader,n=1,mode=''):
+    '''DMAP,COUNT,LOCALIZATION metrics'''
     
+    assert not mdl.count
+    assert mode in ['train','val']
+    assert mdl.subnet_type == 'conv'
+
+    y = []; y_n = []; y_coords = []
+    
+    y_hat_n = [];  y_hat_n_dists = [];  y_hat_coords = []
+    
+    dm_mae = []; dm_mse = []
+    
+    mdl = mdl.to(c.device)
+    
+    for i, data in enumerate(tqdm(loader, disable=False)):
+        
+        images,dmaps,labels,annotations = data
+        images = images.float().to(c.device)
+         
+        if mdl.scale == 1:
+            n_ds = 5
+        elif mdl.scale == 2:
+            n_ds = 4
+        elif mdl.scale == 4:
+            n_ds = 3
+                            
+        in_channels = c.channels*4**n_ds
+        ft_dims = ft_dims_select(mdl) 
+
+        x_list = []
+                    
+        ## sample from model ---
+        for i in range(n):
+            dummy_z = (randn(loader.batch_size, in_channels,ft_dims[0],ft_dims[1])).to(c.device)
+            x, _ = mdl(images,dummy_z,rev=True)
+            x_list.append(x)
+        
+        # get back to correct image data
+        unnorm = UnNormalize(mean=tuple(c.norm_mean),
+                             std=tuple(c.norm_std))
+        
+        x_agg = torch.stack(x_list,dim=1)
+        
+        # sum across channel, spatial dims for counts
+        x = x_agg.mean(dim=1)
+        x_std = x_agg.std(dim=1)
+        x_std_norm = x_std #x_std-x #x_std.div(x)
+
+        for idx in range(loader.batch_size):               
+        
+            if not full:
+                import random
+                idx = random.randint(0,loader.batch_size-1)
+                
+            dmap_rev_np = x[idx].squeeze().cpu().detach().numpy()
+            #dmap_uncertainty = x_std[idx].squeeze().cpu().detach().numpy()
+            sum_count = dmap_rev_np.sum()
+            dist_counts  = x_agg[idx].sum((1,2,3)) 
+            
+            ground_truth_dmap = dmaps[idx].squeeze().cpu().detach().numpy()
+            gt_count = ground_truth_dmap.sum().round()
+            
+            # if sum_count > 0:
+            #     thres = int(sum_count)
+              
+            dmap_uncertainty = dmap_rev_np-ground_truth_dmap #x_std_norm[idx].squeeze().cpu().detach().numpy()
+            
+            coordinates = peak_local_max(dmap_rev_np, min_distance=int(loader.dataset.sigma)//2,threshold_rel=0.4)#,num_peaks=inf)
+            
+            # subtract constrant for uniform noise
+            constant = ((1e-3)/2)*ground_truth_dmap.shape[0]*ground_truth_dmap.shape[1]
+            sum_count -= constant
+            dist_counts -= constant
+            gt_count -= constant
+            
+            y.append(labels[idx].cpu().detach().numpy())
+            y_n.append(len(labels[idx]))
+            y_coords.append(annotations[idx])
+            y_hat_n.append(sum_count)
+            y_hat_n_dists.append(dist_counts)
+            y_hat_coords.append(coordinates) 
+            
+            # dmap metrics
+            dm_mae.append(sum(abs(dmap_rev_np-ground_truth_dmap)))
+            dm_mse.append(sum(np.square(dmap_rev_np-ground_truth_dmap)))
+            
+    # dmap metrics
+    dm_mae = np.mean(np.vstack(dm_mae))
+    dm_mse = np.mean(np.vstack(dm_mse))
+    
+    ## Counts
     r2,rmse,mae,mape = -99,-99,-99,-99
     
     # R2 
@@ -118,5 +207,18 @@ def dmap_count_metrics(y,y_n,y_hat_n,y_hat_n_dists,y_hat_coords):
     
     # MAPE
     mape = round(sum(np.abs(y_n-y_hat_n)/np.maximum(np.ones(len(y_n)),y_n))/n,4)
+
+    metric_dict = {
+        '{}_r2':r2.format(mode),
+        '{}_rmse':rmse.format(mode),
+        '{}_mae':mae.format(mode),
+        '{}_mape':mape.format(mode),
+        '{}_dm_mae':dm_mae.format(mode),
+        '{}_dm_mse':dm_mse.format(mode),
+        }
+    return  metric_dict
+
+def dmap_local_metrics(y_coords,y_hat_coords):
     
-    return  r2,rmse,mae,mape
+    
+    return 0

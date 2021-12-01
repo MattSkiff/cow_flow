@@ -27,8 +27,8 @@ test_train_split = 70 # percentage of data to allocate to train set
 
 ## Density Map Options ------
 uniform_noise = 0 # amount of uniform noise to add (sample evenly from 0-x) | 0 for none
-filter_size = 15 # as per single image mcnn paper
-sigma = 4.0 # "   -----    " 
+filter_size = 32 # as per single image mcnn paper
+sigma = 8.0 # "   -----    " 
 scale = 1 # 4, 2 = downscale dmaps four/two fold, 1 = unchanged
 
 ## Feature Extractor Options ------
@@ -69,7 +69,7 @@ batch_size = [2] # actual batch size is this value multiplied by n_transforms(_t
 # total epochs = meta_epochs * sub_epochs
 # evaluation after <sub_epochs> epochs
 meta_epochs = 1
-sub_epochs = 3
+sub_epochs = 1
 
 ## Output Settings ----
 schema = 'eval_test' # if debug, ignored

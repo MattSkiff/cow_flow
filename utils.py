@@ -11,9 +11,9 @@ from prettytable import PrettyTable
 import config as c
 import gvars as g
 
-from scipy import ndimage as ndi
+#from scipy import ndimage as ndi
 from skimage.feature import peak_local_max # 
-from skimage import data, img_as_float
+#from skimage import data, img_as_float
 
 def ft_dims_select(mdl=None):
     
@@ -174,7 +174,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=F
             elif loader.dataset.count: # model.dataset.count
                 images,dmaps,labels,counts = data
             else:
-                images,dmaps,labels = data
+                images,dmaps,labels, _ = data
             
             # TODO - intermittent bug here
             dmaps = dmaps.cpu()
@@ -409,14 +409,11 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=F
     return out
 
 @torch.no_grad()
-def find_peaks(mdl, loader, plot=False,full=False,n=1):
+# TODO - add plot full set and save opt
+def plot_peaks(mdl, loader,n=1):
     assert not mdl.count
     assert mdl.subnet_type == 'conv'
 
-    y = []; y_n = []; y_coords = []
-    
-    y_hat_n = [];  y_hat_n_dists = [];  y_hat_coords = []
-    
     mdl = mdl.to(c.device)
     
     for i, data in enumerate(tqdm(loader, disable=False)):
@@ -451,13 +448,11 @@ def find_peaks(mdl, loader, plot=False,full=False,n=1):
         # sum across channel, spatial dims for counts
         x = x_agg.mean(dim=1)
         x_std = x_agg.std(dim=1)
-        x_std_norm = x_std #x_std-x #x_std.div(x)
+        #x_std_norm = x_std #x_std-x #x_std.div(x) # unused
 
         for idx in range(loader.batch_size):               
         
-            if not full:
-                import random
-                idx = random.randint(0,loader.batch_size-1)
+            idx = random.randint(0,loader.batch_size-1)
                 
             dmap_rev_np = x[idx].squeeze().cpu().detach().numpy()
             #dmap_uncertainty = x_std[idx].squeeze().cpu().detach().numpy()
@@ -471,8 +466,8 @@ def find_peaks(mdl, loader, plot=False,full=False,n=1):
             #     thres = int(sum_count)
               
             dmap_uncertainty = dmap_rev_np-ground_truth_dmap #x_std_norm[idx].squeeze().cpu().detach().numpy()
-            
             coordinates = peak_local_max(dmap_rev_np, min_distance=int(loader.dataset.sigma)//2,threshold_rel=0.4)#,num_peaks=inf)
+            gt_coords = annotations[idx].cpu().detach().numpy()
             
             # subtract constrant for uniform noise
             constant = ((1e-3)/2)*ground_truth_dmap.shape[0]*ground_truth_dmap.shape[1]
@@ -480,47 +475,38 @@ def find_peaks(mdl, loader, plot=False,full=False,n=1):
             dist_counts -= constant
             gt_count -= constant
 
+            im = unnorm(images[idx])
+            im = images[idx].permute(1,2,0).cpu().numpy()
+            fig, ax = plt.subplots(2,3, figsize=(18, 10))
             
-            if plot:
-                im = unnorm(images[idx])
-                im = images[idx].permute(1,2,0).cpu().numpy()
-                fig, ax = plt.subplots(2,3, figsize=(18, 10))
-    
-                ax[0,0].imshow(dmap_rev_np, aspect="auto")
-                ax[0,1].imshow(dmap_uncertainty, aspect="auto")
-                ax[0,2].hist(dist_counts.cpu().numpy())
-                ax[1,0].imshow(ground_truth_dmap, aspect="auto")
-                ax[1,1].imshow((im * 255).astype(np.uint8), aspect="auto")
+            ax[0,0].imshow(dmap_rev_np, aspect="auto")
+            ax[0,1].imshow(dmap_uncertainty, aspect="auto")
+            ax[0,2].hist(dist_counts.cpu().numpy())
+            ax[0,2].axvline(dist_counts.cpu().numpy().mean(), color='red', linestyle='dashed', linewidth=1)
+            ax[1,0].imshow(ground_truth_dmap, aspect="auto")
+            ax[1,1].imshow((im * 255).astype(np.uint8), aspect="auto")
+            
+            if len(coordinates) != 0:
+                x_coords, y_coords = zip(*coordinates)
+                ax[1,2].scatter(y_coords, x_coords,label='Predicted coordinates')
+                ax[1,2].scatter(gt_coords[:,1]*mdl.density_map_w, gt_coords[:,2]*mdl.density_map_h,c='red',marker='1',label='Ground truth coordinates')
+                ax[1,2].legend()
+                ax[1,2].set_ylim(ax[1,0].get_ylim())
+                ax[1,2].set_xlim(ax[1,0].get_xlim())
+                ax[1,2].title.set_text('Localizations via Peak Finding on Reconstruction\nN = {}'.format(len(coordinates)))   
                 
-                if len(coordinates) != 0:
-                    x_coords, y_coords = zip(*coordinates)
-                    ax[1,2].scatter(y_coords, x_coords)
-                    ax[1,2].scatter(y_coords, x_coords,c='red',marker='1')
-                    ax[1,2].set_ylim(ax[1,0].get_ylim())
-                    ax[1,2].set_xlim(ax[1,0].get_xlim())
-                    ax[1,2].title.set_text('Localizations via Peak Finding on Reconstruction\nN = {}'.format(len(coordinates)))   
-                    
-                ax[0,0].title.set_text('Mean (N={}) Reconstructed Density Map from Aerial Imagery\nSum Density Map = {:.2f}'.format(n,sum_count))
-                #ax[1,0].title.set_text('Pixel-wise Uncertainty Estimate (normalised std. dev)')
-                ax[0,1].title.set_text('Image Differencing (Reconstruction,Ground Truth Density Map)')
-                ax[0,2].title.set_text('Sum (Integration) Prediction Distribution (N = {})'.format(n))
-                ax[1,0].title.set_text('Ground Truth Density Map\nN = {} | Sum = {:.2f}'.format(len(labels[idx]),gt_count))
-                ax[1,1].title.set_text('Aerial Image')
-                
-                fig.subplots_adjust(hspace=0.4)
-                
-    
-            if full:
-                y.append(labels[idx].cpu().detach().numpy())
-                y_n.append(len(labels[idx]))
-                y_coords.append(annotations[idx])
-                y_hat_n.append(sum_count)
-                y_hat_n_dists.append(dist_counts)
-                y_hat_coords.append(coordinates) 
-            else:
-                return coordinates
+            ax[0,0].title.set_text('Mean (N={}) Reconstructed Density Map from Aerial Imagery\nSum Density Map = {:.2f}'.format(n,sum_count))
+            #ax[1,0].title.set_text('Pixel-wise Uncertainty Estimate (normalised std. dev)')
+            ax[0,1].title.set_text('Image Differencing (Reconstruction, Ground Truth Density Map)')
+            ax[0,2].title.set_text('Sum (Integration) Prediction Distribution (N = {})'.format(n))
+            ax[1,0].title.set_text('Ground Truth Density Map\nN = {} | Sum = {:.2f}'.format(len(labels[idx]),gt_count))
+            ax[1,1].title.set_text('Aerial Image')
+            
+            fig.subplots_adjust(hspace=0.4)
+            
+            return
         
-    return y,y_n,y_hat_n,y_coords,y_hat_n_dists,y_hat_coords
+    return 
         
 
 def torch_r2(mdl,loader):
