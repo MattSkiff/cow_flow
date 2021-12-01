@@ -629,17 +629,19 @@ class CustCrop(object):
 #                density = density[:544,:768]
             
             # (padding_left,padding_right, padding, padding, padding_top,padding_bottom)
-            density = F.pad(input=density, pad=(0,0,pd,0), mode='constant', value=0)
+            # density = F.pad(input=density, pad=(0,0,pd,0), mode='constant', value=0)
             sample['density'] = density
             
             if c.debug:
-                print("image padded by {}".format(pd))
+                pass
+                #print("image padded by {}".format(pd))
             
-            if c.pyramid:
-                # adding padding so high level features match dmap dims after downsampling (37,38)
-                image = sample['image']
-                image = F.pad(input=image, pad=(0,0,pd,0), mode='constant', value=0)
-                sample['image'] =  image
+            'remove padding and scale instead (CustResize) to prevent artifacts occuring from model'
+            # if c.pyramid:
+            #     # adding padding so high level features match dmap dims after downsampling (37,38)
+            #     image = sample['image']
+            #     image = F.pad(input=image, pad=(0,0,pd,0), mode='constant', value=0)
+            #     sample['image'] =  image
         
         return sample
     
@@ -650,12 +652,19 @@ class CustResize(object):
               
         if 'density' in sample.keys():
             density = sample['density']
-            sz = list(density.size())
+            #sz = list(density.size())
+            sz = [c.density_map_w,c.density_map_h]
             
             # channels, height, width | alias off by default, bilinear default
             density = density.unsqueeze(0).unsqueeze(0)
             density = TF.resize(density,(sz[0]//c.scale,sz[1]//c.scale))
             density = density.squeeze().squeeze()
+            
+            if c.pyramid:
+                # adding padding so high level features match dmap dims after downsampling (37,38)
+                image = sample['image']
+                image = TF.resize(image,(sz[0]//c.scale,sz[1]//c.scale))
+                sample['image'] =  image
             
             if c.debug:
                 print("image scaled down factor by {}".format(c.scale))

@@ -10,8 +10,8 @@ import copy
 import os
 from datetime import datetime 
 
-from eval import eval_mnist, dmap_count_metrics
-from utils import get_loss, plot_preds, counts_preds_vs_actual, t2np, torch_r2, find_peaks
+from eval import eval_mnist, dmap_metrics
+from utils import get_loss, plot_preds, counts_preds_vs_actual, t2np, torch_r2, plot_peaks
 import model # importing entire file fixes 'cyclical import' issues
 #from model import CowFlow, MNISTFlow, select_feat_extractor, save_model #, save_weights
 
@@ -220,10 +220,10 @@ def train(train_loader,val_loader,battery = False,lr_i=c.lr_init,writer=None): #
                         optimizer.zero_grad()
                         
                         # TODO - can this section
-                        if not c.mnist and not c.counts and not train_feat_extractor:
-                            images,dmaps,labels = data
+                        if not c.mnist and not c.counts and not c.train_feat_extractor:
+                            images,dmaps,labels, _ = data # _ annotations
                         elif not c.mnist and not c.counts:
-                            images,dmaps,labels = data # _ = binary_label
+                            images,dmaps,labels, _, _ = data # _ = annotations
                         elif not c.mnist:
                             images,dmaps,labels,counts = data
                         else:
@@ -403,37 +403,15 @@ def train(train_loader,val_loader,battery = False,lr_i=c.lr_init,writer=None): #
                     if c.viz:
                         plot_preds(mdl,train_loader,writer=writer,writer_epoch=j,writer_mode='train')
                         
-                    train_preds = find_peaks(mdl,train_loader,full=True,n=c.eval_n)
-                    train_r2,train_rmse,train_mae,train_mape = dmap_count_metrics(*train_preds)
-                    train_count_metrics = {'train_r2':train_r2,
-                                    'train_rmse':train_rmse,
-                                    'train_mae':train_mae,
-                                    'train_mape': train_mape}
-                    
-                    writer.add_scalar('counting_metrics/val_r2',train_count_metrics['train_r2'], j)
-                    writer.add_scalar('counting_metrics/val_rmse',train_count_metrics['train_rmse'] , j)
-                    writer.add_scalar('counting_metrics/val_mae',train_count_metrics['train_mae'], j)
-                    writer.add_scalar('counting_metrics/val_mape',train_count_metrics['train_mape'], j)
-                     
+                    train_metric_dict = dmap_metrics(mdl, train_loader,n=1,mode='train')
                     model_metric_dict.update(train_count_metrics)
                     
                     if c.validation:
                         if c.viz:
                             plot_preds(mdl,val_loader,writer=writer,writer_epoch=j,writer_mode='val')
                             
-                        val_preds = find_peaks(mdl,val_loader,full=True,n=c.eval_n)
-                        val_r2,val_rmse,val_mae,val_mape = dmap_count_metrics(*val_preds)
-                        val_count_metrics = {'val_r2':val_r2,
-                                        'val_rmse':val_rmse,
-                                        'val_mae':val_mae,
-                                        'val_mape': val_mape}
-                        
-                    writer.add_scalar('counting_metrics/val_r2',val_count_metrics['val_r2'] , j)
-                    writer.add_scalar('counting_metrics/val_rmse',val_count_metrics['val_rmse'] , j)
-                    writer.add_scalar('counting_metrics/val_mae',val_count_metrics['val_mae'], j)
-                    writer.add_scalar('counting_metrics/val_mape',val_count_metrics['val_mape'], j)
-                    
-                    model_metric_dict.update(val_count_metrics)
+                        train_metric_dict = dmap_metrics(mdl, val_loader,n=1,mode='val')
+                        model_metric_dict.update(val_count_metrics)
 
                 # MNIST Model metrics
                 if writer != None and mdl.mnist:
