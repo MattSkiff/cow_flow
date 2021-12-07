@@ -89,7 +89,7 @@ else:
     
     if c.annotations_only:
         train_sampler = SubsetRandomSampler(t_indices)
-        val_sampler = SubsetRandomSampler(v_indices)
+        val_sampler = SubsetRandomSampler(v_indices)    
     
     if c.weighted:
         # the weight sizes correspond to whether each indices 0...5900 is null-annotated or not

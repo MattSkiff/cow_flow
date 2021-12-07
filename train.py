@@ -404,14 +404,14 @@ def train(train_loader,val_loader,battery = False,lr_i=c.lr_init,writer=None): #
                         plot_preds(mdl,train_loader,writer=writer,writer_epoch=j,writer_mode='train')
                         
                     train_metric_dict = dmap_metrics(mdl, train_loader,n=1,mode='train')
-                    model_metric_dict.update(train_count_metrics)
+                    model_metric_dict.update(train_metric_dict)
                     
                     if c.validation:
                         if c.viz:
                             plot_preds(mdl,val_loader,writer=writer,writer_epoch=j,writer_mode='val')
                             
-                        train_metric_dict = dmap_metrics(mdl, val_loader,n=1,mode='val')
-                        model_metric_dict.update(val_count_metrics)
+                        val_metric_dict = dmap_metrics(mdl, val_loader,n=1,mode='val')
+                        model_metric_dict.update(val_metric_dict)
 
                 # MNIST Model metrics
                 if writer != None and mdl.mnist:
