@@ -408,8 +408,8 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=F
 
     return out
 
-@torch.no_grad()
 # TODO - add plot full set and save opt
+@torch.no_grad()
 def plot_peaks(mdl, loader,n=1):
     assert not mdl.count
     assert mdl.subnet_type == 'conv'
@@ -466,14 +466,16 @@ def plot_peaks(mdl, loader,n=1):
             #     thres = int(sum_count)
               
             dmap_uncertainty = dmap_rev_np-ground_truth_dmap #x_std_norm[idx].squeeze().cpu().detach().numpy()
-            coordinates = peak_local_max(dmap_rev_np, min_distance=int(loader.dataset.sigma)//2,threshold_rel=0.4)#,num_peaks=inf)
+
             gt_coords = annotations[idx].cpu().detach().numpy()
             
             # subtract constrant for uniform noise
-            constant = ((1e-3)/2)*ground_truth_dmap.shape[0]*ground_truth_dmap.shape[1]
+            constant = ((c.noise)/2)*ground_truth_dmap.shape[0]*ground_truth_dmap.shape[1] # TODO mdl.noise
             sum_count -= constant
             dist_counts -= constant
             gt_count -= constant
+            
+            coordinates = peak_local_max(dmap_rev_np,min_distance=4,num_peaks=max(1,int(sum_count)))
 
             im = unnorm(images[idx])
             im = images[idx].permute(1,2,0).cpu().numpy()

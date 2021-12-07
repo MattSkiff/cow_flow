@@ -1,11 +1,22 @@
-from torch import randn
 from tqdm import tqdm
 import numpy as np
-import config as c
+from skimage.feature import peak_local_max # 
+from scipy.spatial import distance
+import random
 import torch
+from torch import randn
+
+import matplotlib.pyplot as plt
+from utils import ft_dims_select, UnNormalize
+import config as c
+
+MAX_DISTANCE = 100
+MIN_D = int(c.sigma)
+STEP = 1
 
 # TODO extra args: plot = True, save=True,hist=True
 # TODO: don't shift computation over to cpu after sampling from model
+@torch.no_grad()
 def eval_mnist(mdl, valloader, trainloader,samples = 1,confusion = False, preds = False): 
     ''' currently the confusion matrix is calculated across both train and val splits'''
     
@@ -95,18 +106,24 @@ def eval_mnist(mdl, valloader, trainloader,samples = 1,confusion = False, preds 
 
     return  out # train, val
 
-def dmap_metrics(mdl, loader,n=1,mode=''):
+@torch.no_grad()
+def dmap_metrics(mdl, loader,n=1,mode='',thres=c.sigma*2):
     '''DMAP,COUNT,LOCALIZATION metrics'''
     
     assert not mdl.count
     assert mode in ['train','val']
     assert mdl.subnet_type == 'conv'
-
+    
+    localisation_dict = {
+        'tp':0,
+        'fp':0,
+        'fn':0
+        }
+    
     y = []; y_n = []; y_coords = []
-    
     y_hat_n = [];  y_hat_n_dists = [];  y_hat_coords = []
-    
     dm_mae = []; dm_mse = []
+    game = []; gampe = []
     
     mdl = mdl.to(c.device)
     
@@ -133,25 +150,14 @@ def dmap_metrics(mdl, loader,n=1,mode=''):
             x, _ = mdl(images,dummy_z,rev=True)
             x_list.append(x)
         
-        # get back to correct image data
-        unnorm = UnNormalize(mean=tuple(c.norm_mean),
-                             std=tuple(c.norm_std))
-        
         x_agg = torch.stack(x_list,dim=1)
-        
-        # sum across channel, spatial dims for counts
-        x = x_agg.mean(dim=1)
-        x_std = x_agg.std(dim=1)
-        x_std_norm = x_std #x_std-x #x_std.div(x)
+        x = x_agg.mean(dim=1) # sum across channel, spatial dims for counts
 
         for idx in range(loader.batch_size):               
         
-            if not full:
-                import random
-                idx = random.randint(0,loader.batch_size-1)
+            idx = random.randint(0,loader.batch_size-1)
                 
             dmap_rev_np = x[idx].squeeze().cpu().detach().numpy()
-            #dmap_uncertainty = x_std[idx].squeeze().cpu().detach().numpy()
             sum_count = dmap_rev_np.sum()
             dist_counts  = x_agg[idx].sum((1,2,3)) 
             
@@ -160,20 +166,21 @@ def dmap_metrics(mdl, loader,n=1,mode=''):
             
             # if sum_count > 0:
             #     thres = int(sum_count)
-              
-            dmap_uncertainty = dmap_rev_np-ground_truth_dmap #x_std_norm[idx].squeeze().cpu().detach().numpy()
             
-            coordinates = peak_local_max(dmap_rev_np, min_distance=int(loader.dataset.sigma)//2,threshold_rel=0.4)#,num_peaks=inf)
+            gt_coords = annotations[idx]
+            gt_coords = torch.stack([gt_coords[:,2]*mdl.density_map_h,gt_coords[:,1]*mdl.density_map_w]).cpu().detach().numpy()
             
             # subtract constrant for uniform noise
-            constant = ((1e-3)/2)*ground_truth_dmap.shape[0]*ground_truth_dmap.shape[1]
+            constant = ((c.noise)/2)*ground_truth_dmap.shape[0]*ground_truth_dmap.shape[1] # TODO mdl.noise
             sum_count -= constant
             dist_counts -= constant
             gt_count -= constant
             
+            coordinates = peak_local_max(dmap_rev_np,min_distance=MIN_D,num_peaks=max(1,int(sum_count)))
+            
             y.append(labels[idx].cpu().detach().numpy())
             y_n.append(len(labels[idx]))
-            y_coords.append(annotations[idx])
+            y_coords.append(gt_coords)
             y_hat_n.append(sum_count)
             y_hat_n_dists.append(dist_counts)
             y_hat_coords.append(coordinates) 
@@ -182,12 +189,46 @@ def dmap_metrics(mdl, loader,n=1,mode=''):
             dm_mae.append(sum(abs(dmap_rev_np-ground_truth_dmap)))
             dm_mse.append(sum(np.square(dmap_rev_np-ground_truth_dmap)))
             
+    # local-count metrics # TODO
+    game.append(0)
+    gampe.append(0)
+    
+    
+    # localisation metrics 
+    for gt_dmap, pred_dmap in zip(y_coords, y_hat_coords):
+        gt_dmap = np.swapaxes(gt_dmap,1,0)
+        
+        dists = [] # matched distances per density map
+        dist_matrix = distance.cdist(gt_dmap, pred_dmap, 'euclidean')
+        
+        # match all pred points (if pred < gt) or vice versa
+        for i in range(0,min(gt_dmap.shape[0],pred_dmap.shape[0])):
+            md = np.amin(dist_matrix)
+            # delete entry from distance matrix when match is found
+            dist_matrix = np.delete(dist_matrix,np.where(dist_matrix == md))
+            dists.append(md) 
+        
+        dists = np.array(dists)
+        
+        # DEBUG VIZ
+        # unnorm = UnNormalize(mean=tuple(c.norm_mean),
+        #                      std=tuple(c.norm_std))
+        # import matplotlib.pyplot as plt
+        # fig, ax = plt.subplots(1,1, figsize=(10, 10))
+        # ax.scatter(pred_dmap[:,0], pred_dmap[:,1],label='Predicted coordinates')
+        # ax.scatter(gt_dmap[:,0], gt_dmap[:,1],c='red',marker='1',label='Ground truth coordinates')
+
+        tp = np.count_nonzero(dists<=thres)
+        
+        localisation_dict['tp'] += tp
+        localisation_dict['fp'] += pred_dmap.shape[0]-tp
+        localisation_dict['fn'] += gt_dmap.shape[0]-tp
+            
     # dmap metrics
     dm_mae = np.mean(np.vstack(dm_mae))
     dm_mse = np.mean(np.vstack(dm_mse))
     
     ## Counts
-    r2,rmse,mae,mape = -99,-99,-99,-99
     
     # R2 
     n = len(y_n)
@@ -207,18 +248,167 @@ def dmap_metrics(mdl, loader,n=1,mode=''):
     
     # MAPE
     mape = round(sum(np.abs(y_n-y_hat_n)/np.maximum(np.ones(len(y_n)),y_n))/n,4)
-
+    
+   # GAME = 0
+   # GAMPE = 0
+    fscore = localisation_dict['tp']/(localisation_dict['tp']+0.5*(localisation_dict['fp']+localisation_dict['fn']))
+    
     metric_dict = {
-        '{}_r2':r2.format(mode),
-        '{}_rmse':rmse.format(mode),
-        '{}_mae':mae.format(mode),
-        '{}_mape':mape.format(mode),
-        '{}_dm_mae':dm_mae.format(mode),
-        '{}_dm_mse':dm_mse.format(mode),
+        '{}_r2'.format(mode):r2,
+        '{}_rmse'.format(mode):rmse,
+        '{}_mae'.format(mode):mae,
+        '{}_mape'.format(mode):mape,
+        '{}_dm_mae'.format(mode):dm_mae,
+        '{}_dm_mse'.format(mode):dm_mse,
+       # '{}_game'.format(mode):game,
+       # '{}_gampe'.format(mode):gampe,
+        '{}_fscore'.format(mode):fscore
         }
-    return  metric_dict
+    
+    return  metric_dict # localisation_dict
 
-def dmap_local_metrics(y_coords,y_hat_coords):
+@torch.no_grad()
+def dmap_pr_curve(mdl, loader,n = 10,mode = ''):
+    '''DMAP,COUNT,LOCALIZATION metrics'''
     
+    assert not mdl.count
+    assert mode in ['train','val']
+    assert mdl.subnet_type == 'conv'
     
-    return 0
+    localisation_dists = []
+    thresholds = np.arange(0, MAX_DISTANCE, STEP)
+    
+    for i in range(0,len(thresholds)):
+      localisation_dists.append({
+    'tp':0,
+    'fp':0,
+    'fn':0
+    })  
+
+    y = []; y_n = []; y_coords = []
+    y_hat_n = [];  y_hat_coords = []
+    
+    mdl = mdl.to(c.device)
+    
+    for i, data in enumerate(tqdm(loader, disable=False)):
+        
+        images,dmaps,labels,annotations = data
+        images = images.float().to(c.device)
+         
+        if mdl.scale == 1:
+            n_ds = 5
+        elif mdl.scale == 2:
+            n_ds = 4
+        elif mdl.scale == 4:
+            n_ds = 3
+                            
+        in_channels = c.channels*4**n_ds
+        ft_dims = ft_dims_select(mdl) 
+
+        x_list = []
+                    
+        ## sample from model ---
+        for i in range(n):
+            dummy_z = (randn(loader.batch_size, in_channels,ft_dims[0],ft_dims[1])).to(c.device)
+            x, _ = mdl(images,dummy_z,rev=True)
+            x_list.append(x)
+        
+        x_agg = torch.stack(x_list,dim=1)
+        x = x_agg.mean(dim=1)
+        
+        # get results for each item in batch
+        for idx in range(loader.batch_size):               
+        
+            idx = random.randint(0,loader.batch_size-1)
+                
+            dmap_rev_np = x[idx].squeeze().cpu().detach().numpy()
+            sum_count = dmap_rev_np.sum()
+            
+            ground_truth_dmap = dmaps[idx].squeeze().cpu().detach().numpy()
+            gt_count = ground_truth_dmap.sum().round()
+            
+            gt_coords = annotations[idx]
+            gt_coords = torch.stack([gt_coords[:,2]*mdl.density_map_h,gt_coords[:,1]*mdl.density_map_w]).cpu().detach().numpy()
+            
+            # subtract constrant for uniform noise
+            constant = ((c.noise)/2)*ground_truth_dmap.shape[0]*ground_truth_dmap.shape[1] # TODO mdl.noise
+            gt_count -= constant
+            sum_count -= constant
+            
+            coordinates = peak_local_max(dmap_rev_np,min_distance=MIN_D,num_peaks=max(1,int(sum_count)))
+            
+            y.append(labels[idx].cpu().detach().numpy())
+            y_n.append(len(labels[idx]))
+            y_coords.append(gt_coords)
+            y_hat_n.append(sum_count)
+            y_hat_coords.append(coordinates)     
+    
+    # localisation metrics 
+    
+    # it turns out this is actually an instance of the assignment problem and quite complex
+    # however n should always be less than 1k-2k, and it's just for evaluation, so optimality isn't critical
+            
+    # 1) distance matrix
+    # 2) iter over each ground truth point
+    # 3) find nearest two points (min in dist matrix))
+    # 4) add to dist vector and delete item in dist matrix
+    # 5) filt dist vector according to distance threshold
+            
+    for gt_dmap, pred_dmap in zip(y_coords, y_hat_coords):
+        gt_dmap = np.swapaxes(gt_dmap,1,0)
+        
+        dist_matrix = distance.cdist(gt_dmap, pred_dmap, 'euclidean')
+        dists = [] # matched distances per density map
+        
+        # match all pred points (if pred < gt) or vice versa
+        for i in range(0,min(gt_dmap.shape[0],pred_dmap.shape[0])):
+            md = np.amin(dist_matrix)
+            # delete entry from distance matrix when match is found
+            dist_matrix = np.delete(dist_matrix,np.where(dist_matrix == md))
+            dists.append(md) 
+
+        # DEBUG VIZ
+        # fig, ax = plt.subplots(1,1, figsize=(10, 10))
+        # ax.scatter(pred_dmap[:,0], pred_dmap[:,1],label='Predicted coordinates')
+        # ax.scatter(gt_dmap[:,0], gt_dmap[:,1],c='red',marker='1',label='Ground truth coordinates')
+        # 1/0
+        
+        dists = np.array(dists)
+        
+        # loop over threshold values
+        i = 0
+        for num in thresholds:
+            tp = np.count_nonzero(dists<=num)
+            
+            localisation_dists[i]['tp'] += tp
+            localisation_dists[i]['fp'] += pred_dmap.shape[0]-tp
+            localisation_dists[i]['fn'] += gt_dmap.shape[0]-tp
+            i += 1
+            
+        # print('shapes')
+        # print(pred_dmap.shape[0])
+        # print(gt_dmap.shape[0])
+        # print('metrics')
+        # print(tp)
+        # print(pred_dmap.shape[0]-tp)
+        # print(gt_dmap.shape[0]-tp)
+    
+    pr = []; rc = []
+    
+    for i in range(0,len(thresholds)):
+        pr.append(localisation_dists[i]['tp']/(localisation_dists[i]['tp']+localisation_dists[i]['fp']))
+        rc.append(localisation_dists[i]['tp']/(localisation_dists[i]['tp']+localisation_dists[i]['fn']))
+     
+    fig, ax = plt.subplots(2,1, figsize=(8, 8))
+    
+    ax[0].plot(thresholds,rc, '-o')
+    ax[0].title.set_text('Recall Curve')
+    ax[0].set(xlabel="", ylabel="Recall")
+    
+    ax[1].plot(thresholds,pr, '-o')
+    ax[1].title.set_text('Precision Curve')
+    ax[1].set(xlabel="Threshold: Euclidean Distance (pixels)", ylabel="Precision") 
+    
+    fig.show()
+    
+    return localisation_dists

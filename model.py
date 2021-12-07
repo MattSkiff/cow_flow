@@ -370,6 +370,7 @@ class CowFlow(nn.Module):
         self.density_map_w = c.density_map_w
         self.downsampling = c.downsampling
         self.scale = c.scale
+        self.noise = c.noise
 
     def forward(self,images,labels,rev=False): # label = dmaps or counts
         # no multi-scale architecture (yet) as per differnet paper

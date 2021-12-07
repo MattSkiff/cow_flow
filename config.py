@@ -15,7 +15,7 @@ ram = False # load aerial imagery and precompute dmaps and load both into ram be
 counts = False # must be off for pretraining feature extractor (#TODO)
 
 ## Training Options ------
-train_model = True # (if false, will only prep dataset,dataloaders)
+train_model = False # (if false, will only prep dataset,dataloaders)
 balanced = False # whether to have a 1:1 mixture of empty:annotated images
 weighted = False # whether to weight minibatch samples
 annotations_only = True # whether to only use image patches that have annotations
@@ -27,8 +27,9 @@ test_train_split = 70 # percentage of data to allocate to train set
 
 ## Density Map Options ------
 uniform_noise = 0 # amount of uniform noise to add (sample evenly from 0-x) | 0 for none
-filter_size = 32 # as per single image mcnn paper
-sigma = 8.0 # "   -----    " 
+noise = 1e-3 # amount of noise to add
+filter_size = 16 # as per single image mcnn paper
+sigma = 4.0 # "   -----    " 
 scale = 1 # 4, 2 = downscale dmaps four/two fold, 1 = unchanged
 
 ## Feature Extractor Options ------

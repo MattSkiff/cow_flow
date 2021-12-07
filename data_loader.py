@@ -17,6 +17,8 @@ warnings.filterwarnings("ignore", message=r"Passing", category=FutureWarning)
 
 # https://docs.opencv.org/4.5.2/d4/d13/tutorial_py_filtering.html
 import scipy
+from skimage import restoration
+from scipy.signal import convolve2d as conv2
 
 from torch.utils.data import Dataset, DataLoader
 
@@ -408,6 +410,27 @@ class CowObjectsDataset(Dataset):
                 im = unnorm(im)
                 im = im.permute(1,2,0).cpu().numpy()
                 
+                # rng = np.random.default_rng()
+                # #psf = np.ones((c.filter_size,c.filter_size)) / c.filter_size
+                
+                # def matlab_style_gauss2D(shape=(3,3),sigma=0.5):
+                #     """
+                #     2D gaussian mask - should give the same result as MATLAB's
+                #     fspecial('gaussian',[shape],[sigma])
+                #     """
+                #     m,n = [(ss-1.)/2. for ss in shape]
+                #     y,x = np.ogrid[-m:m+1,-n:n+1]
+                #     h = np.exp( -(x*x + y*y) / (2.*sigma*sigma) )
+                #     h[ h < np.finfo(h.dtype).eps*h.max() ] = 0
+                #     sumh = h.sum()
+                #     if sumh != 0:
+                #         h /= sumh
+                #     return h
+                
+                # gauss2dkern = matlab_style_gauss2D(shape = (c.filter_size,c.filter_size),sigma = c.sigma)
+                
+                # dmap, _ = restoration.unsupervised_wiener(dmap,gauss2dkern)
+                
                 fig, ax = plt.subplots(1,2)
                 # TODO - bug here! mismatch impaths and data
                 #fig.suptitle(os.path.basename(os.path.normpath(self.train_im_paths[sample_no])))
@@ -464,6 +487,8 @@ class CowObjectsDataset(Dataset):
                 
         if show:
             plt.show()
+    
+        return im
             
     # because batches have varying numbers of bounding boxes, need to define custom collate func
     # https://discuss.pytorch.org/t/dataloader-gives-stack-expects-each-tensor-to-be-equal-size-due-to-different-image-has-different-objects-number/91941/5
@@ -594,7 +619,7 @@ class AerialNormalize(object):
 
 class DmapAddUniformNoise(object):
     """Add uniform noise to Dmaps to stabilise training."""
-    def __init__(self, r1=0., r2=0):
+    def __init__(self, r1=0., r2=c.noise):
         self.r1 = r1
         self.r2 = r2
     
@@ -653,7 +678,7 @@ class CustResize(object):
         if 'density' in sample.keys():
             density = sample['density']
             #sz = list(density.size())
-            sz = [c.density_map_w,c.density_map_h]
+            sz = [c.density_map_h,c.density_map_w]
             
             # channels, height, width | alias off by default, bilinear default
             density = density.unsqueeze(0).unsqueeze(0)
