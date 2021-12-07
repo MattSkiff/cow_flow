@@ -2,6 +2,7 @@ from tqdm import tqdm
 import numpy as np
 from skimage.feature import peak_local_max # 
 from scipy.spatial import distance
+from scipy.optimize import linear_sum_assignment
 import random
 import torch
 from torch import randn
@@ -10,8 +11,8 @@ import matplotlib.pyplot as plt
 from utils import ft_dims_select, UnNormalize
 import config as c
 
-MAX_DISTANCE = 100
-MIN_D = int(c.sigma)
+MAX_DISTANCE = 25
+MIN_D = int(c.sigma*2)
 STEP = 1
 
 # TODO extra args: plot = True, save=True,hist=True
@@ -198,15 +199,17 @@ def dmap_metrics(mdl, loader,n=1,mode='',thres=c.sigma*2):
     for gt_dmap, pred_dmap in zip(y_coords, y_hat_coords):
         gt_dmap = np.swapaxes(gt_dmap,1,0)
         
-        dists = [] # matched distances per density map
         dist_matrix = distance.cdist(gt_dmap, pred_dmap, 'euclidean')
         
+        # hungarian algorithm from scipy (yes, optimality is critical, even for eval)
+        optim = linear_sum_assignment(dist_matrix)
+        
+        dists = [] # matched distances per density map
+        
         # match all pred points (if pred < gt) or vice versa
-        for i in range(0,min(gt_dmap.shape[0],pred_dmap.shape[0])):
-            md = np.amin(dist_matrix)
+        for i in range(len(optim[0])):
             # delete entry from distance matrix when match is found
-            dist_matrix = np.delete(dist_matrix,np.where(dist_matrix == md))
-            dists.append(md) 
+            dists.append(dist_matrix[optim[0],optim[1]]) 
         
         dists = np.array(dists)
         
@@ -286,7 +289,8 @@ def dmap_pr_curve(mdl, loader,n = 10,mode = ''):
     })  
 
     y = []; y_n = []; y_coords = []
-    y_hat_n = [];  y_hat_coords = []
+    y_hat_n = [];  y_hat_coords = {'div2':[],'same':[],'mult2':[]}
+    
     
     mdl = mdl.to(c.device)
     
@@ -335,77 +339,81 @@ def dmap_pr_curve(mdl, loader,n = 10,mode = ''):
             gt_count -= constant
             sum_count -= constant
             
-            coordinates = peak_local_max(dmap_rev_np,min_distance=MIN_D,num_peaks=max(1,int(sum_count)))
+            y_hat_coords['div2'].append(peak_local_max(dmap_rev_np,min_distance=int(c.sigma//2),num_peaks=max(1,int(sum_count))))
+            y_hat_coords['same'].append(peak_local_max(dmap_rev_np,min_distance=int(c.sigma),num_peaks=max(1,int(sum_count))))
+            y_hat_coords['mult2'].append(peak_local_max(dmap_rev_np,min_distance=int(c.sigma*2),num_peaks=max(1,int(sum_count))))
             
             y.append(labels[idx].cpu().detach().numpy())
             y_n.append(len(labels[idx]))
             y_coords.append(gt_coords)
-            y_hat_n.append(sum_count)
-            y_hat_coords.append(coordinates)     
+            y_hat_n.append(sum_count)    
     
     # localisation metrics 
+    # it turns out this is actually an instance of the assignment problem
+    pr_dict = {'div2':[],'same':[],'mult2':[]}    
+    rc_dict = {'div2':[],'same':[],'mult2':[]}   
+        
+    for mid_d in y_hat_coords:
+        for gt_dmap, pred_dmap in zip(y_coords, y_hat_coords[mid_d]):
+            gt_dmap = np.swapaxes(gt_dmap,1,0)
+            dist_matrix = distance.cdist(gt_dmap, pred_dmap, 'euclidean')
+            
+            # hungarian algorithm from scipy (yes, optimality is critical, even for eval)
+            optim = linear_sum_assignment(dist_matrix)
+            
+            dists = [] # optimal matched distances per density map
+            
+            # match all pred points (if pred < gt) or vice versa
+            for i in range(len(optim[0])):
+                # delete entry from distance matrix when match is found
+                dists.append(dist_matrix[optim[0],optim[1]]) 
     
-    # it turns out this is actually an instance of the assignment problem and quite complex
-    # however n should always be less than 1k-2k, and it's just for evaluation, so optimality isn't critical
+            # DEBUG VIZ
+            # fig, ax = plt.subplots(1,1, figsize=(10, 10))
+            # ax.scatter(pred_dmap[:,0], pred_dmap[:,1],label='Predicted coordinates')
+            # ax.scatter(gt_dmap[:,0], gt_dmap[:,1],c='red',marker='1',label='Ground truth coordinates')
+            # 1/0
             
-    # 1) distance matrix
-    # 2) iter over each ground truth point
-    # 3) find nearest two points (min in dist matrix))
-    # 4) add to dist vector and delete item in dist matrix
-    # 5) filt dist vector according to distance threshold
+            dists = np.array(dists)
             
-    for gt_dmap, pred_dmap in zip(y_coords, y_hat_coords):
-        gt_dmap = np.swapaxes(gt_dmap,1,0)
+            # loop over threshold values
+            i = 0
+            for num in thresholds:
+                tp = np.count_nonzero(dists<=num)
+                
+                localisation_dists[i]['tp'] += tp
+                localisation_dists[i]['fp'] += pred_dmap.shape[0]-tp
+                localisation_dists[i]['fn'] += gt_dmap.shape[0]-tp
+                i += 1
+                
+            # print('shapes')
+            # print(pred_dmap.shape[0])
+            # print(gt_dmap.shape[0])
+            # print('metrics')
+            # print(tp)
+            # print(pred_dmap.shape[0]-tp)
+            # print(gt_dmap.shape[0]-tp)
+                
+        pr = []; rc = []
         
-        dist_matrix = distance.cdist(gt_dmap, pred_dmap, 'euclidean')
-        dists = [] # matched distances per density map
-        
-        # match all pred points (if pred < gt) or vice versa
-        for i in range(0,min(gt_dmap.shape[0],pred_dmap.shape[0])):
-            md = np.amin(dist_matrix)
-            # delete entry from distance matrix when match is found
-            dist_matrix = np.delete(dist_matrix,np.where(dist_matrix == md))
-            dists.append(md) 
-
-        # DEBUG VIZ
-        # fig, ax = plt.subplots(1,1, figsize=(10, 10))
-        # ax.scatter(pred_dmap[:,0], pred_dmap[:,1],label='Predicted coordinates')
-        # ax.scatter(gt_dmap[:,0], gt_dmap[:,1],c='red',marker='1',label='Ground truth coordinates')
-        # 1/0
-        
-        dists = np.array(dists)
-        
-        # loop over threshold values
-        i = 0
-        for num in thresholds:
-            tp = np.count_nonzero(dists<=num)
+        for i in range(0,len(thresholds)):
+            pr.append(localisation_dists[i]['tp']/(localisation_dists[i]['tp']+localisation_dists[i]['fp']))
+            rc.append(localisation_dists[i]['tp']/(localisation_dists[i]['tp']+localisation_dists[i]['fn']))
             
-            localisation_dists[i]['tp'] += tp
-            localisation_dists[i]['fp'] += pred_dmap.shape[0]-tp
-            localisation_dists[i]['fn'] += gt_dmap.shape[0]-tp
-            i += 1
-            
-        # print('shapes')
-        # print(pred_dmap.shape[0])
-        # print(gt_dmap.shape[0])
-        # print('metrics')
-        # print(tp)
-        # print(pred_dmap.shape[0]-tp)
-        # print(gt_dmap.shape[0]-tp)
-    
-    pr = []; rc = []
-    
-    for i in range(0,len(thresholds)):
-        pr.append(localisation_dists[i]['tp']/(localisation_dists[i]['tp']+localisation_dists[i]['fp']))
-        rc.append(localisation_dists[i]['tp']/(localisation_dists[i]['tp']+localisation_dists[i]['fn']))
+        pr_dict[mid_d].append(pr)
+        rc_dict[mid_d].append(rc)
      
     fig, ax = plt.subplots(2,1, figsize=(8, 8))
     
-    ax[0].plot(thresholds,rc, '-o')
+    ax[0].plot(thresholds,rc_dict['div2'], '-o', c='blue',label='Min D: Half kernel')
+    ax[0].plot(thresholds,rc_dict['same'], '-o', c='red',label='Min D: Kernel width')
+    ax[0].plot(thresholds,rc_dict['mul2'], '-o', c='orange',label='Min D: Kernel x2')
     ax[0].title.set_text('Recall Curve')
     ax[0].set(xlabel="", ylabel="Recall")
     
-    ax[1].plot(thresholds,pr, '-o')
+    ax[0].plot(thresholds,pr_dict['div2'], '-o', c='blue',label='Min D: Half kernel')
+    ax[0].plot(thresholds,pr_dict['same'], '-o', c='red',label='Min D: Kernel width')
+    ax[0].plot(thresholds,pr_dict['mul2'], '-o', c='orange',label='Min D: Kernel x2')
     ax[1].title.set_text('Precision Curve')
     ax[1].set(xlabel="Threshold: Euclidean Distance (pixels)", ylabel="Precision") 
     
