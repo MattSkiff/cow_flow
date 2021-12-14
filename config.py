@@ -6,6 +6,7 @@ import torch
 import arguments as a
 
 gpu = True
+seed = 101
 
 ## Dataset Options ------
 mnist = False 
@@ -15,12 +16,12 @@ ram = False # load aerial imagery and precompute dmaps and load both into ram be
 counts = False # must be off for pretraining feature extractor (#TODO)
 
 ## Training Options ------
-train_model = False # (if false, will only prep dataset,dataloaders)
+train_model = True # (if false, will only prep dataset,dataloaders)
 balanced = False # whether to have a 1:1 mixture of empty:annotated images
 weighted = False # whether to weight minibatch samples
 annotations_only = True # whether to only use image patches that have annotations
 test_run = False # use only a small fraction of data to check everything works
-validation = False # whether to run validation per meta epoch
+validation = True # whether to run validation per meta epoch
 eval_n = 1
 data_prop = 0.1 # proportion of the full dataset to use
 test_train_split = 70 # percentage of data to allocate to train set

@@ -78,7 +78,7 @@ else:
     t_indices, t_weights, v_indices, v_weights  = train_val_split(dataset = transformed_dataset,
                                                                   train_percent = c.test_train_split,
                                                                   annotations_only = c.annotations_only,
-                                                                  balanced = c.balanced)
+                                                                  balanced = c.balanced,seed = c.seed)
 
     # Creating data samplers and loaders:
     # only train part for dev purposes 

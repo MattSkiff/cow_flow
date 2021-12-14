@@ -4,14 +4,17 @@ from skimage.feature import peak_local_max #
 from scipy.spatial import distance
 from scipy.optimize import linear_sum_assignment
 import random
+import os
+import time 
 import torch
 from torch import randn
 
 import matplotlib.pyplot as plt
 from utils import ft_dims_select, UnNormalize
 import config as c
+import gvars as g
 
-MAX_DISTANCE = 25
+MAX_DISTANCE = 30
 MIN_D = int(c.sigma*2)
 STEP = 1
 
@@ -114,6 +117,9 @@ def dmap_metrics(mdl, loader,n=1,mode='',thres=c.sigma*2):
     assert not mdl.count
     assert mode in ['train','val']
     assert mdl.subnet_type == 'conv'
+   
+    print("Dmap Evaluation....")
+    t1 = time.perf_counter()
     
     localisation_dict = {
         'tp':0,
@@ -268,6 +274,9 @@ def dmap_metrics(mdl, loader,n=1,mode='',thres=c.sigma*2):
         '{}_fscore'.format(mode):fscore
         }
     
+    t2 = time.perf_counter()
+    print("Dmap evaluation finished. Wall time: {}".format(round(t2-t1,2)))
+    
     return  metric_dict # localisation_dict
 
 @torch.no_grad()
@@ -278,19 +287,13 @@ def dmap_pr_curve(mdl, loader,n = 10,mode = ''):
     assert mode in ['train','val']
     assert mdl.subnet_type == 'conv'
     
+    print("Plotting {} PR curve".format(mode))
+    
     localisation_dists = []
     thresholds = np.arange(0, MAX_DISTANCE, STEP)
     
-    for i in range(0,len(thresholds)):
-      localisation_dists.append({
-    'tp':0,
-    'fp':0,
-    'fn':0
-    })  
-
     y = []; y_n = []; y_coords = []
-    y_hat_n = [];  y_hat_coords = {'div2':[],'same':[],'mult2':[]}
-    
+    y_hat_n = [];  y_hat_coords = {'div2':[],'same':[],'mult2':[],'mult4':[]}
     
     mdl = mdl.to(c.device)
     
@@ -342,6 +345,7 @@ def dmap_pr_curve(mdl, loader,n = 10,mode = ''):
             y_hat_coords['div2'].append(peak_local_max(dmap_rev_np,min_distance=int(c.sigma//2),num_peaks=max(1,int(sum_count))))
             y_hat_coords['same'].append(peak_local_max(dmap_rev_np,min_distance=int(c.sigma),num_peaks=max(1,int(sum_count))))
             y_hat_coords['mult2'].append(peak_local_max(dmap_rev_np,min_distance=int(c.sigma*2),num_peaks=max(1,int(sum_count))))
+            y_hat_coords['mult4'].append(peak_local_max(dmap_rev_np,min_distance=int(c.sigma*4),num_peaks=max(1,int(sum_count))))
             
             y.append(labels[idx].cpu().detach().numpy())
             y_n.append(len(labels[idx]))
@@ -350,10 +354,23 @@ def dmap_pr_curve(mdl, loader,n = 10,mode = ''):
     
     # localisation metrics 
     # it turns out this is actually an instance of the assignment problem
-    pr_dict = {'div2':[],'same':[],'mult2':[]}    
-    rc_dict = {'div2':[],'same':[],'mult2':[]}   
+            
+    # Approach:
+    # 1) Calculate distance matrix between ground truth and prediction 2d point sets
+    # 2) 
+    #
+    #
+    #
+    
+    pr_dict = {'div2':[],'same':[],'mult2':[],'mult4':[]}    
+    rc_dict = {'div2':[],'same':[],'mult2':[],'mult4':[]}   
+     
+    for mid_d in y_hat_coords.keys():
         
-    for mid_d in y_hat_coords:
+        localisation_dists = []
+        for i in range(0,len(thresholds)):
+            localisation_dists.append({'tp':0,'fp':0,'fn':0})  
+
         for gt_dmap, pred_dmap in zip(y_coords, y_hat_coords[mid_d]):
             gt_dmap = np.swapaxes(gt_dmap,1,0)
             dist_matrix = distance.cdist(gt_dmap, pred_dmap, 'euclidean')
@@ -365,8 +382,8 @@ def dmap_pr_curve(mdl, loader,n = 10,mode = ''):
             
             # match all pred points (if pred < gt) or vice versa
             for i in range(len(optim[0])):
-                # delete entry from distance matrix when match is found
-                dists.append(dist_matrix[optim[0],optim[1]]) 
+                # append distances to distance vector from dist matrix in optimal order
+                dists.append(dist_matrix[optim[0][i],optim[1][i]]) 
     
             # DEBUG VIZ
             # fig, ax = plt.subplots(1,1, figsize=(10, 10))
@@ -379,13 +396,14 @@ def dmap_pr_curve(mdl, loader,n = 10,mode = ''):
             # loop over threshold values
             i = 0
             for num in thresholds:
+                
                 tp = np.count_nonzero(dists<=num)
                 
                 localisation_dists[i]['tp'] += tp
                 localisation_dists[i]['fp'] += pred_dmap.shape[0]-tp
                 localisation_dists[i]['fn'] += gt_dmap.shape[0]-tp
                 i += 1
-                
+               
             # print('shapes')
             # print(pred_dmap.shape[0])
             # print(gt_dmap.shape[0])
@@ -400,23 +418,33 @@ def dmap_pr_curve(mdl, loader,n = 10,mode = ''):
             pr.append(localisation_dists[i]['tp']/(localisation_dists[i]['tp']+localisation_dists[i]['fp']))
             rc.append(localisation_dists[i]['tp']/(localisation_dists[i]['tp']+localisation_dists[i]['fn']))
             
-        pr_dict[mid_d].append(pr)
-        rc_dict[mid_d].append(rc)
+        pr_dict[mid_d].append(np.array(pr).squeeze())
+        rc_dict[mid_d].append(np.array(rc).squeeze())
+        
+        del localisation_dists
      
     fig, ax = plt.subplots(2,1, figsize=(8, 8))
-    
-    ax[0].plot(thresholds,rc_dict['div2'], '-o', c='blue',label='Min D: Half kernel')
-    ax[0].plot(thresholds,rc_dict['same'], '-o', c='red',label='Min D: Kernel width')
-    ax[0].plot(thresholds,rc_dict['mul2'], '-o', c='orange',label='Min D: Kernel x2')
+
+    ax[0].plot(thresholds,rc_dict['div2'][0], '-o', c='blue',label='Min D: Half kernel')
+    ax[0].plot(thresholds,rc_dict['same'][0], '-o', c='red',label='Min D: Kernel width')
+    ax[0].plot(thresholds,rc_dict['mult2'][0], '-o', c='orange',label='Min D: Kernel x2')
+    ax[0].plot(thresholds,rc_dict['mult4'][0], '-o', c='green',label='Min D: Kernel x4')
     ax[0].title.set_text('Recall Curve')
     ax[0].set(xlabel="", ylabel="Recall")
+    ax[0].legend()
     
-    ax[0].plot(thresholds,pr_dict['div2'], '-o', c='blue',label='Min D: Half kernel')
-    ax[0].plot(thresholds,pr_dict['same'], '-o', c='red',label='Min D: Kernel width')
-    ax[0].plot(thresholds,pr_dict['mul2'], '-o', c='orange',label='Min D: Kernel x2')
+    ax[1].plot(thresholds,pr_dict['div2'][0], '-o', c='blue',label='Min D: Half kernel')
+    ax[1].plot(thresholds,pr_dict['same'][0], '-o', c='red',label='Min D: Kernel width')
+    ax[1].plot(thresholds,pr_dict['mult2'][0], '-o', c='orange',label='Min D: Kernel x2')
+    ax[1].plot(thresholds,pr_dict['mult4'][0], '-o', c='green',label='Min D: Kernel x4')
     ax[1].title.set_text('Precision Curve')
     ax[1].set(xlabel="Threshold: Euclidean Distance (pixels)", ylabel="Precision") 
+    ax[1].legend()
     
     fig.show()
     
-    return localisation_dists
+    if not os.path.exists(g.VIZ_DIR):
+        os.makedirs(g.VIZ_DIR)
+        plt.savefig("{}/{}.jpg".format(g.VIZ_DIR,mdl.modelname), bbox_inches='tight', pad_inches = 0)
+    
+    return 

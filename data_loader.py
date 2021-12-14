@@ -702,7 +702,7 @@ class CustResize(object):
 # Dataset is highly imbalanced, want test set to mirror train set imbalance
 # TODO: implement 'balanced' argument
 # TODO: get split function to only iterate over txt files, not images 
-def train_val_split(dataset,train_percent,balanced = False,annotations_only = False):
+def train_val_split(dataset,train_percent,balanced = False,annotations_only = False,seed = -1):
     ''' 
      Args:
          dataset: pytorch dataset
@@ -718,6 +718,13 @@ def train_val_split(dataset,train_percent,balanced = False,annotations_only = Fa
         iterates over entire dataset (inc. images, so quite slow)
      
      '''
+    
+    assert type(seed) == int
+    
+    if seed != -1:
+        random.seed(seed)
+    else:
+        ValueError('Must set random seed for evaluation purposes!')
     
     if c.verbose:
         print("Creating indicies...")

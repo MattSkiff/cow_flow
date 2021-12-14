@@ -459,6 +459,8 @@ def train(train_loader,val_loader,battery = False,lr_i=c.lr_init,writer=None): #
             if c.viz:
             
                 plot_preds(mdl, val_loader, plot = True)
+                dmap_pr_curve(mdl, val_loader,n = 10,mode = 'val')
+                dmap_pr_curve(mdl, val_loader,n = 10,mode = 'train')
                 
                 if c.counts:
                     print("Plotting Train R2")
