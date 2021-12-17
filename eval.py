@@ -1,8 +1,10 @@
 from tqdm import tqdm
 import numpy as np
 from skimage.feature import peak_local_max # 
+from skimage.metrics import peak_signal_noise_ratio, structural_similarity
 from scipy.spatial import distance
 from scipy.optimize import linear_sum_assignment
+#from scipy.stats import entropy
 import random
 import os
 import time 
@@ -10,7 +12,7 @@ import torch
 from torch import randn
 
 import matplotlib.pyplot as plt
-from utils import ft_dims_select, UnNormalize
+from utils import ft_dims_select, UnNormalize, np_split
 import config as c
 import gvars as g
 
@@ -40,9 +42,9 @@ def eval_mnist(mdl, valloader, trainloader,samples = 1,confusion = False, preds 
             # Z shape: torch.Size([2, 4, 300, 400]) (batch size = 2)
             # channels * 4 is a result of haar downsampling
             if c.subnet_type == 'conv':
-                dummy_z = (randn(loader.batch_size, c.channels*4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True)).to(c.device)
+                dummy_z = (randn(images.size()[0], c.channels*4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True)).to(c.device)
             else:
-                dummy_z = (randn(loader.batch_size, c.channels, requires_grad=True)).to(c.device)
+                dummy_z = (randn(images.size()[0], c.channels, requires_grad=True)).to(c.device)
             
             images = images.float().to(c.device)
             dummy_z = dummy_z.float().to(c.device)
@@ -66,7 +68,7 @@ def eval_mnist(mdl, valloader, trainloader,samples = 1,confusion = False, preds 
 #                    dims = (1,2)
                 
                 if c.subnet_type == 'conv':
-                    x = torch.reshape(x,(loader.batch_size,c.density_map_h * c.density_map_w)) # torch.Size([200, 12, 12])
+                    x = torch.reshape(x,(images.size()[0],c.density_map_h * c.density_map_w)) # torch.Size([200, 12, 12])
                 
                 raw_preds = x  # torch.Size([200, 144])
                 
@@ -128,8 +130,8 @@ def dmap_metrics(mdl, loader,n=1,mode='',thres=c.sigma*2):
         }
     
     y = []; y_n = []; y_coords = []
-    y_hat_n = [];  y_hat_n_dists = [];  y_hat_coords = []
-    dm_mae = []; dm_mse = []
+    y_hat_n = [];  y_hat_n_dists = []; y_hat_coords = []
+    dm_mae = []; dm_mse = []; dm_psnr = []; dm_ssim = [] #;dm_kl = []
     game = []; gampe = []
     
     mdl = mdl.to(c.device)
@@ -151,21 +153,21 @@ def dmap_metrics(mdl, loader,n=1,mode='',thres=c.sigma*2):
 
         x_list = []
                     
-        ## sample from model ---
+        ## sample from model per aerial image ---
         for i in range(n):
-            dummy_z = (randn(loader.batch_size, in_channels,ft_dims[0],ft_dims[1])).to(c.device)
+            dummy_z = (randn(images.size()[0], in_channels,ft_dims[0],ft_dims[1])).to(c.device)
             x, _ = mdl(images,dummy_z,rev=True)
             x_list.append(x)
         
         x_agg = torch.stack(x_list,dim=1)
-        x = x_agg.mean(dim=1) # sum across channel, spatial dims for counts
+        x = x_agg.mean(dim=1) # take average of samples from models for mean reconstruction
 
-        for idx in range(loader.batch_size):               
+        for idx in range(images.size()[0]):               
         
-            idx = random.randint(0,loader.batch_size-1)
+            idx = random.randint(0,images.size()[0]-1)
                 
             dmap_rev_np = x[idx].squeeze().cpu().detach().numpy()
-            sum_count = dmap_rev_np.sum()
+            sum_count = dmap_rev_np.sum() # sum across channel, spatial dims for counts
             dist_counts  = x_agg[idx].sum((1,2,3)) 
             
             ground_truth_dmap = dmaps[idx].squeeze().cpu().detach().numpy()
@@ -195,13 +197,19 @@ def dmap_metrics(mdl, loader,n=1,mode='',thres=c.sigma*2):
             # dmap metrics
             dm_mae.append(sum(abs(dmap_rev_np-ground_truth_dmap)))
             dm_mse.append(sum(np.square(dmap_rev_np-ground_truth_dmap)))
-            
-    # local-count metrics # TODO
-    game.append(0)
-    gampe.append(0)
+            dm_psnr.append(peak_signal_noise_ratio(ground_truth_dmap,dmap_rev_np))
+            dm_ssim.append(structural_similarity(ground_truth_dmap,dmap_rev_np))
+            #dm_kl.append(entropy(pk=ground_truth_dmap,qk=dmap_rev_np)) # both dists normalised to one automatically
+                        
+            # local-count metrics # TODO
+            l = 1 # cell size param - number of cells to split images into: 0 = 1, 1 = 4, 2 = 16, etc
+            gt_dmap_split_counts = np_split(ground_truth_dmap,nrows=mdl.density_map_w//4**l,ncols=mdl.density_map_h//4**l).sum(axis=(1,2))
+            pred_dmap_split_counts = np_split(dmap_rev_np,nrows=mdl.density_map_w//4**l,ncols=mdl.density_map_h//4**l).sum(axis=(1,2))
+        
+            game.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)))
+            gampe.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)/np.maximum(np.ones(len(gt_dmap_split_counts)),gt_dmap_split_counts)))     
     
-    
-    # localisation metrics 
+    # localisation metrics  
     for gt_dmap, pred_dmap in zip(y_coords, y_hat_coords):
         gt_dmap = np.swapaxes(gt_dmap,1,0)
         
@@ -236,6 +244,8 @@ def dmap_metrics(mdl, loader,n=1,mode='',thres=c.sigma*2):
     # dmap metrics
     dm_mae = np.mean(np.vstack(dm_mae))
     dm_mse = np.mean(np.vstack(dm_mse))
+    dm_ssim = np.mean(np.vstack(dm_ssim))
+    dm_psnr = np.mean(np.vstack(dm_psnr))
     
     ## Counts
     
@@ -258,20 +268,45 @@ def dmap_metrics(mdl, loader,n=1,mode='',thres=c.sigma*2):
     # MAPE
     mape = round(sum(np.abs(y_n-y_hat_n)/np.maximum(np.ones(len(y_n)),y_n))/n,4)
     
-   # GAME = 0
-   # GAMPE = 0
-    fscore = localisation_dict['tp']/(localisation_dict['tp']+0.5*(localisation_dict['fp']+localisation_dict['fn']))
+   # GAME
+    game = np.mean(np.vstack(game))
+    
+   # GAMPE
+    gampe = np.mean(np.vstack(gampe))   
+    
+    # localisation metrics: PR, RC, F1
+    tp = localisation_dict['tp']
+    fp = localisation_dict['fp']
+    fn = localisation_dict['fn']
+    
+    pr = tp/(tp+fp)
+    rc = tp/(tp+fn)
+    fscore = tp/(tp+0.5*(fp+fn))
     
     metric_dict = {
+        # Counts
         '{}_r2'.format(mode):r2,
         '{}_rmse'.format(mode):rmse,
         '{}_mae'.format(mode):mae,
         '{}_mape'.format(mode):mape,
+        # density maps
         '{}_dm_mae'.format(mode):dm_mae,
         '{}_dm_mse'.format(mode):dm_mse,
-       # '{}_game'.format(mode):game,
-       # '{}_gampe'.format(mode):gampe,
-        '{}_fscore'.format(mode):fscore
+        '{}_dm_psnr'.format(mode):dm_psnr,
+        '{}_dm_ssim'.format(mode):dm_ssim,
+        
+        # localised counting performance
+        '{}_game'.format(mode):game,
+        '{}_gampe'.format(mode):gampe,
+        
+       # '{}_dm_kl'.format(mode):dm_kl,
+        
+        # localisation
+        
+        '{}_fscore'.format(mode):fscore,
+        '{}_precision'.format(mode):pr,
+        '{}_recall'.format(mode):rc
+        
         }
     
     t2 = time.perf_counter()
@@ -316,7 +351,7 @@ def dmap_pr_curve(mdl, loader,n = 10,mode = ''):
                     
         ## sample from model ---
         for i in range(n):
-            dummy_z = (randn(loader.batch_size, in_channels,ft_dims[0],ft_dims[1])).to(c.device)
+            dummy_z = (randn(images.size()[0], in_channels,ft_dims[0],ft_dims[1])).to(c.device)
             x, _ = mdl(images,dummy_z,rev=True)
             x_list.append(x)
         
@@ -324,9 +359,9 @@ def dmap_pr_curve(mdl, loader,n = 10,mode = ''):
         x = x_agg.mean(dim=1)
         
         # get results for each item in batch
-        for idx in range(loader.batch_size):               
+        for idx in range(images.size()[0]):               
         
-            idx = random.randint(0,loader.batch_size-1)
+            idx = random.randint(0,images.size()[0]-1)
                 
             dmap_rev_np = x[idx].squeeze().cpu().detach().numpy()
             sum_count = dmap_rev_np.sum()
@@ -358,9 +393,6 @@ def dmap_pr_curve(mdl, loader,n = 10,mode = ''):
     # Approach:
     # 1) Calculate distance matrix between ground truth and prediction 2d point sets
     # 2) 
-    #
-    #
-    #
     
     pr_dict = {'div2':[],'same':[],'mult2':[],'mult4':[]}    
     rc_dict = {'div2':[],'same':[],'mult2':[],'mult4':[]}   
@@ -445,6 +477,7 @@ def dmap_pr_curve(mdl, loader,n = 10,mode = ''):
     
     if not os.path.exists(g.VIZ_DIR):
         os.makedirs(g.VIZ_DIR)
-        plt.savefig("{}/{}.jpg".format(g.VIZ_DIR,mdl.modelname), bbox_inches='tight', pad_inches = 0)
+    
+    plt.savefig("{}/{}.jpg".format(g.VIZ_DIR,mdl.modelname), bbox_inches='tight', pad_inches = 0)
     
     return 

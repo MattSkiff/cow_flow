@@ -10,8 +10,8 @@ import copy
 import os
 from datetime import datetime 
 
-from eval import eval_mnist, dmap_metrics
-from utils import get_loss, plot_preds, counts_preds_vs_actual, t2np, torch_r2, plot_peaks
+from eval import eval_mnist, dmap_metrics, dmap_pr_curve
+from utils import get_loss, plot_preds, counts_preds_vs_actual, t2np, torch_r2
 import model # importing entire file fixes 'cyclical import' issues
 #from model import CowFlow, MNISTFlow, select_feat_extractor, save_model #, save_weights
 

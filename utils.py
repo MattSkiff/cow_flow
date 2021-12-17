@@ -42,6 +42,17 @@ def t2np(tensor):
     '''pytorch tensor -> numpy array'''
     return tensor.cpu().data.numpy() if tensor is not None else None
 
+# split numpy matrix into submatrices
+# credit SO user Dat
+# link: https://stackoverflow.com/questions/11105375/how-to-split-a-matrix-into-4-blocks-using-numpy/11105569
+def np_split(array, nrows, ncols):
+    """Split a matrix into sub-matrices."""
+
+    r, h = array.shape
+    return (array.reshape(h//nrows, nrows, -1, ncols)
+                 .swapaxes(1, 2)
+                 .reshape(-1, nrows, ncols))
+
 def get_loss(z, jac,dims):
     # in differnet, exponentiate over 'channel' dim (n_feat)  
     # here, we exponentiate over channel, height, width to produce single norm val per density map
@@ -230,9 +241,9 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=F
                 if not mdl.mnist:
                     # TODO - remove hard coding dims here
                     if (loader.dataset.count and not mdl.gap) or (not mdl.downsampling and mdl.subnet_type == 'conv'):
-                        dummy_z = (randn(loader.batch_size,c.channels*4,(c.density_map_h) // 2,(c.density_map_w) // 2)).to(c.device) 
+                        dummy_z = (randn(images.size()[0],c.channels*4,(c.density_map_h) // 2,(c.density_map_w) // 2)).to(c.device) 
                     elif loader.dataset.count and mdl.gap:
-                        dummy_z = (randn(loader.batch_size,1)).to(c.device) 
+                        dummy_z = (randn(images.size()[0],1)).to(c.device) 
                     elif mdl.downsampling: # self.downsampling
                         
                         if mdl.scale == 1:
@@ -248,21 +259,21 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=F
                         if mdl.feat_extractor.__class__.__name__ == 'NothingNet':
                             in_channels = 2                      
                         
-                        dummy_z = (randn(loader.batch_size, in_channels,ft_dims[0],ft_dims[1])).to(c.device)
+                        dummy_z = (randn(images.size()[0], in_channels,ft_dims[0],ft_dims[1])).to(c.device)
                 else:
                     
                     if mdl.subnet_type == 'conv':
                        
                         if sampling == 'ones':
-                            dummy_z = (torch.ones(loader.batch_size, c.channels*4, c.density_map_h // 2,c.density_map_w  // 2).to(c.device))
+                            dummy_z = (torch.ones(images.size()[0], c.channels*4, c.density_map_h // 2,c.density_map_w  // 2).to(c.device))
                         elif sampling == "zeros":
-                            dummy_z = torch.zeros(loader.batch_size, c.channels*4, c.density_map_h // 2,c.density_map_w  // 2).to(c.device)
+                            dummy_z = torch.zeros(images.size()[0], c.channels*4, c.density_map_h // 2,c.density_map_w  // 2).to(c.device)
                         elif sampling == "randn":
-                            dummy_z = (randn(loader.batch_size, c.channels*4, c.density_map_h // 2,c.density_map_w  // 2)).to(c.device)
+                            dummy_z = (randn(images.size()[0], c.channels*4, c.density_map_h // 2,c.density_map_w  // 2)).to(c.device)
                         else:
                             ValueError("Invalid function arg (sampling). Try 'randn', 'zeros' or 'ones'.")
                     else:
-                        dummy_z = (randn(loader.batch_size, c.channels)).to(c.device)
+                        dummy_z = (randn(images.size()[0], c.channels)).to(c.device)
                 
                 ## sample from model ---
                 images = images.float().to(c.device)
@@ -284,7 +295,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=F
                         x = x.argmax(-1).to(torch.float)
                 
                 if  plot_n != None:
-                    lb_idx = range(loader.batch_size)
+                    lb_idx = range(images.size()[0])
                 else:
                     lb_idx = [lb_idx]
                 
@@ -294,7 +305,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=F
                     
                     # TODO
                     if (mdl.count or mdl.mnist) and not mdl.gap:
-                        x_flat = torch.reshape(x,(loader.batch_size,c.density_map_h * c.density_map_w)) # torch.Size([200, 12, 12])
+                        x_flat = torch.reshape(x,(images.size()[0],c.density_map_h * c.density_map_w)) # torch.Size([200, 12, 12])
                         mode = torch.mode(x_flat,dim = 1).values.cpu().detach().numpy()
                     elif mdl.count and mdl.gap:
                         x_flat = x
@@ -435,7 +446,7 @@ def plot_peaks(mdl, loader,n=1):
                     
         ## sample from model ---
         for i in range(n):
-            dummy_z = (randn(loader.batch_size, in_channels,ft_dims[0],ft_dims[1])).to(c.device)
+            dummy_z = (randn(images.size()[0], in_channels,ft_dims[0],ft_dims[1])).to(c.device)
             x, _ = mdl(images,dummy_z,rev=True)
             x_list.append(x)
         
@@ -450,9 +461,9 @@ def plot_peaks(mdl, loader,n=1):
         x_std = x_agg.std(dim=1)
         #x_std_norm = x_std #x_std-x #x_std.div(x) # unused
 
-        for idx in range(loader.batch_size):               
+        for idx in range(images.size()[0]):               
         
-            idx = random.randint(0,loader.batch_size-1)
+            idx = random.randint(0,images.size()[0]-1)
                 
             dmap_rev_np = x[idx].squeeze().cpu().detach().numpy()
             #dmap_uncertainty = x_std[idx].squeeze().cpu().detach().numpy()
