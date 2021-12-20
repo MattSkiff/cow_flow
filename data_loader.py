@@ -43,6 +43,18 @@ demo = False
 density_demo = True
 mk_size = 25
 
+class DLRACD(Dataset):
+    
+    def __init__():
+        pass
+     
+    def __len__(self):
+        pass
+        
+    def __getitem__(self, idx):
+        pass
+    
+
 class CowObjectsDataset(Dataset):
     """Cow Objects dataset."""
     
@@ -170,6 +182,7 @@ class CowObjectsDataset(Dataset):
                         # map generation
                         # set density map image size equal to data image size
                         
+                        # TODO - this is possibly massively inefficient
                         density_map = np.zeros((c.img_size[1], c.img_size[0]), dtype=np.float32)
                        
                         # add points onto basemap
