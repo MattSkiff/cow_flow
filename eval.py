@@ -225,7 +225,7 @@ def dmap_metrics(mdl, loader,n=1,mode='',thres=c.sigma*2):
             game.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)))
             gampe.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)/np.maximum(np.ones(len(gt_dmap_split_counts)),gt_dmap_split_counts)))     
     
-    # localisation metrics  
+    # localisation metrics (using kernalised dmaps)
     for gt_dmap, pred_dmap in zip(y_coords, y_hat_coords):
         gt_dmap = np.swapaxes(gt_dmap,1,0)
         
@@ -236,10 +236,10 @@ def dmap_metrics(mdl, loader,n=1,mode='',thres=c.sigma*2):
         
         dists = [] # matched distances per density map
         
-        # match all pred points (if pred < gt) or vice versa
-        for i in range(len(optim[0])):
+        # match all pred points (if pred < gt) or match up to predicted number of points
+        for i in range(min(int(gt_dmap.sum()),len(optim[0]))):
             # delete entry from distance matrix when match is found
-            dists.append(dist_matrix[optim[0],optim[1]]) 
+            dists.append(dist_matrix[optim[0][i],optim[1][i]]) 
         
         dists = np.array(dists)
         
@@ -257,7 +257,7 @@ def dmap_metrics(mdl, loader,n=1,mode='',thres=c.sigma*2):
         localisation_dict['fp'] += pred_dmap.shape[0]-tp
         localisation_dict['fn'] += gt_dmap.shape[0]-tp
             
-    # dmap metrics
+    # dmap metrics (average across images)
     dm_mae = np.mean(np.vstack(dm_mae))
     dm_mse = np.mean(np.vstack(dm_mse))
     dm_ssim = np.mean(np.vstack(dm_ssim))
@@ -429,7 +429,7 @@ def dmap_pr_curve(mdl, loader,n = 10,mode = ''):
             dists = [] # optimal matched distances per density map
             
             # match all pred points (if pred < gt) or vice versa
-            for i in range(len(optim[0])):
+            for i in range(min(int(gt_dmap.sum()),len(optim[0]))):
                 # append distances to distance vector from dist matrix in optimal order
                 dists.append(dist_matrix[optim[0][i],optim[1][i]]) 
     
