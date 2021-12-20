@@ -139,6 +139,7 @@ def dmap_metrics(mdl, loader,n=1,mode='',thres=c.sigma*2):
     for i, data in enumerate(tqdm(loader, disable=False)):
         
         images,dmaps,labels,annotations = data
+
         images = images.float().to(c.device)
          
         if mdl.scale == 1:
@@ -163,18 +164,31 @@ def dmap_metrics(mdl, loader,n=1,mode='',thres=c.sigma*2):
         x = x_agg.mean(dim=1) # take average of samples from models for mean reconstruction
 
         for idx in range(images.size()[0]):               
-        
-            idx = random.randint(0,images.size()[0]-1)
                 
             dmap_rev_np = x[idx].squeeze().cpu().detach().numpy()
             sum_count = dmap_rev_np.sum() # sum across channel, spatial dims for counts
             dist_counts  = x_agg[idx].sum((1,2,3)) 
             
+            # We 'DONT' evaluate using the GT dmap
             ground_truth_dmap = dmaps[idx].squeeze().cpu().detach().numpy()
-            gt_count = ground_truth_dmap.sum().round()
             
             # if sum_count > 0:
             #     thres = int(sum_count)
+                       
+            # add points onto basemap
+            anno = annotations[idx].cpu().detach().numpy()
+            
+            #base_map = np.zeros((mdl.density_map_w, mdl.density_map_h), dtype=np.float32)
+            base_map = np.zeros((mdl.density_map_h, mdl.density_map_w), dtype=np.float32)
+            
+            # We DO evaluate using the point annotations!
+            for point in anno:
+                # error introduced here as float position annotation centre converted to int
+                # in data loader -> 800x600 then rescale, here directly 800x608
+                base_map[int(round(point[2]*mdl.density_map_h)-1),int(round(point[1]*mdl.density_map_w)-1)] += 1
+            
+            ground_truth_point_map = base_map
+            gt_count = ground_truth_point_map.sum().round()
             
             gt_coords = annotations[idx]
             gt_coords = torch.stack([gt_coords[:,2]*mdl.density_map_h,gt_coords[:,1]*mdl.density_map_w]).cpu().detach().numpy()
@@ -194,7 +208,7 @@ def dmap_metrics(mdl, loader,n=1,mode='',thres=c.sigma*2):
             y_hat_n_dists.append(dist_counts)
             y_hat_coords.append(coordinates) 
             
-            # dmap metrics
+            # dmap metrics (we do use the kernalised dmap for this)
             dm_mae.append(sum(abs(dmap_rev_np-ground_truth_dmap)))
             dm_mse.append(sum(np.square(dmap_rev_np-ground_truth_dmap)))
             dm_psnr.append(peak_signal_noise_ratio(ground_truth_dmap,dmap_rev_np))
@@ -203,7 +217,9 @@ def dmap_metrics(mdl, loader,n=1,mode='',thres=c.sigma*2):
                         
             # local-count metrics # TODO
             l = 1 # cell size param - number of cells to split images into: 0 = 1, 1 = 4, 2 = 16, etc
-            gt_dmap_split_counts = np_split(ground_truth_dmap,nrows=mdl.density_map_w//4**l,ncols=mdl.density_map_h//4**l).sum(axis=(1,2))
+            
+            # this splits the density maps into cells for counting per cell
+            gt_dmap_split_counts = np_split(ground_truth_point_map,nrows=mdl.density_map_w//4**l,ncols=mdl.density_map_h//4**l).sum(axis=(1,2))
             pred_dmap_split_counts = np_split(dmap_rev_np,nrows=mdl.density_map_w//4**l,ncols=mdl.density_map_h//4**l).sum(axis=(1,2))
         
             game.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)))
@@ -478,6 +494,6 @@ def dmap_pr_curve(mdl, loader,n = 10,mode = ''):
     if not os.path.exists(g.VIZ_DIR):
         os.makedirs(g.VIZ_DIR)
     
-    plt.savefig("{}/{}.jpg".format(g.VIZ_DIR,mdl.modelname), bbox_inches='tight', pad_inches = 0)
+    plt.savefig("{}/PR_{}.jpg".format(g.VIZ_DIR,mdl.modelname), bbox_inches='tight', pad_inches = 0)
     
     return 
