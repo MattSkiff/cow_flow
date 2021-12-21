@@ -569,3 +569,18 @@ class MNISTFlow(nn.Module):
         z = self.nf(x_or_z = labels,c = feats,rev=rev)
         
         return z
+    
+class unet():
+    pass
+
+class csrnet():
+    pass
+
+class lcffcn():
+    pass
+
+class fcrn():
+    pass
+
+
+

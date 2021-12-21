@@ -16,7 +16,7 @@ from utils import ft_dims_select, UnNormalize, np_split
 import config as c
 import gvars as g
 
-MAX_DISTANCE = 30
+MAX_DISTANCE = 100
 MIN_D = int(c.sigma*2)
 STEP = 1
 
@@ -113,7 +113,7 @@ def eval_mnist(mdl, valloader, trainloader,samples = 1,confusion = False, preds 
     return  out # train, val
 
 @torch.no_grad()
-def dmap_metrics(mdl, loader,n=1,mode='',thres=c.sigma*2):
+def dmap_metrics(mdl, loader,n=10,mode='',thres=c.sigma*2):
     '''DMAP,COUNT,LOCALIZATION metrics'''
     
     assert not mdl.count

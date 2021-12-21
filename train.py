@@ -444,12 +444,15 @@ def train(train_loader,val_loader,battery = False,lr_i=c.lr_init,writer=None): #
                     
                 # add param tensorboard scalars
                 if writer != None:
-                    writer.add_hparams(
-                               hparam_dict = model_hparam_dict,
-                               metric_dict = model_metric_dict,
-                               run_name = "epoch_{}".format(j)
-                               )
                     
+                    for name,value in model_metric_dict.items():
+                        writer.add_scalar(tag=name, scalar_value=value,global_step=j)
+                    
+                    #writer.add_hparams(
+                    #           hparam_dict = model_hparam_dict,
+                    #           metric_dict = model_metric_dict,
+                    #           run_name = "epoch_{}".format(j)
+                    #           )
                     
                     writer.flush()
                 
