@@ -23,7 +23,7 @@ annotations_only = True # whether to only use image patches that have annotation
 test_run = False # use only a small fraction of data to check everything works
 validation = True # whether to run validation per meta epoch
 eval_n = 1
-data_prop = 0.1 # proportion of the full dataset to use
+data_prop = 1 # proportion of the full dataset to use
 test_train_split = 70 # percentage of data to allocate to train set
 
 ## Density Map Options ------
@@ -45,7 +45,7 @@ load_feat_extractor_str = '' # '' to train from scratch, loads FE  # final_eval_
 fixed1x1conv = False 
 freq_1x1 = 3 # 1 for always | how many x coupling blocks to have a 1x1 conv permutation layer
 pyramid = True # only implemented for resnet18
-n_pyramid_blocks = 1
+n_pyramid_blocks = 3
 gap = False # global average pooling
 downsampling = True # whether to downsample (5 ds layers) dmaps by converting spatial dims to channel dims
 n_coupling_blocks = 5 # if pyramid, total blocks will be n_pyramid_blocks x 5
@@ -66,15 +66,15 @@ clamp_alpha = 1.9
 
 # vectorised params must always be passed as lists
 lr_init = [2e-3]
-batch_size = [4] # actual batch size is this value multiplied by n_transforms(_test)
+batch_size = [8] # actual batch size is this value multiplied by n_transforms(_test)
 
 # total epochs = meta_epochs * sub_epochs
 # evaluation after <sub_epochs> epochs
-meta_epochs = 1
-sub_epochs = 1 
+meta_epochs = 3
+sub_epochs = 5 
 
 ## Output Settings ----
-schema = 'full_eval_test' # if debug, ignored
+schema = 'splitting_full_test' # if debug, ignored
 debug = False # report loads of info/debug info
 tb = True # write metrics, hyper params to tb files
 verbose = True # report stats per sub epoch and other info
