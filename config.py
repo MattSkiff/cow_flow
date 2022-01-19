@@ -10,9 +10,9 @@ seed = 101
 
 ## Dataset Options ------
 mnist = False 
-load_stored_dmaps = True # speeds up precomputation (with RAM = True)
+load_stored_dmaps = False # speeds up precomputation (with RAM = True)
 store_dmaps = False # this will save dmap objects (numpy arrays) to file
-ram = True # load aerial imagery and precompute dmaps and load both into ram before training
+ram = False # load aerial imagery and precompute dmaps and load both into ram before training
 counts = False # must be off for pretraining feature extractor (#TODO)
 
 ## Training Options ------
@@ -42,7 +42,7 @@ load_feat_extractor_str = '' # '' to train from scratch, loads FE  # final_eval_
 # nb: pretraining FE saves regardless of save flag
 
 ## Architecture Options ------
-fixed1x1conv = True 
+fixed1x1conv = False 
 freq_1x1 = 3 # 1 for always | how many x coupling blocks to have a 1x1 conv permutation layer
 pyramid = True # only implemented for resnet18
 n_pyramid_blocks = 1
@@ -70,7 +70,7 @@ batch_size = [4] # actual batch size is this value multiplied by n_transforms(_t
 
 # total epochs = meta_epochs * sub_epochs
 # evaluation after <sub_epochs> epochs
-meta_epochs = 5
+meta_epochs = 1
 sub_epochs = 1 
 
 ## Output Settings ----
