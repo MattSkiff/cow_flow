@@ -66,7 +66,7 @@ def save_weights(mdl,filename,loc=g.WEIGHT_DIR):
         
 def load_weights(mdl, filename,loc=g.WEIGHT_DIR):
     path = os.path.join(loc, filename)
-    mdl.load_state_dict(torch.load(path,pickle_module=dill))
+    mdl.load_state_dict(torch.load(path,pickle_module=dill)) 
     return mdl
 
 # https://zablo.net/blog/post/using-resnet-for-mnist-in-pytorch-tutorial/
@@ -239,27 +239,79 @@ def nf_pyramid(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_fea
     #assert p_dims[0][1] == channels
     
     nodes = [Ff.InputNode(c.channels,input_dim[0],input_dim[1],name='input')] 
-    conditions = []
+    conditions = []; splits = []; transformed_splits = [];
     
     for k in range(c.levels):
-        conditions.append(Ff.ConditionNode(p_dims[k][1],p_dims[k][2],p_dims[k][3],name = 'condition{}'.format(k)))
-    
-    for k in range(c.levels):
+        conditions.append(Ff.ConditionNode(p_dims[k][1],p_dims[k][2],p_dims[k][3],name = 'Condition{}'.format(k)))
         
         if c.fixed1x1conv and k != 0: # c.channels*4**k
-            nodes.append(Ff.Node(nodes[-1], Fm.Fixed1x1Conv,{'M': random_orthog(c.channels*4**k).to(c.device) }, name='1x1_conv_{}'.format(k)))
+            nodes.append(Ff.Node(nodes[-1].out0, Fm.Fixed1x1Conv,{'M': random_orthog(c.channels*4**k).to(c.device) }, name='1x1_Conv_{}'.format(k)))
         else:
-            nodes.append(Ff.Node(nodes[-1], Fm.PermuteRandom, {'seed': k}, name='permute_{}'.format(k)))
-            
-        nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling_{}'.format(k)))
+            nodes.append(Ff.Node(nodes[-1].out0, Fm.PermuteRandom, {'seed': k}, name='Permute_{}'.format(k)))
+        
+        nodes.append(Ff.Node(nodes[-1].out0, Fm.HaarDownsampling, {}, name = 'Main_Downsampling_{}'.format(k)))
+        
+        # split off noise dimensions (see Dinh, 2016) - multiscale architecture (splits along channel, splits into two [default])
+        #print("Dimensions split off ")
+        
+        # skip last split, as no downsampling required
+        #if k != (c.levels - 1):
+        splits.append(Ff.Node(nodes[-1].out0, Fm.Split, {}, name='Split_{}'.format(k)))
+        nodes.append(splits[k])
+        #else:
+            #last_ds = nodes[-1]
+            # print(nodes[-1])
+            # 1/0
         
         for j in range(c.n_pyramid_blocks):
-            nodes.append(Ff.Node(nodes[-1], Fm.GLOWCouplingBlock,{'clamp': c.clamp_alpha,
-                                                                  'subnet_constructor':subnet},conditions=conditions[k],name = 'couple_{}_{}'.format(k,j)))
+            nodes.append(Ff.Node(nodes[-1].out1, Fm.GLOWCouplingBlock,{'clamp': c.clamp_alpha,
+                                                                  'subnet_constructor':subnet},conditions=conditions[k],name = 'Couple_{}_{}'.format(k,j)))
+    # loop to add downsampling to split dimensions before concatenation
+    #print("No. splits {}".format(len(splits)))
     
-    out = Ff.ReversibleGraphNet(nodes + conditions + [Ff.OutputNode(nodes[-1], name='output')], verbose=c.verbose)
+    last_coupling = nodes[-1]
     
-    return out
+    # for each split node, append a variable amount of downsampling blocks to ensure dimensional compatability
+    for i in range(len(splits)):
+        for j in range(5-i):
+            if i == len(splits)-1:
+                transformed_splits.append(splits[i])  
+            elif j == 0:
+                #print(splits[i])
+                # out1 of split nodes proceeds into main node chain
+                nodes.append(Ff.Node(splits[i].out0, Fm.HaarDownsampling, {}, name = 'Split_{}_Downsampling_{}'.format(i,j)))
+            elif j == (5-i)-1:
+                transformed_splits.append(nodes[-1])
+            else:
+                nodes.append(Ff.Node(nodes[-1].out0, Fm.HaarDownsampling, {}, name = 'Split_{}_Downsampling_{}'.format(i,j)))
+    
+    # concatenate list of split chain outputs back to output node
+    print(last_coupling)      
+                
+    concat_node = Ff.Node([last_coupling.out0,
+                           transformed_splits[0].out0,
+                           transformed_splits[1].out0,
+                           transformed_splits[2].out0,
+                           transformed_splits[3].out0, # , transformed_splits[4].out1
+                           transformed_splits[4].out0],Fm.Concat,{},name='Concat_Splits')
+    
+    nodes.append(concat_node)
+    
+    for node in nodes:
+        print('node')
+        print(node)
+        #print(node.output_dims)
+        #print(node.input_dims)
+        
+        print('outs')
+        print(node.outputs)
+        print('ins')
+        print(node.inputs)
+        print('---')
+    
+    inn = Ff.GraphINN(nodes + conditions + [Ff.OutputNode(nodes[-1], name='output')], verbose=c.verbose)
+    
+    return inn
     
 def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,mnist=False):
     
@@ -571,6 +623,7 @@ class MNISTFlow(nn.Module):
         return z
     
 class unet():
+    # from https://github.com/milesial/Pytorch-UNet/blob/master/unet/unet_model.py
     pass
 
 class csrnet():

@@ -427,6 +427,8 @@ def plot_peaks(mdl, loader,n=1):
 
     mdl = mdl.to(c.device)
     
+    constant = ((mdl.noise)/2)*ground_truth_dmap.shape[0]*ground_truth_dmap.shape[1]
+    
     for i, data in enumerate(tqdm(loader, disable=False)):
         
         images,dmaps,labels,annotations = data
@@ -462,13 +464,13 @@ def plot_peaks(mdl, loader,n=1):
         #x_std_norm = x_std #x_std-x #x_std.div(x) # unused
 
         for idx in range(images.size()[0]):               
-        
+            
             idx = random.randint(0,images.size()[0]-1)
                 
             dmap_rev_np = x[idx].squeeze().cpu().detach().numpy()
             #dmap_uncertainty = x_std[idx].squeeze().cpu().detach().numpy()
-            sum_count = dmap_rev_np.sum()
-            dist_counts  = x_agg[idx].sum((1,2,3)) 
+            sum_count = dmap_rev_np.sum() - constant
+            dist_counts  = x_agg[idx].sum((1,2,3))  - constant
             
             ground_truth_dmap = dmaps[idx].squeeze().cpu().detach().numpy()
             gt_count = ground_truth_dmap.sum().round()

@@ -104,7 +104,6 @@ else:
     if len(c.batch_size) != 1 or len(c.lr_init) != 1 and a.args.feat_extract_only:
         ValueError('Training batteries not available for Feature Extractor only runs')
         
-    
     if len(c.batch_size) == 1:
         # CPU tensors can't be pinned; leave false
         train_loader = DataLoader(transformed_dataset, batch_size=c.batch_size[0],shuffle=False, 

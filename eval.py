@@ -194,7 +194,7 @@ def dmap_metrics(mdl, loader,n=10,mode='',thres=c.sigma*2):
             gt_coords = torch.stack([gt_coords[:,2]*mdl.density_map_h,gt_coords[:,1]*mdl.density_map_w]).cpu().detach().numpy()
             
             # subtract constrant for uniform noise
-            constant = ((c.noise)/2)*ground_truth_dmap.shape[0]*ground_truth_dmap.shape[1] # TODO mdl.noise
+            constant = ((mdl.noise)/2)*ground_truth_dmap.shape[0]*ground_truth_dmap.shape[1] 
             sum_count -= constant
             dist_counts -= constant
             gt_count -= constant
