@@ -263,9 +263,16 @@ def nf_pyramid(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_fea
             # print(nodes[-1])
             # 1/0
         
+        # after every split, out1 sent to coupling, out0 split off for downsampling and later concatenation
         for j in range(c.n_pyramid_blocks):
-            nodes.append(Ff.Node(nodes[-1].out1, Fm.GLOWCouplingBlock,{'clamp': c.clamp_alpha,
-                                                                  'subnet_constructor':subnet},conditions=conditions[k],name = 'Couple_{}_{}'.format(k,j)))
+            if j == 0:
+                nodes.append(Ff.Node(nodes[-1].out1, Fm.GLOWCouplingBlock,
+                                     {'clamp': c.clamp_alpha,'subnet_constructor':subnet},
+                                     conditions=conditions[k],name = 'Couple_{}_{}'.format(k,j)))
+            else:
+                nodes.append(Ff.Node(nodes[-1].out0, Fm.GLOWCouplingBlock,
+                                     {'clamp': c.clamp_alpha,'subnet_constructor':subnet},
+                                     conditions=conditions[k],name = 'Couple_{}_{}'.format(k,j)))
     # loop to add downsampling to split dimensions before concatenation
     #print("No. splits {}".format(len(splits)))
     
