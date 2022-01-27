@@ -11,8 +11,10 @@ import arguments as a
 import model
 import os
 from train import train, train_battery
+
 #from utils import load_datasets, make_dataloaders
-from data_loader import CowObjectsDataset, CustToTensor,AerialNormalize, DmapAddUniformNoise, CustCrop, CustResize, train_val_split
+from data_loader import CowObjectsDataset, DLRACD, CustToTensor,AerialNormalize, DmapAddUniformNoise, CustCrop, CustResize, train_val_split
+import arguments as a
 
 empty_cache() # free up memory for cuda
 
@@ -32,6 +34,22 @@ dmaps_pre = Compose([
             CustCrop(),
             DmapAddUniformNoise(),
         ])
+
+dlracd_pre = Compose([
+    
+    CustToTensor(),
+    
+    ])
+
+if a.args.dlr:
+    dlr_dataset = DLRACD(root_dir=c.proj_dir,transform = dlracd_pre,
+                                            convert_to_points=True,generate_density=True,
+                                            count = c.counts,classification = c.train_feat_extractor,
+                                            ram=c.ram)
+    
+    t_indices, v_indices  = dlr_dataset.split()
+    
+    mdl = train(train_loader,val_loader,lr_i=c.lr_init)
 
 if c.mnist:
     mnist_train = MNIST(root='./data', train=True, download=True, transform=mnist_pre)
@@ -75,11 +93,7 @@ else:
         transformed_dataset.show_annotations(5895)
     
     # create test train split
-    t_indices, t_weights, v_indices, v_weights  = train_val_split(dataset = transformed_dataset,
-                                                                  train_percent = c.test_train_split,
-                                                                  annotations_only = c.annotations_only,
-                                                                  balanced = c.balanced,seed = c.seed)
-
+        
     # Creating data samplers and loaders:
     # only train part for dev purposes 
     

@@ -7,6 +7,7 @@ import torch
 import pandas as pd
 import numpy as np
 import random
+import cv2 # imread
 from tqdm import tqdm # progress bar
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
@@ -27,11 +28,13 @@ import torch.nn.functional as F
 
 from torchvision import utils
 from skimage import io
+#from skimage.feature_extractions.image import extract_patches_2d
 from PIL import Image
 
 import config as c
 import gvars as g
 from utils import UnNormalize
+from utils import split_image
 
 # save numpy array as npz file
 from numpy import savez_compressed, load
@@ -45,15 +48,95 @@ mk_size = 25
 
 class DLRACD(Dataset):
     
-    def __init__():
-        pass
-     
+    def __init__(self, root_dir,transform = None):
+        self.root_dir = root_dir + '/DLRACD/'
+        
+        self.images = {'Train':[],'Test':[]}
+        self.counts = {'Train':[],'Test':[]}
+        self.annotations = {'Train':[]}
+        self.train_indices = []
+        self.test_indices = []
+        self.patches = {'Train':[],'Test':[]}
+        self.patch_densities = {'Train':[],'Test':[]}
+        
+        gsd_table_df = pd.read_csv(self.root_dir+"dlracd_gsds.txt")
+        
+        print('Initialising dataset')
+        
+        for mode in ['Test','Train']:
+        
+            images_list = os.listdir(os.path.join(self.root_dir,mode+"/Images/"))
+            
+            for img_path in images_list:
+                
+                image = cv2.imread(os.path.join(self.root_dir,mode+"/Images/"+img_path))
+                self.images[mode].append(image)
+                
+                self.patches[mode].extend(split_image(image, patch_size = 320, overlap_percent=0))
+            
+            if mode == 'Train': # only Train data available
+                
+                annotation_list = os.listdir(os.path.join(self.root_dir,mode+"/Annotation/"))
+                
+                for anno_path in annotation_list:
+                    
+                    annotation = cv2.imread(os.path.join(self.root_dir,mode+"/Annotation/"+anno_path))
+                    self.annotations[mode].append(annotation)
+                    
+                    point_maps = split_image(annotation, patch_size = 320, overlap_percent=0)
+                    
+                    for pm in point_maps:
+                        
+                        self.counts[mode].append(pm.sum() / 255)
+                        
+                        pm += scipy.ndimage.filters.gaussian_filter(pm, sigma = c.sigma, mode='constant')
+                        
+                        self.patch_densities[mode].append(pm)
+        
+        self.train_indices = range(0,len(self.patch_densities['Train'])-1)
+        self.test_indices =  range(len(self.train_indices),len(self.train_indices)+len(self.patch_densities['Test'])-1)
+        self.patches = [*self.patches['Train'],*self.patches['Test']]
+        
+        print('Initialisation finished')
+                    
     def __len__(self):
-        pass
+        return len(self.patches['Train'])+len(self.patches['Test'])
         
     def __getitem__(self, idx):
-        pass
+        if torch.is_tensor(idx):
+            idx = idx.tolist()
+
+        sample = {}
+        sample['patch'] = self.patches[idx]
+        
+        if idx < len(self.patch_densities):
+            sample['patch_density'] = self.patch_densities[idx]
+            sample['count'] = self.counts[idx]
+            
+        else:
+            sample['patch_density'] = None
+            sample['count'] = None
+            
+        if self.transform:
+            sample = self.transform(sample)
     
+    def show_annotations(self, idx):
+        
+        im = sample['image']
+        dmap = sample['density'].cpu().numpy()
+                
+        unnorm = UnNormalize(mean =tuple(c.norm_mean),std=tuple(c.norm_std))
+        im = unnorm(im)
+        im = im.permute(1,2,0).cpu().numpy()
+
+        fig, ax = plt.subplots(1,2)
+        # TODO - bug here! mismatch impaths and data
+        #fig.suptitle(os.path.basename(os.path.normpath(self.train_im_paths[sample_no])))
+        ax[0].imshow(dmap, cmap='viridis', interpolation='nearest')
+        ax[1].imshow((im * 255).astype(np.uint8))
+    
+dlr = dlr_dataset = DLRACD(root_dir=c.proj_dir)
+
 
 class CowObjectsDataset(Dataset):
     """Cow Objects dataset."""

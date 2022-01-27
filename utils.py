@@ -6,6 +6,7 @@ import os
 import torch
 import numpy as np
 import random
+import cv2
 from prettytable import PrettyTable
 
 import config as c
@@ -729,3 +730,47 @@ def count_parameters(model):
     print(table)
     print(f"Total Trainable Params: {total_params}")
     return total_params
+
+
+# https://github.com/Devyanshu/image-split-with-overlap/blob/master/split_image_with_overlap.py
+# minor edits to function, remove non-square opt, grey scale
+def split_image(img,patch_size,overlap_percent = 50):
+    
+    splits = []
+    
+    # insert single channel dim for greyscale
+    if len(img.shape) == 2:
+        img = np.expand_dims(img,2)
+
+    img_h, img_w, _ = img.shape
+    split_width = patch_size
+    split_height = patch_size
+    
+    
+    def start_points(size, split_size, overlap=overlap_percent):
+        points = [0]
+        stride = int(split_size * (1-overlap))
+        counter = 1
+        while True:
+            pt = stride * counter
+            if pt + split_size >= size:
+                points.append(size - split_size)
+                break
+            else:
+                points.append(pt)
+            counter += 1
+        return points
+    
+    X_points = start_points(img_w, split_width, overlap_percent)
+    Y_points = start_points(img_h, split_height, overlap_percent)
+    
+    count = 0
+    
+    for i in Y_points:
+        for j in X_points:
+            split = img[i:i+split_height, j:j+split_width]
+            splits.append(split)
+            
+            count += 1
+    
+    return splits
