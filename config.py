@@ -43,9 +43,10 @@ load_feat_extractor_str = '' # '' to train from scratch, loads FE  # final_eval_
 
 ## Architecture Options ------
 fixed1x1conv = False 
-freq_1x1 = 3 # 1 for always | how many x coupling blocks to have a 1x1 conv permutation layer
+freq_1x1 = 1 # 1 for always | how many x coupling blocks to have a 1x1 conv permutation layer
 pyramid = True # only implemented for resnet18
 n_pyramid_blocks = 3
+n_splits = 4 # number of splits
 gap = False # global average pooling
 downsampling = True # whether to downsample (5 ds layers) dmaps by converting spatial dims to channel dims
 n_coupling_blocks = 5 # if pyramid, total blocks will be n_pyramid_blocks x 5
@@ -74,7 +75,7 @@ meta_epochs = 3
 sub_epochs = 5 
 
 ## Output Settings ----
-schema = 'splitting_full_test' # if debug, ignored
+schema = 'debug' # if debug, ignored
 debug = False # report loads of info/debug info
 tb = True # write metrics, hyper params to tb files
 verbose = True # report stats per sub epoch and other info
@@ -192,7 +193,7 @@ if a.args.gpu_number != 0:
 #assert not (weighted and annotations_only)
 assert not (feat_extractor == 'none' and gap == True)
 assert gap != downsampling
-
+assert n_splits >= 0 and n_splits < 6
 assert subnet_type in ['conv','fc']
 assert feat_extractor in ['none' ,'alexnet','vgg16_bn','resnet18']
 assert scheduler in ['exponential','none']

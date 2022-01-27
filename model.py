@@ -188,7 +188,7 @@ def sub_conv2d(dims_in,dims_out,n_filters):
     
     # zero init last subnet weights as per glow, cINNs paper
     net.conv3.weight = torch.nn.init.zeros_(net.conv3.weight)
-    net.conv3.bias.data.fill_(0.00)
+    net.conv3.bias.data.fill_(0.00) 
     
     return net
 
@@ -239,7 +239,47 @@ def nf_pyramid(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_fea
     #assert p_dims[0][1] == channels
     
     nodes = [Ff.InputNode(c.channels,input_dim[0],input_dim[1],name='input')] 
-    conditions = []; splits = []; transformed_splits = [];
+    conditions = []; 
+    
+    for k in range(c.levels):
+        conditions.append(Ff.ConditionNode(p_dims[k][1],p_dims[k][2],p_dims[k][3],name = 'Condition{}'.format(k)))
+        
+        if c.fixed1x1conv and k != 0: # c.channels*4**k
+            nodes.append(Ff.Node(nodes[-1].out0, Fm.Fixed1x1Conv,{'M': random_orthog(c.channels*4**k).to(c.device) }, name='1x1_Conv_{}'.format(k)))
+        else:
+            nodes.append(Ff.Node(nodes[-1].out0, Fm.PermuteRandom, {'seed': k}, name='Permute_{}'.format(k)))
+        
+        nodes.append(Ff.Node(nodes[-1].out0, Fm.HaarDownsampling, {}, name = 'Main_Downsampling_{}'.format(k)))
+        
+        for j in range(c.n_pyramid_blocks):
+            nodes.append(Ff.Node(nodes[-1], Fm.GLOWCouplingBlock,
+                            {'clamp': c.clamp_alpha,'subnet_constructor':subnet},
+                            conditions=conditions[k],name = 'Couple_{}'.format(k)))
+    
+    inn = Ff.GraphINN(nodes + conditions + [Ff.OutputNode(nodes[-1], name='output')], verbose=c.verbose)
+    
+    return inn
+
+def nf_pyramid_split(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat):
+    assert c.subnet_type == 'conv'
+    assert not c.gap and not c.counts and not c.mnist
+    
+    # TODO - will break because of ref to config file
+    mdl = ResNetPyramid()
+    # TODO: take out hardcoding activation channels (64)
+    channels = 3
+    feats = mdl(torch.randn(c.batch_size[0],channels,c.density_map_h,c.density_map_w,requires_grad=False))
+    del mdl
+    
+    if c.verbose:
+        print('Feature Pyramid Dimensions:')
+        [print(f.shape) for f in feats]
+        
+    p_dims = [f.shape for f in feats]
+    #assert p_dims[0][1] == channels
+    
+    nodes = [Ff.InputNode(c.channels,input_dim[0],input_dim[1],name='input')] 
+    conditions = []; #transformed_splits = []; # splits = [];
     
     for k in range(c.levels):
         conditions.append(Ff.ConditionNode(p_dims[k][1],p_dims[k][2],p_dims[k][3],name = 'Condition{}'.format(k)))
@@ -252,55 +292,75 @@ def nf_pyramid(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_fea
         nodes.append(Ff.Node(nodes[-1].out0, Fm.HaarDownsampling, {}, name = 'Main_Downsampling_{}'.format(k)))
         
         # split off noise dimensions (see Dinh, 2016) - multiscale architecture (splits along channel, splits into two [default])
-        #print("Dimensions split off ")
+        #if split_count < c.n_splits:
+        #    split_count += 1
         
-        # skip last split, as no downsampling required
-        #if k != (c.levels - 1):
-        splits.append(Ff.Node(nodes[-1].out0, Fm.Split, {}, name='Split_{}'.format(k)))
-        nodes.append(splits[k])
-        #else:
-            #last_ds = nodes[-1]
-            # print(nodes[-1])
-            # 1/0
-        
-        # after every split, out1 sent to coupling, out0 split off for downsampling and later concatenation
-        for j in range(c.n_pyramid_blocks):
-            if j == 0:
-                nodes.append(Ff.Node(nodes[-1].out1, Fm.GLOWCouplingBlock,
-                                     {'clamp': c.clamp_alpha,'subnet_constructor':subnet},
-                                     conditions=conditions[k],name = 'Couple_{}_{}'.format(k,j)))
-            else:
+        # splitting once
+        if k == 0:
+            split = Ff.Node(nodes[-1].out0, Fm.Split, {}, name='Split_{}'.format(k))
+            nodes.append(split)
+            
+            # after every split, out1 sent to coupling, out0 split off for downsampling and later concatenation
+            for j in range(c.n_pyramid_blocks):
+                if j == 0:
+                    nodes.append(Ff.Node(nodes[-1].out1, Fm.GLOWCouplingBlock,
+                                         {'clamp': c.clamp_alpha,'subnet_constructor':subnet},
+                                         conditions=conditions[k],name = 'Couple_{}_{}'.format(k,j)))
+                else:
+                    # no split
+                    nodes.append(Ff.Node(nodes[-1].out0, Fm.GLOWCouplingBlock,
+                                         {'clamp': c.clamp_alpha,'subnet_constructor':subnet},
+                                         conditions=conditions[k],name = 'Couple_{}_{}'.format(k,j)))
+                    
+        else:
+            for j in range(c.n_pyramid_blocks):
                 nodes.append(Ff.Node(nodes[-1].out0, Fm.GLOWCouplingBlock,
-                                     {'clamp': c.clamp_alpha,'subnet_constructor':subnet},
-                                     conditions=conditions[k],name = 'Couple_{}_{}'.format(k,j)))
-    # loop to add downsampling to split dimensions before concatenation
-    #print("No. splits {}".format(len(splits)))
-    
-    last_coupling = nodes[-1]
-    
-    # for each split node, append a variable amount of downsampling blocks to ensure dimensional compatability
-    for i in range(len(splits)):
-        for j in range(5-i):
-            if i == len(splits)-1:
-                transformed_splits.append(splits[i])  
-            elif j == 0:
-                #print(splits[i])
-                # out1 of split nodes proceeds into main node chain
-                nodes.append(Ff.Node(splits[i].out0, Fm.HaarDownsampling, {}, name = 'Split_{}_Downsampling_{}'.format(i,j)))
-            elif j == (5-i)-1:
-                transformed_splits.append(nodes[-1])
-            else:
-                nodes.append(Ff.Node(nodes[-1].out0, Fm.HaarDownsampling, {}, name = 'Split_{}_Downsampling_{}'.format(i,j)))
-    
-    # concatenate list of split chain outputs back to output node
-    print(last_coupling)      
+                            {'clamp': c.clamp_alpha,'subnet_constructor':subnet},
+                            conditions=conditions[k],name = 'Couple_{}'.format(k)))
                 
+    last_coupling = nodes[-1]  # link up main chain to split chains
+    
+        # else:
+        #     for j in range(c.n_pyramid_blocks):
+        #         # no split
+        #         nodes.append(Ff.Node(nodes[-1].out0, Fm.GLOWCouplingBlock,
+        #                                      {'clamp': c.clamp_alpha,'subnet_constructor':subnet},
+        #                                      conditions=conditions[k],name = 'Couple_{}_{}'.format(k,j)))    
+       
+    #if c.debug:
+    
+    # main chain of split
+    nodes.append(Ff.Node(split.out0, Fm.HaarDownsampling, {}, name = 'Split_Downsampling1'))
+    nodes.append(Ff.Node(nodes[-1].out0, Fm.HaarDownsampling, {}, name = 'Split_Downsampling2'))
+    nodes.append(Ff.Node(nodes[-1].out0, Fm.HaarDownsampling, {}, name = 'Split_Downsampling3'))
+    
+    last_split_ds = Ff.Node(nodes[-1].out0, Fm.HaarDownsampling, {}, name = 'Split_Downsampling4')
+    
+    nodes.append(last_split_ds)
+        
+    # loop to add downsampling to split dimensions before concatenation
+    # for each split node, append a variable amount of downsampling blocks to ensure dimensional compatability
+    # for i in range(len(splits)):
+    #     for j in range(5-i):
+    #         if i == len(splits)-1:
+    #             transformed_splits.append(splits[i])  
+    #         elif j == 0:
+    #             #print(splits[i])
+    #             # out1 of split nodes proceeds into main node chain
+    #             nodes.append(Ff.Node(splits[i].out0, Fm.HaarDownsampling, {}, name = 'Split_{}_Downsampling_{}'.format(i,j)))
+    #         elif j == (5-i)-1:
+    #             transformed_splits.append(nodes[-1])
+    #         else:
+    #             nodes.append(Ff.Node(nodes[-1].out0, Fm.HaarDownsampling, {}, name = 'Split_{}_Downsampling_{}'.format(i,j)))
+    
+    # concatenate list of split chain outputs back to output node           
     concat_node = Ff.Node([last_coupling.out0,
-                           transformed_splits[0].out0,
-                           transformed_splits[1].out0,
-                           transformed_splits[2].out0,
-                           transformed_splits[3].out0, # , transformed_splits[4].out1
-                           transformed_splits[4].out0],Fm.Concat,{},name='Concat_Splits')
+                           last_split_ds.out0]#,
+                           #transformed_splits[1].out0,
+                           #transformed_splits[2].out0,
+                           #transformed_splits[3].out0, 
+                           #transformed_splits[4].out0]
+                           ,Fm.Concat,{},name='Concat_Splits')
     
     nodes.append(concat_node)
     
@@ -314,7 +374,7 @@ def nf_pyramid(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_fea
         print(node.outputs)
         print('ins')
         print(node.inputs)
-        print('---')
+        print('---')   
     
     inn = Ff.GraphINN(nodes + conditions + [Ff.OutputNode(nodes[-1], name='output')], verbose=c.verbose)
     
@@ -406,7 +466,10 @@ class CowFlow(nn.Module):
             self.feat_extractor = feat_extractor
         
         if c.pyramid:
-            self.nf = nf_pyramid()   
+            if a.args.split_dimensions:
+                self.nf = nf_pyramid_split() 
+            else:
+                self.nf = nf_pyramid()   
         else:
             self.nf = nf_head()  
         
@@ -479,7 +542,7 @@ class CowFlow(nn.Module):
             print(feats.size(),"\n")
         
         # adding spatial dimensions....
-        # remove dimension of size one for concatenation in NF coupling layer - squeeze()
+        # remove dimension of size one for concatenation in NF coupling layer squeeze()
         if c.feat_extractor != "none" and c.subnet_type =='conv':
         
             if self.gap:
