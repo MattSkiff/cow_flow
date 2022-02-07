@@ -170,10 +170,9 @@ def dmap_metrics(mdl, loader,n=10,mode='',thres=c.sigma*2,null_filter=False):
             if not mdl.dlr_acd:
                 features = mdl.feat_extractor(images)
                 outputs = mdl.classification_head(features)
-            
+                _, preds = torch.max(outputs, 1)   
             else: 
                 outputs = mdl.feat_extractor(images)
-                print(outputs)
                 _, preds = torch.max(outputs, 1)   
         
         x, _ = mdl(images,dummy_z,rev=True)
@@ -181,7 +180,9 @@ def dmap_metrics(mdl, loader,n=10,mode='',thres=c.sigma*2,null_filter=False):
         # replace predicted densities with null predictions if not +ve pred from feature extractor
         if null_filter:
             if not mdl.dlr_acd:
-                x[preds,:,:,:] = torch.zeros(3,608,800)
+                print(mdl.density_map_h)
+                print(mdl.density_map_w)
+                x[preds,:,:,:] = torch.zeros(1,608,800).to(c.device)
         
         x_list.append(x)
         
@@ -385,10 +386,12 @@ def dmap_pr_curve(mdl, loader,n = 10,mode = ''):
     
     for i, data in enumerate(tqdm(loader, disable=False)):
         
-        if mdl.dlr_acd:
-            images,dmaps,counts,point_maps = data    
-        else:
+        if not mdl.dlr_acd and not loader.dataset.classification:
             images,dmaps,labels,annotations = data
+        elif not mdl.dlr_acd:
+            images,dmaps,labels, _ , annotations = data # binary labels
+        else:
+            images,dmaps,counts,point_maps = data
             
         images = images.float().to(c.device)
          

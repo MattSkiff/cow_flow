@@ -23,7 +23,7 @@ annotations_only = True # whether to only use image patches that have annotation
 test_run = False # use only a small fraction of data to check everything works
 validation = True # whether to run validation per meta epoch
 eval_n = 1
-data_prop = 1 # proportion of the full dataset to use
+data_prop = 0.1 # proportion of the full dataset to use
 test_train_split = 70 # percentage of data to allocate to train set
 
 ## Density Map Options ------
@@ -36,7 +36,7 @@ scale = 1 # 4, 2 = downscale dmaps four/two fold, 1 = unchanged
 ## Feature Extractor Options ------
 pretrained = True
 feat_extractor = "resnet18" # alexnet, vgg16_bn,resnet18, none # TODO mnist_resnet, efficient net
-feat_extractor_epochs = 50
+feat_extractor_epochs = 2
 train_feat_extractor = False # whether to finetune or load finetuned model 
 load_feat_extractor_str = '' # '' to train from scratch, loads FE  # final_eval_test_weka-13_BS2_LR_I[0.002]_NC5_E1_FE_resnet18_DIM608_JO_PT_PY_1_1x1_WD_0.001_FSZ_16_14_12_2021_21_49_14
 # nb: pretraining FE saves regardless of save flag
