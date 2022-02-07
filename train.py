@@ -569,12 +569,6 @@ def train_classification_head(mdl,full_trainloader,full_valloader,criterion = nn
                     outputs = mdl.classification_head(features)
                     _, preds = torch.max(outputs, 1) 
                     
-                    print('preds')
-                    print(preds)
-                    print('binary labels')
-                    print(binary_labels)
-
-                    
                     loss = criterion(outputs,binary_labels)
                     minibatch_count += 1
                 
