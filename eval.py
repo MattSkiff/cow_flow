@@ -16,6 +16,8 @@ from utils import ft_dims_select, UnNormalize, np_split
 import config as c
 import gvars as g
 
+from torchvision.models import resnet18 
+
 MAX_DISTANCE = 100
 MIN_D = int(c.sigma*2)
 STEP = 1
@@ -113,7 +115,7 @@ def eval_mnist(mdl, valloader, trainloader,samples = 1,confusion = False, preds 
     return  out # train, val
 
 @torch.no_grad()
-def dmap_metrics(mdl, loader,n=10,mode='',thres=c.sigma*2):
+def dmap_metrics(mdl, loader,n=10,mode='',thres=c.sigma*2,null_filter=False):
     '''DMAP,COUNT,LOCALIZATION metrics'''
     
     assert not mdl.count
@@ -138,7 +140,12 @@ def dmap_metrics(mdl, loader,n=10,mode='',thres=c.sigma*2):
     
     for i, data in enumerate(tqdm(loader, disable=False)):
         
-        images,dmaps,labels,annotations = data
+        if not mdl.dlr_acd and not loader.dataset.classification:
+            images,dmaps,labels,annotations = data
+        elif not mdl.dlr_acd:
+            images,dmaps,labels, _ , annotations = data # binary labels
+        else:
+            images,dmaps,counts,point_maps = data
 
         images = images.float().to(c.device)
          
@@ -157,8 +164,26 @@ def dmap_metrics(mdl, loader,n=10,mode='',thres=c.sigma*2):
         ## sample from model per aerial image ---
         for i in range(n):
             dummy_z = (randn(images.size()[0], in_channels,ft_dims[0],ft_dims[1])).to(c.device)
-            x, _ = mdl(images,dummy_z,rev=True)
-            x_list.append(x)
+            
+            # feature extractor pre filtering
+            # currently only on cow dataset
+            if not mdl.dlr_acd:
+                features = mdl.feat_extractor(images)
+                outputs = mdl.classification_head(features)
+            
+            else: 
+                outputs = mdl.feat_extractor(images)
+                print(outputs)
+                _, preds = torch.max(outputs, 1)   
+        
+        x, _ = mdl(images,dummy_z,rev=True)
+        
+        # replace predicted densities with null predictions if not +ve pred from feature extractor
+        if null_filter:
+            if not mdl.dlr_acd:
+                x[preds,:,:,:] = torch.zeros(3,608,800)
+        
+        x_list.append(x)
         
         x_agg = torch.stack(x_list,dim=1)
         x = x_agg.mean(dim=1) # take average of samples from models for mean reconstruction
@@ -176,22 +201,24 @@ def dmap_metrics(mdl, loader,n=10,mode='',thres=c.sigma*2):
             #     thres = int(sum_count)
                        
             # add points onto basemap
-            anno = annotations[idx].cpu().detach().numpy()
-            
             #base_map = np.zeros((mdl.density_map_w, mdl.density_map_h), dtype=np.float32)
             base_map = np.zeros((mdl.density_map_h, mdl.density_map_w), dtype=np.float32)
             
-            # We DO evaluate using the point annotations!
-            for point in anno:
-                # error introduced here as float position annotation centre converted to int
-                # in data loader -> 800x600 then rescale, here directly 800x608
-                base_map[int(round(point[2]*mdl.density_map_h)-1),int(round(point[1]*mdl.density_map_w)-1)] += 1
+            # TODO- retrieve points from point annotated masks
+            if mdl.dlr_acd:
+                pm = point_maps[idx].squeeze().cpu().detach().numpy()
+                gt_coords = np.argwhere(pm != 0).tolist()
+            else:
+                anno = annotations[idx].cpu().detach().numpy()
             
-            ground_truth_point_map = base_map
-            gt_count = ground_truth_point_map.sum().round()
-            
-            gt_coords = annotations[idx]
-            gt_coords = torch.stack([gt_coords[:,2]*mdl.density_map_h,gt_coords[:,1]*mdl.density_map_w]).cpu().detach().numpy()
+            if mdl.dlr_acd:
+                ground_truth_point_map = point_maps[idx]
+                gt_count = ground_truth_point_map.sum() / 3
+            else:
+                ground_truth_point_map = base_map
+                gt_count = ground_truth_point_map.sum().round()
+                gt_coords = annotations[idx]
+                gt_coords = torch.stack([gt_coords[:,2]*mdl.density_map_h,gt_coords[:,1]*mdl.density_map_w]).cpu().detach().numpy()
             
             # subtract constrant for uniform noise
             constant = ((mdl.noise)/2)*ground_truth_dmap.shape[0]*ground_truth_dmap.shape[1] 
@@ -201,8 +228,13 @@ def dmap_metrics(mdl, loader,n=10,mode='',thres=c.sigma*2):
             
             coordinates = peak_local_max(dmap_rev_np,min_distance=MIN_D,num_peaks=max(1,int(sum_count)))
             
-            y.append(labels[idx].cpu().detach().numpy())
-            y_n.append(len(labels[idx]))
+            if mdl.dlr_acd:
+                #y.append()
+                y_n.append(gt_count)
+            else:
+                #y.append(labels[idx].cpu().detach().numpy())
+                y_n.append(len(labels[idx]))
+                
             y_coords.append(gt_coords)
             y_hat_n.append(sum_count)
             y_hat_n_dists.append(dist_counts)
@@ -229,6 +261,9 @@ def dmap_metrics(mdl, loader,n=10,mode='',thres=c.sigma*2):
     for gt_dmap, pred_dmap in zip(y_coords, y_hat_coords):
         gt_dmap = np.swapaxes(gt_dmap,1,0)
         
+        if c.debug:
+            print(gt_dmap.shape)
+            print(pred_dmap.shape)
         dist_matrix = distance.cdist(gt_dmap, pred_dmap, 'euclidean')
         
         # hungarian algorithm from scipy (yes, optimality is critical, even for eval)
@@ -350,7 +385,11 @@ def dmap_pr_curve(mdl, loader,n = 10,mode = ''):
     
     for i, data in enumerate(tqdm(loader, disable=False)):
         
-        images,dmaps,labels,annotations = data
+        if mdl.dlr_acd:
+            images,dmaps,counts,point_maps = data    
+        else:
+            images,dmaps,labels,annotations = data
+            
         images = images.float().to(c.device)
          
         if mdl.scale == 1:
@@ -385,11 +424,17 @@ def dmap_pr_curve(mdl, loader,n = 10,mode = ''):
             ground_truth_dmap = dmaps[idx].squeeze().cpu().detach().numpy()
             gt_count = ground_truth_dmap.sum().round()
             
-            gt_coords = annotations[idx]
-            gt_coords = torch.stack([gt_coords[:,2]*mdl.density_map_h,gt_coords[:,1]*mdl.density_map_w]).cpu().detach().numpy()
+            if mdl.dlr_acd:
+                pm = point_maps[idx].squeeze().cpu().detach().numpy()
+                gt_coords = np.argwhere(pm != 0).tolist()
+            else:
+                gt_coords = annotations[idx]
+                gt_coords = torch.stack([gt_coords[:,2]*mdl.density_map_h,gt_coords[:,1]*mdl.density_map_w]).cpu().detach().numpy()
+                    
+            
             
             # subtract constrant for uniform noise
-            constant = ((c.noise)/2)*ground_truth_dmap.shape[0]*ground_truth_dmap.shape[1] # TODO mdl.noise
+            constant = ((mdl.noise)/2)*ground_truth_dmap.shape[0]*ground_truth_dmap.shape[1] # TODO mdl.noise
             gt_count -= constant
             sum_count -= constant
             
@@ -398,8 +443,13 @@ def dmap_pr_curve(mdl, loader,n = 10,mode = ''):
             y_hat_coords['mult2'].append(peak_local_max(dmap_rev_np,min_distance=int(c.sigma*2),num_peaks=max(1,int(sum_count))))
             y_hat_coords['mult4'].append(peak_local_max(dmap_rev_np,min_distance=int(c.sigma*4),num_peaks=max(1,int(sum_count))))
             
-            y.append(labels[idx].cpu().detach().numpy())
-            y_n.append(len(labels[idx]))
+            #y.append(labels[idx].cpu().detach().numpy()) # TODO - rm?
+            
+            if mdl.dlr_acd:
+                y_n.append(counts[idx])
+            else:    
+                y_n.append(len(labels[idx]))
+                
             y_coords.append(gt_coords)
             y_hat_n.append(sum_count)    
     
@@ -408,7 +458,8 @@ def dmap_pr_curve(mdl, loader,n = 10,mode = ''):
             
     # Approach:
     # 1) Calculate distance matrix between ground truth and prediction 2d point sets
-    # 2) 
+    # 2) Find optimal assignment using hungarian algo from scipy
+    # 3) match upto the gt no of pts
     
     pr_dict = {'div2':[],'same':[],'mult2':[],'mult4':[]}    
     rc_dict = {'div2':[],'same':[],'mult2':[],'mult4':[]}   
@@ -433,11 +484,10 @@ def dmap_pr_curve(mdl, loader,n = 10,mode = ''):
                 # append distances to distance vector from dist matrix in optimal order
                 dists.append(dist_matrix[optim[0][i],optim[1][i]]) 
     
-            # DEBUG VIZ
-            # fig, ax = plt.subplots(1,1, figsize=(10, 10))
-            # ax.scatter(pred_dmap[:,0], pred_dmap[:,1],label='Predicted coordinates')
-            # ax.scatter(gt_dmap[:,0], gt_dmap[:,1],c='red',marker='1',label='Ground truth coordinates')
-            # 1/0
+            if c.debug:
+                fig, ax = plt.subplots(1,1, figsize=(10, 10))
+                ax.scatter(pred_dmap[:,0], pred_dmap[:,1],label='Predicted coordinates')
+                ax.scatter(gt_dmap[:,0], gt_dmap[:,1],c='red',marker='1',label='Ground truth coordinates')
             
             dists = np.array(dists)
             

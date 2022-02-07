@@ -11,6 +11,7 @@ from prettytable import PrettyTable
 
 import config as c
 import gvars as g
+import arguments as a
 
 #from scipy import ndimage as ndi
 from skimage.feature import peak_local_max # 
@@ -24,8 +25,10 @@ def ft_dims_select(mdl=None):
         fe = mdl.feat_extractor.__class__.__name__
     
     if c.downsampling:
-    
-        if fe in ['resnet18','ResNetPyramid'] or fe == 'Sequential':
+        
+        if a.args.dlr_acd:
+            ft_dims = (10,10)    
+        elif fe in ['resnet18','ResNetPyramid'] or fe == 'Sequential':
             ft_dims = (19,25)
         elif fe == 'vgg16_bn' or fe == 'VGG':
             ft_dims = (18,25)
@@ -183,10 +186,14 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=F
             
             if mdl.mnist:
                 images,labels = data
+            elif mdl.dlr_acd:
+                images,dmaps,counts,point_maps = data
             elif loader.dataset.count: # model.dataset.count
                 images,dmaps,labels,counts = data
+            elif loader.dataset.classification:
+                images,dmaps,labels,_,_ = data
             else:
-                images,dmaps,labels, _ = data
+                images,dmaps,labels,_ = data
             
             # TODO - intermittent bug here
             dmaps = dmaps.cpu()
@@ -212,7 +219,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=F
                 if lb_idx == None:
                     continue  
             
-            elif not mdl.mnist:
+            elif not mdl.mnist and not mdl.dlr_acd:
                 
                  # check annotations in batch aren't empty
                 lb_idx = None
@@ -740,9 +747,10 @@ def split_image(img,patch_size,overlap_percent = 50):
     
     # insert single channel dim for greyscale
     if len(img.shape) == 2:
-        img = np.expand_dims(img,2)
-
-    img_h, img_w, _ = img.shape
+        img_h, img_w = img.shape
+    else:
+        img_h, img_w, _ = img.shape
+    
     split_width = patch_size
     split_height = patch_size
     

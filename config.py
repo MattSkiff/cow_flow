@@ -71,8 +71,8 @@ batch_size = [8] # actual batch size is this value multiplied by n_transforms(_t
 
 # total epochs = meta_epochs * sub_epochs
 # evaluation after <sub_epochs> epochs
-meta_epochs = 3
-sub_epochs = 5 
+meta_epochs = 1
+sub_epochs = 1
 
 ## Output Settings ----
 schema = 'debug' # if debug, ignored
@@ -141,7 +141,9 @@ else:
 if debug:
     schema = 'debug' # aka ignore debugs
 
-if mnist and feat_extractor == "none":
+if a.args.dlr_acd:
+    img_size = (320,320)
+elif mnist and feat_extractor == "none":
     img_size = (28,28)
 elif mnist:
     img_size = (228,228) # (28,28)
@@ -152,7 +154,9 @@ img_dims = [3] + list(img_size) # RGB + x-y
 
 # TODO: rename this parameter
 # this effects the padding applied to the density maps
-if not mnist and not counts and downsampling:
+if a.args.dlr_acd:
+    density_map_h,density_map_w = 320,320
+elif not mnist and not counts and downsampling:
     density_map_w = 800//scale #img_size[0]
     if feat_extractor == 'resnet18':
         density_map_h = 608//scale #img_size[1]
