@@ -48,26 +48,36 @@ mk_size = 25
 
 class DLRACD(Dataset):
     
+    # TODO add image name so concordance with gsd table is possible
     def __init__(self, root_dir,transform = None):
         self.root_dir = root_dir + '/DLRACD/'
         
+        # this dict structure is only used for processing in init method,
+        # switch to flat list at end
+        self.count = False
+        
         self.images = {'Train':[],'Test':[]}
         self.counts = {'Train':[],'Test':[]}
+        self.density_counts = {'Train':[],'Test':[]}
         self.annotations = {'Train':[]}
         self.train_indices = []
         self.test_indices = []
         self.patches = {'Train':[],'Test':[]}
         self.patch_densities = {'Train':[],'Test':[]}
+        self.transform = transform
+        self.point_maps = {'Train':[]}
+        self.dlr_acd = True
         
         gsd_table_df = pd.read_csv(self.root_dir+"dlracd_gsds.txt")
         
-        print('Initialising dataset')
+        print('Initialising dataset...')
         
         for mode in ['Test','Train']:
         
-            images_list = os.listdir(os.path.join(self.root_dir,mode+"/Images/"))
+            images_list = sorted(os.listdir(os.path.join(self.root_dir,mode+"/Images/")))
+
             
-            for img_path in images_list:
+            for img_path in tqdm(images_list, desc="Loading and splitting images..."):
                 
                 image = cv2.imread(os.path.join(self.root_dir,mode+"/Images/"+img_path))
                 self.images[mode].append(image)
@@ -76,33 +86,56 @@ class DLRACD(Dataset):
             
             if mode == 'Train': # only Train data available
                 
-                annotation_list = os.listdir(os.path.join(self.root_dir,mode+"/Annotation/"))
-                
-                for anno_path in annotation_list:
+                annotation_list = sorted(os.listdir(os.path.join(self.root_dir,mode+"/Annotation/")))
+
+                for anno_path in tqdm(annotation_list, desc="Loading and splitting annotations..."):
                     
-                    annotation = cv2.imread(os.path.join(self.root_dir,mode+"/Annotation/"+anno_path))
+                    # read in as greyscale (0 arg)
+                    annotation = cv2.imread(os.path.join(self.root_dir,mode+"/Annotation/"+anno_path),0)
                     self.annotations[mode].append(annotation)
                     
-                    point_maps = split_image(annotation, patch_size = 320, overlap_percent=0)
+                    point_maps = split_image(annotation, patch_size = 320, overlap_percent=0)   
                     
                     for pm in point_maps:
                         
-                        self.counts[mode].append(pm.sum() / 255)
+                        pm = pm / 255
+                        self.counts[mode].append(pm.sum())
+                        self.point_maps[mode].append(pm)
                         
-                        pm += scipy.ndimage.filters.gaussian_filter(pm, sigma = c.sigma, mode='constant')
+                        # NB convert pd series to list, 0th element                   
+                        gsd_sigma = gsd_table_df[gsd_table_df['name'] == anno_path[:-4]]['gsd'].values[0]
                         
-                        self.patch_densities[mode].append(pm)
+                        if c.debug:
+                            print('Anno path is {}'.format(anno_path))
+                            print('GSD is {}'.format(gsd_sigma))
+                        
+                        p_d = scipy.ndimage.filters.gaussian_filter(pm, sigma = gsd_sigma, mode='constant')
+                        self.density_counts[mode].append(p_d.sum())
+
+                        self.patch_densities[mode].append(p_d)
+                        
+            
+         # shuffle train indices  
+        joint_lists = list(zip(self.patches['Train'],self.patch_densities['Train'],self.counts['Train'],self.density_counts['Train']))
+        random.shuffle(joint_lists)
+        self.patches['Train'],self.patch_densities['Train'],self.counts['Train'],self.density_counts['Train'] = zip(*joint_lists)
         
-        self.train_indices = range(0,len(self.patch_densities['Train'])-1)
-        self.test_indices =  range(len(self.train_indices),len(self.train_indices)+len(self.patch_densities['Test'])-1)
+        self.train_indices = range(0,len(self.patches['Train'])-1)
+        self.test_indices =  range(len(self.train_indices),len(self.train_indices)+len(self.patches['Test'])-1)
+        
         self.patches = [*self.patches['Train'],*self.patches['Test']]
+        self.patch_densities = [*self.patch_densities['Train']] # no test annotations provided
+        self.counts = [*self.counts['Train']]
+        self.density_counts = [*self.density_counts['Train']]
+        self.point_maps = [*self.point_maps['Train']]
         
-        print('Initialisation finished')
+        print('\nInitialisation finished')
                     
     def __len__(self):
         return len(self.patches['Train'])+len(self.patches['Test'])
         
     def __getitem__(self, idx):
+        
         if torch.is_tensor(idx):
             idx = idx.tolist()
 
@@ -111,31 +144,116 @@ class DLRACD(Dataset):
         
         if idx < len(self.patch_densities):
             sample['patch_density'] = self.patch_densities[idx]
-            sample['count'] = self.counts[idx]
+            sample['counts'] = self.counts[idx]
+            sample['density_counts'] = self.density_counts[idx]
+            sample['point_maps'] = self.point_maps[idx]
             
         else:
             sample['patch_density'] = None
-            sample['count'] = None
+            sample['counts'] = None
+            sample['density_counts'] = None
+            sample['point_maps'] = None
             
         if self.transform:
             sample = self.transform(sample)
+            
+        return sample
     
     def show_annotations(self, idx):
         
-        im = sample['image']
-        dmap = sample['density'].cpu().numpy()
+        sample = self[idx]
+        
+        print("True Count:")
+        print(sample["counts"])
+        
+        patch = sample['patch'].permute((1, 2, 0)).cpu().numpy()
+        patch_densities = sample['patch_density'].cpu().numpy()
                 
-        unnorm = UnNormalize(mean =tuple(c.norm_mean),std=tuple(c.norm_std))
-        im = unnorm(im)
-        im = im.permute(1,2,0).cpu().numpy()
-
-        fig, ax = plt.subplots(1,2)
+        fig, ax = plt.subplots(1,2,figsize=(18, 10))
         # TODO - bug here! mismatch impaths and data
         #fig.suptitle(os.path.basename(os.path.normpath(self.train_im_paths[sample_no])))
-        ax[0].imshow(dmap, cmap='viridis', interpolation='nearest')
-        ax[1].imshow((im * 255).astype(np.uint8))
+        ax[0].imshow(patch_densities, cmap='viridis', interpolation='nearest')
+        ax[1].imshow((patch * 255).astype(np.uint8))
+        fig.tight_layout()
+        fig.subplots_adjust(top=0.95)
+        fig.suptitle('Sample {}: \nDensity Count: {}, True Count: {}'.format(idx,round(sample['density_counts'],2),sample['counts']),y=1.0,fontsize=24)
+        
+    def custom_collate_aerial(self,batch):
+        
+        patches = list()
+        patch_densities = list()
+        counts = list()
+        point_maps = list()
+        
+        for b in batch:
+                  
+            patches.append(b['patch'])
+            patch_densities.append(b['patch_density'])
+            counts.append(b['counts']) 
+            point_maps.append(b['point_maps']) 
+
+        patches = torch.stack(patches,dim = 0)
+        patch_densities = torch.stack(patch_densities,dim = 0)
+        counts = torch.stack(counts,dim = 0)
+        point_maps = torch.stack(point_maps,dim = 0)
+        
+        if c.debug:
+            print(type(patches))
+            print(type(patch_densities))
+            print(type(counts))
+        
+        collated_batch = patches,patch_densities,counts,point_maps
+        
+        return collated_batch
+
+class DLRACDToTensor(object):
+    """Convert ndarrays in sample to Tensors."""
+
+    def __call__(self, sample):
+        
+        patch = sample['patch']
+
+        # swap color axis because
+        # numpy image: H x W x C
+        # torch image: C x H x W
+        patch = torch.from_numpy(patch)
+        patch = patch.permute(2,0,1)
+
+        if c.debug:
+            print("patch transposed from numpy format")
+            print("patch rescaled to 0-1 range")
+            
+        patch = patch.float().div(255).to(c.device)
+        
+        sample['patch'] =  patch.float()
+        
+        if 'patch_density' in sample.keys():
+            sample['patch_density'] = torch.from_numpy(sample['patch_density']).to(c.device)
+        if 'counts' in sample.keys():
+            sample['counts'] = torch.from_numpy(np.array(sample['counts']).astype(float)).to(c.device)
+        if 'point_maps' in sample.keys():
+            sample['point_maps'] = torch.from_numpy(sample['point_maps']).to(c.device)
+
+        return sample
     
-dlr = dlr_dataset = DLRACD(root_dir=c.proj_dir)
+class DLRACDAddUniformNoise(object):
+    """Add uniform noise to Dmaps to stabilise training."""
+    def __init__(self, r1=0., r2=c.noise):
+        self.r1 = r1
+        self.r2 = r2
+    
+    def __call__(self, sample):
+        # uniform tensor in pytorch: 
+        # https://stackoverflow.com/questions/44328530/how-to-get-a-uniform-distribution-in-a-range-r1-r2-in-pytorch
+        
+        if 'patch_density' in sample.keys():
+            pass
+            sample['patch_density'] =  sample['patch_density'] + torch.FloatTensor(sample['patch_density'].size()).uniform_(self.r1, self.r2).to(c.device)
+        
+            if c.debug:
+                print("uniform noise ({},{}) added to patch density".format(self.r1, self.r2))
+        
+        return sample
 
 
 class CowObjectsDataset(Dataset):

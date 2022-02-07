@@ -17,6 +17,7 @@ import model # importing entire file fixes 'cyclical import' issues
 
 import config as c
 import gvars as g
+import arguments as a
 
 # tensorboard
 from torch.utils.tensorboard import SummaryWriter
@@ -58,7 +59,7 @@ def train_battery(train_loader,val_loader,lr_i = c.lr_init):
         print("Battery finished. Time Elapsed (hours): ",round((t2-t1) / 60*60 ,2),"| Datetime:",str(datetime.now().strftime("%d/%m/%Y %H:%M:%S")))
                 
 
-def train(train_loader,val_loader,battery = False,lr_i=c.lr_init,writer=None): #def train(train_loader, test_loader):
+def train(train_loader,val_loader,head_train_loader,head_val_loader,battery = False,lr_i=c.lr_init,writer=None): #def train(train_loader, test_loader):
             assert c.train_model
             if c.debug:
                 torch.autograd.set_detect_anomaly(True)
@@ -220,7 +221,9 @@ def train(train_loader,val_loader,battery = False,lr_i=c.lr_init,writer=None): #
                         optimizer.zero_grad()
                         
                         # TODO - can this section
-                        if not c.mnist and not c.counts and not c.train_feat_extractor:
+                        if a.args.dlr_acd:
+                            images,dmaps,counts,point_maps = data
+                        elif not c.mnist and not c.counts and not train_loader.dataset.classification:
                             images,dmaps,labels, _ = data # _ annotations
                         elif not c.mnist and not c.counts:
                             images,dmaps,labels, _, _ = data # _ = annotations
@@ -229,7 +232,7 @@ def train(train_loader,val_loader,battery = False,lr_i=c.lr_init,writer=None): #
                         else:
                             images,labels = data
                         
-                        if c.debug:
+                        if c.debug and not a.args.dlr_acd:
                             print("labels:")
                             print(labels)
                             
@@ -332,7 +335,7 @@ def train(train_loader,val_loader,battery = False,lr_i=c.lr_init,writer=None): #
                     if writer != None:
                         writer.add_scalar('loss/epoch_train',mean_train_loss, j)
                     
-                    if c.validation: 
+                    if c.validation and not a.args.dlr_acd: 
                         val_loss = list()
                         val_z = list()
                         # val_coords = list() # todo
@@ -382,7 +385,7 @@ def train(train_loader,val_loader,battery = False,lr_i=c.lr_init,writer=None): #
                             
                         j += 1
                 
-                #### Meta epoch code ------
+                #### Meta epoch code (metrics) ------
                 if mdl.mnist:
                     val_acc, train_acc = eval_mnist(mdl,val_loader,train_loader)
                     print("\n")
@@ -441,7 +444,10 @@ def train(train_loader,val_loader,battery = False,lr_i=c.lr_init,writer=None): #
                         
                         if c.verbose:
                             print("Val R2: ",val_R2)
-                    
+                
+                # train classification head to filter out null patches
+                mdl.classification_head = train_classification_head(mdl,head_train_loader,head_val_loader)
+                
                 # add param tensorboard scalars
                 if writer != None:
                     
@@ -458,12 +464,19 @@ def train(train_loader,val_loader,battery = False,lr_i=c.lr_init,writer=None): #
                 
                 l += 1
             
-            # post training: visualise a random reconstruction
-            if c.viz:
+            ### Post-Training ---
             
-                plot_preds(mdl, val_loader, plot = True)
-                dmap_pr_curve(mdl, val_loader,n = 10,mode = 'val')
-                dmap_pr_curve(mdl, val_loader,n = 10,mode = 'train')
+            # visualise a random reconstruction
+            if c.viz:
+                
+                if mdl.dlr_acd:
+                    preds_loader = train_loader
+                else:
+                    preds_loader = val_loader
+                    
+                plot_preds(mdl, preds_loader, plot = True)
+                dmap_pr_curve(mdl, preds_loader,n = 10,mode = 'val')
+                dmap_pr_curve(mdl, preds_loader,n = 10,mode = 'train')
                 
                 if c.counts:
                     print("Plotting Train R2")
@@ -483,12 +496,131 @@ def train(train_loader,val_loader,battery = False,lr_i=c.lr_init,writer=None): #
                 #model.save_weights(model, modelname) # currently have no use for saving weights
                 mdl.to(c.device)
             
+            print("Performing final evaluation with trained null classifier...")
+            final_metrics = dmap_metrics(mdl, train_loader,n=1,mode='train',null_filter = True)
+            print(final_metrics)
+            
             run_end = time.perf_counter()
             print("Finished Model: ",modelname)
             print("Run finished. Time Elapsed (mins): ",round((run_end-run_start)/60,2),"| Datetime:",str(datetime.now().strftime("%d/%m/%Y %H:%M:%S")))
             if not battery:
                 return mdl
- 
+
+# train classification head to predict empty patches
+def train_classification_head(mdl,full_trainloader,full_valloader,criterion = nn.CrossEntropyLoss()):
+    assert c.train_model
+    if c.verbose:
+        print("Optimizing classification head for null filtering...")
+        
+    now = datetime.now() 
+    filename = "_".join([
+                c.feat_extractor,
+                'FTE',str(c.feat_extractor_epochs),
+                str(now.strftime("%d_%m_%Y_%H_%M_%S")),
+                "PT",str(c.pretrained),
+                'BS',str(full_trainloader.batch_size),
+                'classification_head'
+            ])
+    
+    if not c.debug:
+        writer = SummaryWriter(log_dir='runs/feat_pretrained/'+filename)
+    else:
+        writer = None
+    
+    optimizer = torch.optim.Adam(mdl.classification_head.parameters(),lr=1e-3,betas=(0.9,0.999),eps=1e-08, weight_decay=0)
+    best_model_wts = copy.deepcopy(mdl.classification_head.state_dict())
+    best_acc = 0.0
+    
+    t_sz = len(full_trainloader)*full_trainloader.batch_size
+    v_sz = len(full_valloader)*full_valloader.batch_size
+    minibatch_count = 0 
+    
+    dataset_sizes = {'train': t_sz,'val': v_sz}
+   
+    mdl.to(c.device)        
+    
+    for epoch in range(c.feat_extractor_epochs):
+        
+        for phase in ['train', 'val']:
+            if phase == 'train':
+                mdl.classification_head.train()  
+                loader = full_trainloader
+            else:
+                mdl.classification_head.eval()
+                loader = full_valloader
+            
+            if c.verbose:
+                print('Classification Head {} Epoch {}/{}'.format(phase,epoch, c.feat_extractor_epochs)) 
+                
+            running_loss = 0.0; running_corrects = 0
+            
+            for i, data in enumerate(tqdm(loader, disable=c.hide_tqdm_bar)):
+                
+                optimizer.zero_grad()
+                
+                images = data[0].to(c.device)
+                binary_labels = data[3]
+                
+                if c.debug:
+                    print('feature extractor labels: ',binary_labels)
+                
+                with torch.set_grad_enabled(phase == 'train'):
+                    features = mdl.feat_extractor(images)
+                    outputs = mdl.classification_head(features)
+                    _, preds = torch.max(outputs, 1) 
+                    
+                    print('preds')
+                    print(preds)
+                    print('binary labels')
+                    print(binary_labels)
+
+                    
+                    loss = criterion(outputs,binary_labels)
+                    minibatch_count += 1
+                
+                    if writer != None:
+                         writer.add_scalar('loss/minibatch_{}'.format(phase),loss.item(), minibatch_count)
+                         
+                if phase == 'train':     
+                    loss.backward()
+                    clip_grad_value_(mdl.classification_head.parameters(), c.clip_value)
+                    optimizer.step()
+                
+                # statistics
+                running_loss += loss.item() * images.size(0)
+                running_corrects += torch.sum(preds == binary_labels.data)
+                
+                if c.debug:
+                    print('minibatch: ',minibatch_count)
+                    print('binary_labels.data: ',binary_labels.data)
+                    print('preds: ',preds)
+                    print('running corrects: ',running_corrects)
+                      
+            epoch_loss = running_loss / dataset_sizes[phase]
+            epoch_acc = running_corrects.double() / dataset_sizes[phase]
+        
+            if c.verbose:
+                print('{} Loss: {:.4f} Acc: {:.4f}'.format(phase, epoch_loss, epoch_acc)) 
+            
+            if writer != None:
+                writer.add_scalar('acc/epoch_{}'.format(phase),epoch_acc, epoch) # TODO
+                writer.add_scalar('loss/epoch_{}'.format(phase),epoch_loss, epoch)
+            
+            running_loss = 0.0; running_corrects = 0
+        
+            # deep copy the model with best val acc
+            if phase == 'val' and epoch_acc > best_acc:
+                best_acc = epoch_acc
+                best_model_wts = copy.deepcopy(mdl.classification_head.state_dict())
+                
+    if c.verbose:
+        print("Finetuning finished.")
+        
+    mdl.classification_head.load_state_dict(best_model_wts)
+    model.save_model(mdl.classification_head,filename=filename,loc=g.FEAT_MOD_DIR)
+    
+    return mdl.classification_head
+        
 # from pytorch tutorial...           
 def train_feat_extractor(feat_extractor,trainloader,valloader,criterion = nn.CrossEntropyLoss()):
     assert c.train_model
@@ -582,7 +714,7 @@ def train_feat_extractor(feat_extractor,trainloader,valloader,criterion = nn.Cro
                 writer.add_scalar('loss/epoch_{}'.format(phase),epoch_loss, epoch)
             
             running_loss = 0.0; running_corrects = 0
-        
+            
             # deep copy the model with best val acc
             if phase == 'val' and epoch_acc > best_acc:
                 best_acc = epoch_acc

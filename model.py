@@ -6,8 +6,9 @@
 from __future__ import print_function, division
 
 import torch
+from torch import Tensor
 import torch.nn as nn
-from torchvision.models import alexnet, resnet18, vgg16_bn  # feature extractors
+from torchvision.models import alexnet, resnet18, vgg16_bn, efficientnet_b3   # feature extractors
 from torchvision.models.resnet import ResNet, BasicBlock
 import torch.nn.functional as F
 import numpy as np
@@ -71,9 +72,29 @@ def load_weights(mdl, filename,loc=g.WEIGHT_DIR):
 
 # https://zablo.net/blog/post/using-resnet-for-mnist-in-pytorch-tutorial/
 # TODO
+class ResNetPyramidClassificationHead(ResNet):
+
+    def __init__(self):
+        
+        super(ResNetPyramidClassificationHead, self).__init__(BasicBlock, [2, 2, 2, 2], num_classes=2)
+        
+        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        self.fc = nn.Linear(512 * 1, 2) # block.expansion, # no. classes
+        
+    def _forward_impl(self, x: Tensor) -> Tensor:
+        x = self.avgpool(x[4]) # classify based on last output features 
+        x = torch.flatten(x, 1)
+        x = self.fc(x)
+        return x
+
+    def forward(self, x: Tensor) -> Tensor:
+        return self._forward_impl(x)
+        
 class MnistResNet(ResNet):
     def __init__(self):
+        
         super(MnistResNet, self).__init__(BasicBlock, [2, 2, 2, 2], num_classes=10)
+        
         self.conv1 = torch.nn.Conv2d(1, 64, 
             kernel_size=(7, 7), 
             stride=(2, 2), 
@@ -86,11 +107,12 @@ class MnistResNet(ResNet):
 class ResNetPyramid(ResNet):
 
     def __init__(self):
-        
-        super(ResNetPyramid, self).__init__(BasicBlock, [2, 2, 2, 2])
+        super(ResNetPyramid, self).__init__(BasicBlock, [2, 2, 2, 2], num_classes=1)
+        #super(ResNetPyramid, self).__init__(BasicBlock, [2, 2, 2, 2], num_classes=1000)
         
         if c.load_feat_extractor_str == '':
-            self.load_state_dict(resnet18(pretrained=c.pretrained).state_dict())
+            #self.load_state_dict(resnet18(pretrained=c.pretrained).state_dict())
+            pass
         elif c.load_feat_extractor_str != '':
             # TODO
             num_ftrs = self.fc.in_features
@@ -473,6 +495,13 @@ class CowFlow(nn.Module):
         else:
             self.nf = nf_head()  
         
+        self.classification_head = ResNetPyramidClassificationHead()
+        
+        if a.args.dlr_acd:
+            self.dlr_acd = True
+        else:
+            self.dlr_acd = False
+        
         # these attr's are needed to make the model object independant of the config file
         self.modelname = modelname
         self.unconditional = a.args.unconditional
@@ -630,7 +659,6 @@ class MNISTFlow(nn.Module):
         else:
             feat_s = self.feat_extractor(images)
         
-
         if c.debug:
             print("raw feature size..")
             print(feat_s.size(),"\n")
@@ -704,6 +732,3 @@ class lcffcn():
 
 class fcrn():
     pass
-
-
-
