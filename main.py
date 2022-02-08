@@ -101,7 +101,7 @@ else:
         # instantiate class
         transformed_dataset = CowObjectsDataset(root_dir=c.proj_dir,transform = dmaps_pre,
                                                 convert_to_points=True,generate_density=True,
-                                                count = c.counts,
+                                                count = c.counts, 
                                                 classification = True,ram=c.ram)
         
         # check dataloader if running interactively

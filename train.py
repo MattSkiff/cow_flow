@@ -59,7 +59,7 @@ def train_battery(train_loader,val_loader,lr_i = c.lr_init):
         print("Battery finished. Time Elapsed (hours): ",round((t2-t1) / 60*60 ,2),"| Datetime:",str(datetime.now().strftime("%d/%m/%Y %H:%M:%S")))
                 
 
-def train(train_loader,val_loader,head_train_loader,head_val_loader,battery = False,lr_i=c.lr_init,writer=None): #def train(train_loader, test_loader):
+def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,battery = False,lr_i=c.lr_init,writer=None): #def train(train_loader, test_loader):
             assert c.train_model
             if c.debug:
                 torch.autograd.set_detect_anomaly(True)
@@ -446,7 +446,8 @@ def train(train_loader,val_loader,head_train_loader,head_val_loader,battery = Fa
                             print("Val R2: ",val_R2)
                 
                 # train classification head to filter out null patches
-                mdl.classification_head = train_classification_head(mdl,head_train_loader,head_val_loader)
+                if not a.args.dlr_acd:
+                    mdl.classification_head = train_classification_head(mdl,head_train_loader,head_val_loader)
                 
                 # add param tensorboard scalars
                 if writer != None:
@@ -496,9 +497,11 @@ def train(train_loader,val_loader,head_train_loader,head_val_loader,battery = Fa
                 #model.save_weights(model, modelname) # currently have no use for saving weights
                 mdl.to(c.device)
             
-            print("Performing final evaluation with trained null classifier...")
-            final_metrics = dmap_metrics(mdl, train_loader,n=1,mode='train',null_filter = True)
-            print(final_metrics)
+            
+            if not a.args.dlr_acd:
+                print("Performing final evaluation with trained null classifier...")
+                final_metrics = dmap_metrics(mdl, train_loader,n=1,mode='train',null_filter = True)
+                print(final_metrics)
             
             run_end = time.perf_counter()
             print("Finished Model: ",modelname)
@@ -565,8 +568,12 @@ def train_classification_head(mdl,full_trainloader,full_valloader,criterion = nn
                     print('feature extractor labels: ',binary_labels)
                 
                 with torch.set_grad_enabled(phase == 'train'):
-                    features = mdl.feat_extractor(images)
-                    outputs = mdl.classification_head(features)
+                    
+                    #features = mdl.feat_extractor(images)
+                    #outputs = mdl.classification_head(features)
+                    print('images shape')
+                    print(images.shape)
+                    outputs = mdl.classification_head(images)
                     _, preds = torch.max(outputs, 1) 
                     
                     loss = criterion(outputs,binary_labels)
@@ -674,7 +681,7 @@ def train_feat_extractor(feat_extractor,trainloader,valloader,criterion = nn.Cro
                 
                 with torch.set_grad_enabled(phase == 'train'):
                     outputs = feat_extractor(images)
-                    _, preds = torch.max(outputs, 1)                    
+                    _, preds = torch.max(outputs, 1)   
                     
                     loss = criterion(outputs,binary_labels)
                     minibatch_count += 1
