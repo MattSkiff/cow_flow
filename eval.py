@@ -168,21 +168,24 @@ def dmap_metrics(mdl, loader,n=10,mode='',thres=c.sigma*2,null_filter=False):
             # feature extractor pre filtering
             # currently only on cow dataset
             if not mdl.dlr_acd:
-                features = mdl.feat_extractor(images)
-                outputs = mdl.classification_head(features)
-                _, preds = torch.max(outputs, 1)   
-            else: 
-                outputs = mdl.feat_extractor(images)
-                _, preds = torch.max(outputs, 1)   
+                #features = mdl.feat_extractor(images)
+                #outputs = mdl.classification_head(features)
+                print('predicting with classification head')
+                outputs = mdl.classification_head(images)  
+                _, preds = torch.max(outputs, 1)  
+                
+            # TODO - classification head for DLR ACD (if null filtering needed)
+            # else: 
+            #     outputs = mdl.feat_extractor(images)
+            #     _, preds = torch.max(outputs, 1)   
         
         x, _ = mdl(images,dummy_z,rev=True)
         
         # replace predicted densities with null predictions if not +ve pred from feature extractor
         if null_filter:
             if not mdl.dlr_acd:
-                print(mdl.density_map_h)
-                print(mdl.density_map_w)
-                x[preds,:,:,:] = torch.zeros(1,608,800).to(c.device)
+                print('replacing predicted densities with empty predictions from feature extractor')
+                x[(preds == 1).bool(),:,:,:] = torch.zeros(1,608,800).to(c.device)
         
         x_list.append(x)
         
@@ -213,7 +216,7 @@ def dmap_metrics(mdl, loader,n=10,mode='',thres=c.sigma*2,null_filter=False):
                 anno = annotations[idx].cpu().detach().numpy()
             
             if mdl.dlr_acd:
-                ground_truth_point_map = point_maps[idx]
+                ground_truth_point_map = point_maps[idx].cpu().detach().numpy()
                 gt_count = ground_truth_point_map.sum() / 3
             else:
                 ground_truth_point_map = base_map
@@ -254,7 +257,7 @@ def dmap_metrics(mdl, loader,n=10,mode='',thres=c.sigma*2,null_filter=False):
             # this splits the density maps into cells for counting per cell
             gt_dmap_split_counts = np_split(ground_truth_point_map,nrows=mdl.density_map_w//4**l,ncols=mdl.density_map_h//4**l).sum(axis=(1,2))
             pred_dmap_split_counts = np_split(dmap_rev_np,nrows=mdl.density_map_w//4**l,ncols=mdl.density_map_h//4**l).sum(axis=(1,2))
-        
+
             game.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)))
             gampe.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)/np.maximum(np.ones(len(gt_dmap_split_counts)),gt_dmap_split_counts)))     
     

@@ -75,12 +75,12 @@ meta_epochs = 1
 sub_epochs = 1
 
 ## Output Settings ----
-schema = 'debug' # if debug, ignored
+schema = 'test_resnet_null_filter' # if debug, ignored
 debug = False # report loads of info/debug info
 tb = True # write metrics, hyper params to tb files
 verbose = True # report stats per sub epoch and other info
 report_freq = -1 # nth minibatch to report minibatch loss on (1 = always,-1 = turn off)
-viz = True # visualise outputs and stats
+viz = False # visualise outputs and stats
 hide_tqdm_bar = True
 save_model = True # also saves a copy of the config file with the name of the model
 checkpoints = False # saves after every meta epoch

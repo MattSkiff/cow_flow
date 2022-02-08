@@ -1,4 +1,4 @@
-# we are following the YOLO format for data formatting and bounding box annotations
+    # we are following the YOLO format for data formatting and bounding box annotations
 # see here: https://github.com/AlexeyAB/Yolo_mark/issues/60 for a description
 
 # edit tutorial to work for object annotations and YOLO format

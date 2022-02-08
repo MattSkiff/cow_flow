@@ -495,7 +495,7 @@ class CowFlow(nn.Module):
         else:
             self.nf = nf_head()  
         
-        self.classification_head = ResNetPyramidClassificationHead()
+        self.classification_head = resnet18(pretrained=c.pretrained,progress=False) #ResNetPyramidClassificationHead()
         
         if a.args.dlr_acd:
             self.dlr_acd = True

@@ -115,7 +115,9 @@ class UnNormalize(object):
 
 # TODO split into minst and non mnist funcs
 @torch.no_grad()
-def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=False,sampling="randn",plot_n=None,writer=None,writer_epoch=None,writer_mode=None):
+def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
+               hist=False,sampling="randn",plot_n=None,writer=None,writer_epoch=None,
+               writer_mode=None,include_empty=False):
     
     assert type(loader) == torch.utils.data.dataloader.DataLoader
     
@@ -143,6 +145,8 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=F
         If 'None' and plot_n == 'None', a random digits will be plotted, else the digit specified will be plotted
     plot_n:
         Plots n plots from the loader sequentially. If not MNIST, plots null-labelled data.
+    include_empty:
+        (True) Skip check for images with no annotations. Default: False.
 
     Returns
     -------
@@ -219,7 +223,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=F
                 if lb_idx == None:
                     continue  
             
-            elif not mdl.mnist and not mdl.dlr_acd:
+            elif not mdl.mnist and not mdl.dlr_acd and not include_empty:
                 
                  # check annotations in batch aren't empty
                 lb_idx = None
@@ -289,6 +293,14 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=F
                 mdl = mdl.to(c.device)
                 x, log_det_jac = mdl(images,dummy_z,rev=True)
                 
+                # replace predicted densities with null predictions if not +ve pred from feature extractor
+                if include_empty:
+                    if not mdl.dlr_acd:
+                        print('replacing predicted densities with empty predictions from feature extractor')
+                        outputs = mdl.classification_head(images)  
+                        _, preds = torch.max(outputs, 1)  
+                        x[(preds == 1).bool(),:,:,:] = torch.zeros(1,608,800).to(c.device)
+                
                 if c.debug_utils:
                     print("\nsampled from model\n")
                 
@@ -325,7 +337,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,hist=F
                     
                     # TODO!
                     if mdl.mnist or mdl.subnet_type == 'conv':
-                        sum_pred = x.sum() #[lb_idx]
+                        sum_pred = dmap_rev_np.sum() #[lb_idx]
                     elif mdl.subnet_type == 'fc' and mdl.gap:  
                         mode = x
                         sum_pred = x
