@@ -195,7 +195,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
             elif loader.dataset.count: # model.dataset.count
                 images,dmaps,labels,counts = data
             elif loader.dataset.classification:
-                images,dmaps,labels,_,_ = data
+                images,dmaps,labels,binary_labels,annotations = data
             else:
                 images,dmaps,labels,_ = data
             
@@ -294,13 +294,17 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
                 x, log_det_jac = mdl(images,dummy_z,rev=True)
                 
                 # replace predicted densities with null predictions if not +ve pred from feature extractor
-                if include_empty:
+                if not mdl.mnist and not mdl.count:
+                    # subtract constrant for uniform noise
+                    constant = ((mdl.noise)/2)*dmaps[idx].shape[0]*dmaps[idx].shape[1]
                     if not mdl.dlr_acd:
+                        # subtract constrant for uniform noise
+                        constant = ((mdl.noise)/2)*dmaps[idx].shape[0]*dmaps[idx].shape[1]
                         print('replacing predicted densities with empty predictions from feature extractor')
                         outputs = mdl.classification_head(images)  
                         _, preds = torch.max(outputs, 1)  
                         x[(preds == 1).bool(),:,:,:] = torch.zeros(1,608,800).to(c.device)
-                
+                        
                 if c.debug_utils:
                     print("\nsampled from model\n")
                 
@@ -337,11 +341,13 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
                     
                     # TODO!
                     if mdl.mnist or mdl.subnet_type == 'conv':
-                        sum_pred = dmap_rev_np.sum() #[lb_idx]
+                        sum_pred = dmap_rev_np.sum()-constant #[lb_idx]
+                        true_dmap_count = dmaps[lb_idx].sum()-constant
+                        label_count = len(annotations[idx])
                     elif mdl.subnet_type == 'fc' and mdl.gap:  
                         mode = x
                         sum_pred = x
-                        
+                    
                     if plot:
                         
                         if mdl.unconditional: 
@@ -356,7 +362,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
                         if mdl.mnist:
                             fig.suptitle('{} \n mode of reconstruction: {}'.format(title,str(mode)),y=1.0,fontsize=16) # :.2f
                         if mdl.count:   
-                            fig.suptitle('{} \n Predicted count: {:.2f}'.format(title,mean_pred),y=1.0,fontsize=16)
+                            fig.suptitle('{} \n Predicted count: {:.2f}\n True Labelled Count: {:.1f}'.format(title,mean_pred),y=1.0,fontsize=16)
                         else:
                             fig.suptitle('{} \n Predicted count: {:.2f}'.format(title,sum_pred),y=1.0,fontsize=16)
                             
@@ -399,7 +405,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
                             else:
                                 ax[1].title.set_text('Conditioning Aerial Image')
                                 ax[1].imshow((im * 255).astype(np.uint8))
-                                ax[2].title.set_text('Density Map Ground Truth')
+                                ax[2].title.set_text('Density Map Ground Truth: N={:.2f}\nLabel Count: N={:.2f}'.format(true_dmap_count,label_count))
                                 ax[2].imshow(dmaps[lb_idx])
                                 if hist:
                                     ax[3].title.set_text('Histogram of Reconstruction Values')
@@ -408,7 +414,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
                         
                         if writer != None:
                             writer.add_figure('{} Dmap Pred: epoch {}'.format(writer_mode,writer_epoch), fig)
-                            writer.close()
+                            writer.close() 
                         
                         # saving and outs
                         if save:
@@ -422,7 +428,10 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
                             if mdl.count:
                                 out = counts[lb_idx],dmap_rev_np, mean_pred
                             else:
-                                out = dmaps[lb_idx].sum(),dmap_rev_np, sum_pred
+                                out = {'True Density Map count':true_dmap_count,
+                                       'Predicted Density Map':dmap_rev_np, 
+                                       'Predicted Density Map count':sum_pred,
+                                       'Label Count':label_count}
                         
                         if digit != None and labels[idx] == digit:
                             return out 
@@ -447,11 +456,13 @@ def plot_peaks(mdl, loader,n=1):
 
     mdl = mdl.to(c.device)
     
-    constant = ((mdl.noise)/2)*ground_truth_dmap.shape[0]*ground_truth_dmap.shape[1]
-    
     for i, data in enumerate(tqdm(loader, disable=False)):
         
-        images,dmaps,labels,annotations = data
+        if loader.dataset.classification:
+            images,dmaps,labels,binary_labels,annotations = data
+        else: 
+            images,dmaps,labels,annotations = data
+             
         images = images.float().to(c.device)
          
         if mdl.scale == 1:
@@ -486,13 +497,14 @@ def plot_peaks(mdl, loader,n=1):
         for idx in range(images.size()[0]):               
             
             idx = random.randint(0,images.size()[0]-1)
-                
-            dmap_rev_np = x[idx].squeeze().cpu().detach().numpy()
-            #dmap_uncertainty = x_std[idx].squeeze().cpu().detach().numpy()
-            sum_count = dmap_rev_np.sum() - constant
-            dist_counts  = x_agg[idx].sum((1,2,3))  - constant
             
             ground_truth_dmap = dmaps[idx].squeeze().cpu().detach().numpy()
+            constant = ((mdl.noise)/2)*ground_truth_dmap.shape[0]*ground_truth_dmap.shape[1]
+            
+            dmap_rev_np = x[idx].squeeze().cpu().detach().numpy()
+            #dmap_uncertainty = x_std[idx].squeeze().cpu().detach().numpy()
+            sum_count = dmap_rev_np.sum()
+            dist_counts  = x_agg[idx].sum((1,2,3))
             gt_count = ground_truth_dmap.sum().round()
             
             # if sum_count > 0:
@@ -503,7 +515,7 @@ def plot_peaks(mdl, loader,n=1):
             gt_coords = annotations[idx].cpu().detach().numpy()
             
             # subtract constrant for uniform noise
-            constant = ((c.noise)/2)*ground_truth_dmap.shape[0]*ground_truth_dmap.shape[1] # TODO mdl.noise
+            constant = ((mdl.noise)/2)*ground_truth_dmap.shape[0]*ground_truth_dmap.shape[1] # TODO mdl.noise
             sum_count -= constant
             dist_counts -= constant
             gt_count -= constant
