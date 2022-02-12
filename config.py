@@ -75,9 +75,9 @@ meta_epochs = 1
 sub_epochs = 1
 
 ## Output Settings ----
-schema = 'test_resnet_null_filter' # if debug, ignored
+schema = 'test_dlr_acd_eval' # if debug, ignored
 debug = False # report loads of info/debug info
-tb = True # write metrics, hyper params to tb files
+tb = False # write metrics, hyper params to tb files
 verbose = True # report stats per sub epoch and other info
 report_freq = -1 # nth minibatch to report minibatch loss on (1 = always,-1 = turn off)
 viz = False # visualise outputs and stats

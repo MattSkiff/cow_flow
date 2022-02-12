@@ -247,6 +247,7 @@ def dmap_metrics(mdl, loader,n=10,mode='',thres=c.sigma*2,null_filter=False):
             # dmap metrics (we do use the kernalised dmap for this)
             dm_mae.append(sum(abs(dmap_rev_np-ground_truth_dmap)))
             dm_mse.append(sum(np.square(dmap_rev_np-ground_truth_dmap)))
+            # TODO - mismatched data type warning here
             dm_psnr.append(peak_signal_noise_ratio(ground_truth_dmap,dmap_rev_np))
             dm_ssim.append(structural_similarity(ground_truth_dmap,dmap_rev_np))
             #dm_kl.append(entropy(pk=ground_truth_dmap,qk=dmap_rev_np)) # both dists normalised to one automatically
@@ -263,34 +264,44 @@ def dmap_metrics(mdl, loader,n=10,mode='',thres=c.sigma*2,null_filter=False):
     
     # localisation metrics (using kernalised dmaps)
     for gt_dmap, pred_dmap in zip(y_coords, y_hat_coords):
-        gt_dmap = np.swapaxes(gt_dmap,1,0)
+        if not mdl.dlr_acd:
+            gt_dmap = np.swapaxes(gt_dmap,1,0)
+        else:
+            gt_dmap = np.array(gt_dmap)
         
         if c.debug:
+            print('dmap metrics: gt dmap')
+            print(gt_dmap)
+            print(len(gt_dmap))
             print(gt_dmap.shape)
             print(pred_dmap.shape)
-        dist_matrix = distance.cdist(gt_dmap, pred_dmap, 'euclidean')
         
-        # hungarian algorithm from scipy (yes, optimality is critical, even for eval)
-        optim = linear_sum_assignment(dist_matrix)
-        
-        dists = [] # matched distances per density map
-        
-        # match all pred points (if pred < gt) or match up to predicted number of points
-        for i in range(min(int(gt_dmap.sum()),len(optim[0]))):
-            # delete entry from distance matrix when match is found
-            dists.append(dist_matrix[optim[0][i],optim[1][i]]) 
-        
-        dists = np.array(dists)
-        
-        # DEBUG VIZ
-        # unnorm = UnNormalize(mean=tuple(c.norm_mean),
-        #                      std=tuple(c.norm_std))
-        # import matplotlib.pyplot as plt
-        # fig, ax = plt.subplots(1,1, figsize=(10, 10))
-        # ax.scatter(pred_dmap[:,0], pred_dmap[:,1],label='Predicted coordinates')
-        # ax.scatter(gt_dmap[:,0], gt_dmap[:,1],c='red',marker='1',label='Ground truth coordinates')
-
-        tp = np.count_nonzero(dists<=thres)
+        if not len(gt_dmap) == 0:
+            dist_matrix = distance.cdist(gt_dmap, pred_dmap, 'euclidean')
+            
+            # hungarian algorithm from scipy (yes, optimality is critical, even for eval)
+            optim = linear_sum_assignment(dist_matrix)
+            
+            dists = [] # matched distances per density map
+            
+            # match all pred points (if pred < gt) or match up to predicted number of points
+            for i in range(min(int(gt_dmap.sum()),len(optim[0]))):
+                # delete entry from distance matrix when match is found
+                dists.append(dist_matrix[optim[0][i],optim[1][i]]) 
+            
+            dists = np.array(dists)
+            
+            # DEBUG VIZ
+            # unnorm = UnNormalize(mean=tuple(c.norm_mean),
+            #                      std=tuple(c.norm_std))
+            # import matplotlib.pyplot as plt
+            # fig, ax = plt.subplots(1,1, figsize=(10, 10))
+            # ax.scatter(pred_dmap[:,0], pred_dmap[:,1],label='Predicted coordinates')
+            # ax.scatter(gt_dmap[:,0], gt_dmap[:,1],c='red',marker='1',label='Ground truth coordinates')
+    
+            tp = np.count_nonzero(dists<=thres)
+        else:
+            tp = 0 # set tp to zero for null annotations
         
         localisation_dict['tp'] += tp
         localisation_dict['fp'] += pred_dmap.shape[0]-tp

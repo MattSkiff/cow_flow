@@ -253,7 +253,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
                 if not mdl.mnist:
                     # TODO - remove hard coding dims here
                     if (loader.dataset.count and not mdl.gap) or (not mdl.downsampling and mdl.subnet_type == 'conv'):
-                        dummy_z = (randn(images.size()[0],c.channels*4,(c.density_map_h) // 2,(c.density_map_w) // 2)).to(c.device) 
+                        dummy_z = (randn(images.size()[0],mdl.channels*4,(mdl.density_map_h) // 2,(mdl.density_map_w) // 2)).to(c.device) 
                     elif loader.dataset.count and mdl.gap:
                         dummy_z = (randn(images.size()[0],1)).to(c.device) 
                     elif mdl.downsampling: # self.downsampling
@@ -277,11 +277,11 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
                     if mdl.subnet_type == 'conv':
                        
                         if sampling == 'ones':
-                            dummy_z = (torch.ones(images.size()[0], c.channels*4, c.density_map_h // 2,c.density_map_w  // 2).to(c.device))
+                            dummy_z = (torch.ones(images.size()[0], mdl.channels*4, mdl.density_map_h // 2,mdl.density_map_w  // 2).to(c.device))
                         elif sampling == "zeros":
-                            dummy_z = torch.zeros(images.size()[0], c.channels*4, c.density_map_h // 2,c.density_map_w  // 2).to(c.device)
+                            dummy_z = torch.zeros(images.size()[0], mdl.channels*4, mdl.density_map_h // 2,mdl.density_map_w  // 2).to(c.device)
                         elif sampling == "randn":
-                            dummy_z = (randn(images.size()[0], c.channels*4, c.density_map_h // 2,c.density_map_w  // 2)).to(c.device)
+                            dummy_z = (randn(images.size()[0], mdl.channels*4, mdl.density_map_h // 2,mdl.density_map_w  // 2)).to(c.device)
                         else:
                             ValueError("Invalid function arg (sampling). Try 'randn', 'zeros' or 'ones'.")
                     else:
@@ -296,10 +296,10 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
                 # replace predicted densities with null predictions if not +ve pred from feature extractor
                 if not mdl.mnist and not mdl.count:
                     # subtract constrant for uniform noise
-                    constant = ((mdl.noise)/2)*dmaps[idx].shape[0]*dmaps[idx].shape[1]
+                    constant = ((mdl.noise)/2)*dmaps[lb_idx].shape[0]*dmaps[lb_idx].shape[1]
                     if not mdl.dlr_acd:
                         # subtract constrant for uniform noise
-                        constant = ((mdl.noise)/2)*dmaps[idx].shape[0]*dmaps[idx].shape[1]
+                        constant = ((mdl.noise)/2)*dmaps[lb_idx].shape[0]*dmaps[lb_idx].shape[1]
                         print('replacing predicted densities with empty predictions from feature extractor')
                         outputs = mdl.classification_head(images)  
                         _, preds = torch.max(outputs, 1)  
@@ -343,7 +343,10 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
                     if mdl.mnist or mdl.subnet_type == 'conv':
                         sum_pred = dmap_rev_np.sum()-constant #[lb_idx]
                         true_dmap_count = dmaps[lb_idx].sum()-constant
-                        label_count = len(annotations[idx])
+                        if not mdl.dlr_acd:
+                            label_count = len(annotations[idx])
+                        else:
+                            label_count = counts[lb_idx]
                     elif mdl.subnet_type == 'fc' and mdl.gap:  
                         mode = x
                         sum_pred = x
@@ -375,7 +378,10 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
                             unnorm = UnNormalize(mean =tuple(c.norm_mean),
                                                  std=tuple(c.norm_std))
                             
-                            im = unnorm(images[lb_idx])
+                            if mdl.dlr_acd:
+                                im = images[lb_idx]
+                            else:
+                                im = unnorm(images[lb_idx])
                             
                             im = im.permute(1,2,0).cpu().numpy()
                          
@@ -458,7 +464,9 @@ def plot_peaks(mdl, loader,n=1):
     
     for i, data in enumerate(tqdm(loader, disable=False)):
         
-        if loader.dataset.classification:
+        if mdl.dlr_acd:
+            images,dmaps,counts,point_maps = data
+        elif loader.dataset.classification:
             images,dmaps,labels,binary_labels,annotations = data
         else: 
             images,dmaps,labels,annotations = data
@@ -499,6 +507,12 @@ def plot_peaks(mdl, loader,n=1):
             idx = random.randint(0,images.size()[0]-1)
             
             ground_truth_dmap = dmaps[idx].squeeze().cpu().detach().numpy()
+            
+            if mdl.dlr_acd:
+                label_count = counts[idx]
+            else:
+                label_count = len(annotations[idx])
+                
             constant = ((mdl.noise)/2)*ground_truth_dmap.shape[0]*ground_truth_dmap.shape[1]
             
             dmap_rev_np = x[idx].squeeze().cpu().detach().numpy()
@@ -511,8 +525,12 @@ def plot_peaks(mdl, loader,n=1):
             #     thres = int(sum_count)
               
             dmap_uncertainty = dmap_rev_np-ground_truth_dmap #x_std_norm[idx].squeeze().cpu().detach().numpy()
-
-            gt_coords = annotations[idx].cpu().detach().numpy()
+            
+            if mdl.dlr_acd:
+                # approach one - use peak finding algorithm to assign coordinates
+                peak_local_max(ground_truth_dmap,min_distance=1,num_peaks=counts[idx])
+            else:
+                gt_coords = annotations[idx].cpu().detach().numpy()
             
             # subtract constrant for uniform noise
             constant = ((mdl.noise)/2)*ground_truth_dmap.shape[0]*ground_truth_dmap.shape[1] # TODO mdl.noise
@@ -522,7 +540,11 @@ def plot_peaks(mdl, loader,n=1):
             
             coordinates = peak_local_max(dmap_rev_np,min_distance=4,num_peaks=max(1,int(sum_count)))
 
-            im = unnorm(images[idx])
+            if mdl.dlr_acd:
+                im = images[lb_idx]
+            else:
+                im = unnorm(images[lb_idx])
+                                            
             im = images[idx].permute(1,2,0).cpu().numpy()
             fig, ax = plt.subplots(2,3, figsize=(18, 10))
             
@@ -546,7 +568,7 @@ def plot_peaks(mdl, loader,n=1):
             #ax[1,0].title.set_text('Pixel-wise Uncertainty Estimate (normalised std. dev)')
             ax[0,1].title.set_text('Image Differencing (Reconstruction, Ground Truth Density Map)')
             ax[0,2].title.set_text('Sum (Integration) Prediction Distribution (N = {})'.format(n))
-            ax[1,0].title.set_text('Ground Truth Density Map\nN = {} | Sum = {:.2f}'.format(len(labels[idx]),gt_count))
+            ax[1,0].title.set_text('Ground Truth Density Map\nN = {} | Sum = {:.2f}'.format(label_count,gt_count))
             ax[1,1].title.set_text('Aerial Image')
             
             fig.subplots_adjust(hspace=0.4)

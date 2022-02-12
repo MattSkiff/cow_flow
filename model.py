@@ -719,15 +719,18 @@ class MNISTFlow(nn.Module):
         z = self.nf(x_or_z = labels,c = feats,rev=rev)
         
         return z
-    
+
+# only include density map based models?
 class unet():
     # from https://github.com/milesial/Pytorch-UNet/blob/master/unet/unet_model.py
     pass
 
 class csrnet():
+    # from https://github.com/leeyeehoo/CSRNet-pytorch
     pass
 
 class lcffcn():
+    # https://github.com/ElementAI/LCFCN
     pass
 
 class fcrn():
