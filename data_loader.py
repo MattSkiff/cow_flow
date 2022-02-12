@@ -67,6 +67,7 @@ class DLRACD(Dataset):
         self.transform = transform
         self.point_maps = {'Train':[]}
         self.dlr_acd = True
+        self.classification = False # TODO - no null filtering - yet
         
         gsd_table_df = pd.read_csv(self.root_dir+"dlracd_gsds.txt")
         
