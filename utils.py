@@ -528,7 +528,7 @@ def plot_peaks(mdl, loader,n=1):
             
             if mdl.dlr_acd:
                 # https://stackoverflow.com/questions/60782965/extract-x-y-coordinates-of-each-pixel-from-an-image-in-python
-                gt_coords = np.column_stack(np.where(point_map == 1))   
+                gt_coords = np.argwhere(point_map == 1)
             else:
                 gt_coords = annotations[idx].cpu().detach().numpy()
                 

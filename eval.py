@@ -264,10 +264,11 @@ def dmap_metrics(mdl, loader,n=10,mode='',thres=c.sigma*2,null_filter=False):
     
     # localisation metrics (using kernalised dmaps)
     for gt_dmap, pred_dmap in zip(y_coords, y_hat_coords):
-        if not mdl.dlr_acd:
-            gt_dmap = np.swapaxes(gt_dmap,1,0)
-        else:
-            gt_dmap = np.array(gt_dmap)
+        # if not mdl.dlr_acd:
+        #     gt_dmap = np.swapaxes(gt_dmap,1,0)
+        # else:
+        #     gt_dmap = np.array(gt_dmap)
+        gt_dmap = np.swapaxes(gt_dmap,1,0) # required for both dlr acd and cow data
         
         if c.debug:
             print('dmap metrics: gt dmap')
