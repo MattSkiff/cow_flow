@@ -358,7 +358,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
                         
                         n_plots = 3+hist-mdl.mnist-mdl.count
                                
-                        fig, ax = plt.subplots(n_plots,1)
+                        fig, ax = plt.subplots(1,n_plots)
                         plt.subplots_adjust(left=0.1, right=0.9, top=0.9, bottom=0.1)
                         [axi.set_axis_off() for axi in ax.ravel()] # turn off subplot axes
                         
@@ -367,9 +367,9 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
                         if mdl.count:   
                             fig.suptitle('{} \n Predicted count: {:.2f}\n True Labelled Count: {:.1f}'.format(title,mean_pred),y=1.0,fontsize=16)
                         else:
-                            fig.suptitle('{} \n Predicted count: {:.2f}'.format(title,sum_pred),y=1.0,fontsize=16)
+                            fig.suptitle('{} \n Predicted count: {:.2f}'.format(title,sum_pred),y=1.05,fontsize=16)
                             
-                        fig.set_size_inches(8*1,12*1)
+                        fig.set_size_inches(24*1,7*1)
                         fig.set_dpi(100)
                         
                         if mdl.mnist:
@@ -416,7 +416,6 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
                                 if hist:
                                     ax[3].title.set_text('Histogram of Reconstruction Values')
                                     ax[3].hist(dmap_rev_np.flatten(),bins = 30)
-                            
                         
                         if writer != None:
                             writer.add_figure('{} Dmap Pred: epoch {}'.format(writer_mode,writer_epoch), fig)
@@ -509,6 +508,7 @@ def plot_peaks(mdl, loader,n=1):
             ground_truth_dmap = dmaps[idx].squeeze().cpu().detach().numpy()
             
             if mdl.dlr_acd:
+                point_map = point_maps[idx].squeeze().cpu().detach().numpy()
                 label_count = counts[idx]
             else:
                 label_count = len(annotations[idx])
@@ -527,23 +527,23 @@ def plot_peaks(mdl, loader,n=1):
             dmap_uncertainty = dmap_rev_np-ground_truth_dmap #x_std_norm[idx].squeeze().cpu().detach().numpy()
             
             if mdl.dlr_acd:
-                # approach one - use peak finding algorithm to assign coordinates
-                peak_local_max(ground_truth_dmap,min_distance=1,num_peaks=counts[idx])
+                # https://stackoverflow.com/questions/60782965/extract-x-y-coordinates-of-each-pixel-from-an-image-in-python
+                gt_coords = np.column_stack(np.where(point_map == 1))   
             else:
                 gt_coords = annotations[idx].cpu().detach().numpy()
+                
+            coordinates = peak_local_max(dmap_rev_np,min_distance=4,num_peaks=max(1,int(sum_count)))
             
             # subtract constrant for uniform noise
             constant = ((mdl.noise)/2)*ground_truth_dmap.shape[0]*ground_truth_dmap.shape[1] # TODO mdl.noise
             sum_count -= constant
             dist_counts -= constant
             gt_count -= constant
-            
-            coordinates = peak_local_max(dmap_rev_np,min_distance=4,num_peaks=max(1,int(sum_count)))
 
             if mdl.dlr_acd:
-                im = images[lb_idx]
+                im = images[idx]
             else:
-                im = unnorm(images[lb_idx])
+                im = unnorm(images[idx])
                                             
             im = images[idx].permute(1,2,0).cpu().numpy()
             fig, ax = plt.subplots(2,3, figsize=(18, 10))
@@ -558,7 +558,10 @@ def plot_peaks(mdl, loader,n=1):
             if len(coordinates) != 0:
                 x_coords, y_coords = zip(*coordinates)
                 ax[1,2].scatter(y_coords, x_coords,label='Predicted coordinates')
-                ax[1,2].scatter(gt_coords[:,1]*mdl.density_map_w, gt_coords[:,2]*mdl.density_map_h,c='red',marker='1',label='Ground truth coordinates')
+                if mdl.dlr_acd:
+                   ax[1,2].scatter(gt_coords[:,1], gt_coords[:,0],c='red',marker='1',label='Ground truth coordinates') 
+                else:
+                    ax[1,2].scatter(gt_coords[:,1]*mdl.density_map_w, gt_coords[:,2]*mdl.density_map_h,c='red',marker='1',label='Ground truth coordinates')
                 ax[1,2].legend()
                 ax[1,2].set_ylim(ax[1,0].get_ylim())
                 ax[1,2].set_xlim(ax[1,0].get_xlim())
@@ -576,7 +579,9 @@ def plot_peaks(mdl, loader,n=1):
             return
         
     return 
-        
+  
+def plot_image(image_path,mdl):
+    pass      
 
 def torch_r2(mdl,loader):
     """calcs r2 (on torch only)"""
@@ -799,7 +804,6 @@ def split_image(img,patch_size,overlap_percent = 50):
     
     split_width = patch_size
     split_height = patch_size
-    
     
     def start_points(size, split_size, overlap=overlap_percent):
         points = [0]
