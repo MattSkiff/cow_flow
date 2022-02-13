@@ -1,4 +1,4 @@
-    # we are following the YOLO format for data formatting and bounding box annotations
+# we are following the YOLO format for data formatting and bounding box annotations
 # see here: https://github.com/AlexeyAB/Yolo_mark/issues/60 for a description
 
 # edit tutorial to work for object annotations and YOLO format
@@ -28,7 +28,7 @@ import torch.nn.functional as F
 
 from torchvision import utils
 from skimage import io
-#from skimage.feature_extractions.image import extract_patches_2d
+from sklearn.feature_extraction import image
 from PIL import Image
 
 import config as c
@@ -46,6 +46,8 @@ demo = False
 density_demo = True
 mk_size = 25
 
+#### DLR ACD classes 
+
 class DLRACD(Dataset):
     
     # TODO add image name so concordance with gsd table is possible
@@ -55,19 +57,26 @@ class DLRACD(Dataset):
         # this dict structure is only used for processing in init method,
         # switch to flat list at end
         self.count = False
-        
-        self.images = {'Train':[],'Test':[]}
-        self.counts = {'Train':[],'Test':[]}
-        self.density_counts = {'Train':[],'Test':[]}
-        self.annotations = {'Train':[]}
-        self.train_indices = []
-        self.test_indices = []
-        self.patches = {'Train':[],'Test':[]}
-        self.patch_densities = {'Train':[],'Test':[]}
-        self.transform = transform
-        self.point_maps = {'Train':[]}
         self.dlr_acd = True
         self.classification = False # TODO - no null filtering - yet
+        self.transform = transform
+        
+        self.images = {'Train':[],'Test':[]}
+        
+        self.counts = {'Train':[],'Test':[]}
+        self.density_counts = {'Train':[],'Test':[]}
+        
+        self.annotations = {'Train':[]}
+        
+        self.train_indices = []
+        self.test_indices = []
+        
+        self.patches = {'Train':[],'Test':[]}
+        self.patch_densities = {'Train':[],'Test':[]}
+        self.patch_path = {'Train':[],'Test':[]}
+        
+        self.point_maps = {'Train':[]}
+        self.point_map_path = {'Train':[]}
         
         gsd_table_df = pd.read_csv(self.root_dir+"dlracd_gsds.txt")
         
@@ -80,10 +89,11 @@ class DLRACD(Dataset):
             
             for img_path in tqdm(images_list, desc="Loading and splitting images..."):
                 
-                image = cv2.imread(os.path.join(self.root_dir,mode+"/Images/"+img_path))
-                self.images[mode].append(image)
-                
-                self.patches[mode].extend(split_image(image, patch_size = 320, overlap_percent=0))
+                im = cv2.imread(os.path.join(self.root_dir,mode+"/Images/"+img_path))
+                self.images[mode].append(im)
+                im_patches = split_image(im, patch_size = 320, overlap_percent=0)
+                self.patches[mode].extend(im_patches)
+                self.patch_path[mode].extend([img_path]*len(im_patches))
             
             if mode == 'Train': # only Train data available
                 
@@ -94,7 +104,6 @@ class DLRACD(Dataset):
                     # read in as greyscale (0 arg)
                     annotation = cv2.imread(os.path.join(self.root_dir,mode+"/Annotation/"+anno_path),0)
                     self.annotations[mode].append(annotation)
-                    
                     point_maps = split_image(annotation, patch_size = 320, overlap_percent=0)   
                     
                     for pm in point_maps:
@@ -102,6 +111,7 @@ class DLRACD(Dataset):
                         pm = pm / 255
                         self.counts[mode].append(pm.sum())
                         self.point_maps[mode].append(pm)
+                        self.point_map_path[mode].append(anno_path)
                         
                         # NB convert pd series to list, 0th element                   
                         gsd_sigma = gsd_table_df[gsd_table_df['name'] == anno_path[:-4]]['gsd'].values[0]
@@ -112,23 +122,25 @@ class DLRACD(Dataset):
                         
                         p_d = scipy.ndimage.filters.gaussian_filter(pm, sigma = gsd_sigma, mode='constant')
                         self.density_counts[mode].append(p_d.sum())
-
                         self.patch_densities[mode].append(p_d)
                         
-            
-         # shuffle train indices  
-        joint_lists = list(zip(self.patches['Train'],self.patch_densities['Train'],self.counts['Train'],self.density_counts['Train']))
-        random.shuffle(joint_lists)
-        self.patches['Train'],self.patch_densities['Train'],self.counts['Train'],self.density_counts['Train'] = zip(*joint_lists)
+        
+        # shuffle train indices  
+        #joint_lists = list(zip(self.patches['Train'],self.patch_densities['Train'],
+        #                       self.counts['Train'],self.density_counts['Train'],self.point_maps['Train']))
+        #random.shuffle(joint_lists)
+        #self.patches['Train'],self.patch_densities['Train'],self.counts['Train'],self.density_counts['Train'],self.point_maps['Train'] = zip(*joint_lists)
         
         self.train_indices = range(0,len(self.patches['Train'])-1)
         self.test_indices =  range(len(self.train_indices),len(self.train_indices)+len(self.patches['Test'])-1)
         
         self.patches = [*self.patches['Train'],*self.patches['Test']]
+        self.patch_path = [*self.patch_path['Train'],*self.patch_path['Test']]
         self.patch_densities = [*self.patch_densities['Train']] # no test annotations provided
         self.counts = [*self.counts['Train']]
         self.density_counts = [*self.density_counts['Train']]
         self.point_maps = [*self.point_maps['Train']]
+        self.point_map_path = [*self.point_map_path['Train']]
         
         print('\nInitialisation finished')
                     
@@ -156,7 +168,7 @@ class DLRACD(Dataset):
             sample['point_maps'] = None
             
         if self.transform:
-            sample = self.transform(sample)
+             sample = self.transform(sample)
             
         return sample
     
@@ -166,17 +178,28 @@ class DLRACD(Dataset):
         
         print("True Count:")
         print(sample["counts"])
+        print('Paths')
+        print((self.patch_path[idx]+" | "+self.point_map_path[idx]))
         
         patch = sample['patch'].permute((1, 2, 0)).cpu().numpy()
+        point_map = sample['point_maps'].cpu().numpy()
+        gt_coords = np.argwhere(point_map == 1)
         patch_densities = sample['patch_density'].cpu().numpy()
-                
-        fig, ax = plt.subplots(1,2,figsize=(18, 10))
-        # TODO - bug here! mismatch impaths and data
-        #fig.suptitle(os.path.basename(os.path.normpath(self.train_im_paths[sample_no])))
-        ax[0].imshow(patch_densities, cmap='viridis', interpolation='nearest')
-        ax[1].imshow((patch * 255).astype(np.uint8))
+
+        fig, ax = plt.subplots(1,3,figsize=(24, 8))
+        
+        ax[0].imshow(patch_densities, cmap='viridis', interpolation='nearest', aspect="auto")
+        ax[1].imshow((patch * 255).astype(np.uint8), aspect="auto")
+        ax[2].imshow((point_map * 255).astype(np.uint8), aspect="auto")
+        if len(gt_coords) != 0:
+            ax[2].scatter(gt_coords[:,1], gt_coords[:,0],c='red',marker='1',s=30,
+                          label='Ground truth coordinates') 
+            
+        #ax[2].set_ylim([0, 320])
+        #ax[2].set_xlim([0, 320])
+        
         fig.tight_layout()
-        fig.subplots_adjust(top=0.95)
+        fig.subplots_adjust(top=0.90)
         fig.suptitle('Sample {}: \nDensity Count: {}, True Count: {}'.format(idx,round(sample['density_counts'],2),sample['counts']),y=1.0,fontsize=24)
         
     def custom_collate_aerial(self,batch):
@@ -256,6 +279,14 @@ class DLRACDAddUniformNoise(object):
         
         return sample
 
+
+class DLRACDDoubleCrop(object):
+    pass
+
+class DLRACDRotateFlipScaling(object):
+    pass
+    
+#### Cow Flow Classes 
 
 class CowObjectsDataset(Dataset):
     """Cow Objects dataset."""

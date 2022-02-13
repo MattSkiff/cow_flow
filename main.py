@@ -12,7 +12,7 @@ import model
 import os
 from train import train, train_battery
 
-from ipywidgets import FloatProgress # fix iprogress error in tqdmtrain_feat_extractor
+from ipywidgets import FloatProgress # fix iprogress error in tqdm
 
 #from utils import load_datasets, make_dataloaders
 from data_loader import CowObjectsDataset, CustToTensor, AerialNormalize, DmapAddUniformNoise, CustCrop, CustResize, train_val_split
@@ -42,6 +42,8 @@ dmaps_pre = Compose([
 dlracd_pre = Compose([
     DLRACDToTensor(),
     DLRACDAddUniformNoise(),
+    # DLRACDDoubleCrop
+    # DLRACDRotateFlipScaling
     ])
 
 if a.args.dlr_acd:

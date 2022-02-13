@@ -409,6 +409,9 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,ba
                     train_metric_dict = dmap_metrics(mdl, train_loader,n=1,mode='train')
                     model_metric_dict.update(train_metric_dict)
                     
+                    if c.viz and c.dlr_acd:
+                        plot_preds(mdl,train_loader,writer=writer,writer_epoch=j,writer_mode='train')
+                    
                     if c.validation:
                         if c.viz:
                             plot_preds(mdl,val_loader,writer=writer,writer_epoch=j,writer_mode='val')
@@ -446,7 +449,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,ba
                             print("Val R2: ",val_R2)
                 
                 # train classification head to filter out null patches
-                if not a.args.dlr_acd:
+                if not a.args.dlr_acd and not mdl.mnist:
                     mdl.classification_head = train_classification_head(mdl,head_train_loader,head_val_loader)
                 
                 # add param tensorboard scalars
@@ -477,7 +480,9 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,ba
                     
                 plot_preds(mdl, preds_loader, plot = True)
                 dmap_pr_curve(mdl, preds_loader,n = 10,mode = 'val')
-                dmap_pr_curve(mdl, preds_loader,n = 10,mode = 'train')
+                
+                if not mdl.dlr_acd:
+                    dmap_pr_curve(mdl, preds_loader,n = 10,mode = 'train')
                 
                 if c.counts:
                     print("Plotting Train R2")
@@ -571,8 +576,11 @@ def train_classification_head(mdl,full_trainloader,full_valloader,criterion = nn
                     
                     #features = mdl.feat_extractor(images)
                     #outputs = mdl.classification_head(features)
-                    print('images shape')
-                    print(images.shape)
+                    
+                    if c.debug:
+                        print('images shape')
+                        print(images.shape)
+                    
                     outputs = mdl.classification_head(images)
                     _, preds = torch.max(outputs, 1) 
                     
