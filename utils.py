@@ -63,32 +63,6 @@ def get_loss(z, jac,dims):
     
     return torch.mean(0.5 * torch.sum(z ** 2, dim=dims) - jac) / z.shape[1]
 
-# from: https://discuss.pytorch.org/t/how-to-add-noise-to-mnist-dataset-when-using-pytorch/59745
-# @ptrblck
-class AddGaussianNoise(object):
-    def __init__(self, mean=0., std=1.):
-        self.std = std
-        self.mean = mean
-        
-    def __call__(self, tensor):
-        return tensor + torch.randn(tensor.size()) * self.std + self.mean
-    
-    def __repr__(self):
-        return self.__class__.__name__ + '(mean={0}, std={1})'.format(self.mean, self.std)
-    
-class AddUniformNoise(object):
-    def __init__(self, r1=0., r2=1e-2):
-        self.r1 = r1
-        self.r2 = r2
-        
-    def __call__(self, tensor):
-        # uniform tensor in pytorch: 
-        # https://stackoverflow.com/questions/44328530/how-to-get-a-uniform-distribution-in-a-range-r1-r2-in-pytorch
-        return tensor + torch.FloatTensor(tensor.size()).uniform_(self.r1, self.r2)
-    
-    def __repr__(self):
-        return self.__class__.__name__ + '(r1={0}, r2={1})'.format(self.r1, self.r2)
-
 # change default initialisation
 # https://stackoverflow.com/questions/49433936/how-to-initialize-weights-in-pytorch
 def init_weights(m):
@@ -792,7 +766,10 @@ def count_parameters(model):
 
 # https://github.com/Devyanshu/image-split-with-overlap/blob/master/split_image_with_overlap.py
 # minor edits to function, remove non-square opt, grey scale
-def split_image(img,patch_size,overlap_percent = 50):
+def split_image(img,patch_size,save=True,overlap=0,name=None,path=None,frmt=None):
+    
+    if overlap != 0:
+        assert save and name and path and frmt
     
     splits = []
     
@@ -805,7 +782,7 @@ def split_image(img,patch_size,overlap_percent = 50):
     split_width = patch_size
     split_height = patch_size
     
-    def start_points(size, split_size, overlap=overlap_percent):
+    def start_points(size, split_size, overlap=0):
         points = [0]
         stride = int(split_size * (1-overlap))
         counter = 1
@@ -819,8 +796,8 @@ def split_image(img,patch_size,overlap_percent = 50):
             counter += 1
         return points
     
-    X_points = start_points(img_w, split_width, overlap_percent)
-    Y_points = start_points(img_h, split_height, overlap_percent)
+    X_points = start_points(img_w, split_width, 0)
+    Y_points = start_points(img_h, split_height, 0)
     
     count = 0
     
@@ -829,6 +806,12 @@ def split_image(img,patch_size,overlap_percent = 50):
             split = img[i:i+split_height, j:j+split_width]
             splits.append(split)
             
+            if save:
+                patch_name = '{}_{}.{}'.format(name, count, frmt)
+                cv2.imwrite(path+patch_name, split)
+                
+                #print('{} saved'.format(patch_name))
+                
             count += 1
     
     return splits

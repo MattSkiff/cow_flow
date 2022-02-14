@@ -211,7 +211,7 @@ def dmap_metrics(mdl, loader,n=10,mode='',thres=c.sigma*2,null_filter=False):
             # TODO- retrieve points from point annotated masks
             if mdl.dlr_acd:
                 pm = point_maps[idx].squeeze().cpu().detach().numpy()
-                gt_coords = np.argwhere(pm != 0).tolist()
+                gt_coords = np.argwhere(pm != 0)
             else:
                 anno = annotations[idx].cpu().detach().numpy()
             
@@ -264,11 +264,10 @@ def dmap_metrics(mdl, loader,n=10,mode='',thres=c.sigma*2,null_filter=False):
     
     # localisation metrics (using kernalised dmaps)
     for gt_dmap, pred_dmap in zip(y_coords, y_hat_coords):
-        # if not mdl.dlr_acd:
-        #     gt_dmap = np.swapaxes(gt_dmap,1,0)
-        # else:
-        #     gt_dmap = np.array(gt_dmap)
-        gt_dmap = np.swapaxes(gt_dmap,1,0) # required for both dlr acd and cow data
+        if not mdl.dlr_acd:
+            gt_dmap = np.swapaxes(gt_dmap,1,0)
+        else:
+            gt_dmap = np.array(gt_dmap)
         
         if c.debug:
             print('dmap metrics: gt dmap')
@@ -294,7 +293,7 @@ def dmap_metrics(mdl, loader,n=10,mode='',thres=c.sigma*2,null_filter=False):
             
             # DEBUG VIZ
             # unnorm = UnNormalize(mean=tuple(c.norm_mean),
-            #                      std=tuple(c.norm_std))
+            #                       std=tuple(c.norm_std))
             # import matplotlib.pyplot as plt
             # fig, ax = plt.subplots(1,1, figsize=(10, 10))
             # ax.scatter(pred_dmap[:,0], pred_dmap[:,1],label='Predicted coordinates')
@@ -444,13 +443,12 @@ def dmap_pr_curve(mdl, loader,n = 10,mode = ''):
             
             if mdl.dlr_acd:
                 pm = point_maps[idx].squeeze().cpu().detach().numpy()
-                gt_coords = np.argwhere(pm != 0).tolist()
+                gt_coords = np.argwhere(pm != 0)#.tolist()
             else:
                 gt_coords = annotations[idx]
                 gt_coords = torch.stack([gt_coords[:,2]*mdl.density_map_h,gt_coords[:,1]*mdl.density_map_w]).cpu().detach().numpy()
                     
-            
-            
+
             # subtract constrant for uniform noise
             constant = ((mdl.noise)/2)*ground_truth_dmap.shape[0]*ground_truth_dmap.shape[1] # TODO mdl.noise
             gt_count -= constant
@@ -489,28 +487,35 @@ def dmap_pr_curve(mdl, loader,n = 10,mode = ''):
             localisation_dists.append({'tp':0,'fp':0,'fn':0})  
 
         for gt_dmap, pred_dmap in zip(y_coords, y_hat_coords[mid_d]):
-            gt_dmap = np.swapaxes(gt_dmap,1,0)
-            dist_matrix = distance.cdist(gt_dmap, pred_dmap, 'euclidean')
             
-            # hungarian algorithm from scipy (yes, optimality is critical, even for eval)
-            optim = linear_sum_assignment(dist_matrix)
-            
-            dists = [] # optimal matched distances per density map
-            
-            # match all pred points (if pred < gt) or vice versa
-            for i in range(min(int(gt_dmap.sum()),len(optim[0]))):
-                # append distances to distance vector from dist matrix in optimal order
-                dists.append(dist_matrix[optim[0][i],optim[1][i]]) 
-    
-            if c.debug:
-                fig, ax = plt.subplots(1,1, figsize=(10, 10))
-                ax.scatter(pred_dmap[:,0], pred_dmap[:,1],label='Predicted coordinates')
-                ax.scatter(gt_dmap[:,0], gt_dmap[:,1],c='red',marker='1',label='Ground truth coordinates')
-            
-            dists = np.array(dists)
+            if not mdl.dlr_acd:
+                gt_dmap = np.swapaxes(gt_dmap,1,0)
+                
+            if len(gt_dmap) == 0:   
+                dist_matrix = distance.cdist(gt_dmap, pred_dmap, 'euclidean')
+                
+                # hungarian algorithm from scipy (yes, optimality is critical, even for eval)
+                optim = linear_sum_assignment(dist_matrix)
+                
+                dists = [] # optimal matched distances per density map
+                
+                # match all pred points (if pred < gt) or vice versa
+                for i in range(min(int(gt_dmap.sum()),len(optim[0]))):
+                    # append distances to distance vector from dist matrix in optimal order
+                    dists.append(dist_matrix[optim[0][i],optim[1][i]]) 
+        
+                if c.debug:
+                    fig, ax = plt.subplots(1,1, figsize=(10, 10))
+                    ax.scatter(pred_dmap[:,0], pred_dmap[:,1],label='Predicted coordinates')
+                    ax.scatter(gt_dmap[:,0], gt_dmap[:,1],c='red',marker='1',label='Ground truth coordinates')
+                
+                dists = np.array(dists)
+            else:
+                dists = np.array([])
             
             # loop over threshold values
             i = 0
+            
             for num in thresholds:
                 
                 tp = np.count_nonzero(dists<=num)

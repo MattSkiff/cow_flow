@@ -28,7 +28,6 @@ import torch.nn.functional as F
 
 from torchvision import utils
 from skimage import io
-from sklearn.feature_extraction import image
 from PIL import Image
 
 import config as c
@@ -51,7 +50,7 @@ mk_size = 25
 class DLRACD(Dataset):
     
     # TODO add image name so concordance with gsd table is possible
-    def __init__(self, root_dir,transform = None):
+    def __init__(self, root_dir,overlap=50,transform = None):
         self.root_dir = root_dir + '/DLRACD/'
         
         # this dict structure is only used for processing in init method,
@@ -67,6 +66,7 @@ class DLRACD(Dataset):
         self.density_counts = {'Train':[],'Test':[]}
         
         self.annotations = {'Train':[]}
+        self.anno_path = {'Train':[]}
         
         self.train_indices = []
         self.test_indices = []
@@ -82,36 +82,98 @@ class DLRACD(Dataset):
         
         print('Initialising dataset...')
         
+        ### Patches section
         for mode in ['Test','Train']:
-        
-            images_list = sorted(os.listdir(os.path.join(self.root_dir,mode+"/Images/")))
-
             
-            for img_path in tqdm(images_list, desc="Loading and splitting images..."):
+            i_paths  = os.listdir(os.path.join(self.root_dir,mode+"/Images/"))
+            image_files = [f for f in i_paths if os.path.isfile(os.path.join(self.root_dir,mode+"/Images/", f))]
+            images_list = sorted(image_files)
+            
+            if overlap == 0:
                 
-                im = cv2.imread(os.path.join(self.root_dir,mode+"/Images/"+img_path))
-                self.images[mode].append(im)
-                im_patches = split_image(im, patch_size = 320, overlap_percent=0)
-                self.patches[mode].extend(im_patches)
-                self.patch_path[mode].extend([img_path]*len(im_patches))
+                for img_path in tqdm(images_list, desc="Loading and splitting images..."):
+                    
+                    im = cv2.imread(os.path.join(self.root_dir,mode+"/Images/"+img_path))
+                    self.images[mode].append(im)
+                    im_patches = split_image(im, patch_size = 320, overlap=0)
+                    self.patches[mode].extend(im_patches)
+                    self.patch_path[mode].extend([img_path]*len(im_patches))
+            
+            else:
+                
+                if not os.path.exists(self.root_dir+mode+"/Images/Patches/"):    
+                    im_patch_path = self.root_dir+mode+"/Images/Patches/"
+                    os.makedirs(im_patch_path, exist_ok = True)
+                    
+                    # create image patches
+                    for img_path in tqdm(images_list, desc="Loading and splitting images..."):
+                        im = cv2.imread(os.path.join(self.root_dir,mode+"/Images/"+img_path))
+                        im_patches = split_image(im, patch_size = 320, overlap=overlap,name = img_path[:-4],path = im_patch_path,frmt = 'jpg')
+        
+                patches_list = sorted(os.listdir(os.path.join(self.root_dir,mode+"/Images/Patches/")))
+                
+                for patch_path in tqdm(patches_list, desc="Loading {} patches...".format(mode)):
+                    
+                    im_patch = cv2.imread(os.path.join(self.root_dir,mode+"/Images/Patches/"+patch_path))
+                    self.patches[mode].append(im_patch) # (320, 320, 3)
+                    self.patch_path[mode].append(patch_path)
             
             if mode == 'Train': # only Train data available
+            
+                ### Annotations section
+                a_paths  = os.listdir(os.path.join(self.root_dir,mode+"/Annotation/"))
+                anno_files = [f for f in a_paths if os.path.isfile(os.path.join(self.root_dir,mode+"/Annotation/", f))]
+                annotation_list = sorted(anno_files)
                 
-                annotation_list = sorted(os.listdir(os.path.join(self.root_dir,mode+"/Annotation/")))
-
-                for anno_path in tqdm(annotation_list, desc="Loading and splitting annotations..."):
-                    
-                    # read in as greyscale (0 arg)
-                    annotation = cv2.imread(os.path.join(self.root_dir,mode+"/Annotation/"+anno_path),0)
-                    self.annotations[mode].append(annotation)
-                    point_maps = split_image(annotation, patch_size = 320, overlap_percent=0)   
-                    
-                    for pm in point_maps:
+                if overlap == 0:
+    
+                    for anno_path in tqdm(annotation_list, desc="Loading and splitting annotations..."):
                         
+                        # read in as greyscale (0 arg)
+                        annotation = cv2.imread(os.path.join(self.root_dir,mode+"/Annotation/"+anno_path),0)
+                        self.annotations[mode].append(annotation)
+                        point_maps = split_image(annotation, patch_size = 320, overlap=0)   
+                        
+                        for pm in point_maps:
+                            
+                            pm = pm / 255
+                            self.counts[mode].append(pm.sum())
+                            self.point_maps[mode].append(pm)
+                            self.point_map_path[mode].append(anno_path)
+                            
+                            # NB convert pd series to list, 0th element                   
+                            gsd_sigma = gsd_table_df[gsd_table_df['name'] == anno_path[:-4]]['gsd'].values[0]
+                            
+                            if c.debug:
+                                print('Anno path is {}'.format(anno_path))
+                                print('GSD is {}'.format(gsd_sigma))
+                            
+                            p_d = scipy.ndimage.filters.gaussian_filter(pm, sigma = gsd_sigma, mode='constant')
+                            self.density_counts[mode].append(p_d.sum())
+                            self.patch_densities[mode].append(p_d)
+                            
+                else:
+                    
+                    #if not os.path.exists(self.root_dir+mode+"/Annotation/Patches/"):  
+                    anno_patch_path = self.root_dir+mode+"/Annotation/Patches/"
+                    os.makedirs(anno_patch_path, exist_ok = True)
+                    
+                    # create annotation patches
+                    for anno_path in tqdm(annotation_list, desc="Loading and splitting images..."):
+                        anno = cv2.imread(os.path.join(self.root_dir,mode+"/Annotation/"+anno_path))
+                        anno_patches = split_image(anno, patch_size = 320, overlap=overlap,name = anno_path[:-4],path = anno_patch_path,frmt = 'png')
+                        self.anno_path[mode].extend([anno_path]*len(anno_patches))
+                    
+                    anno_patches_list = sorted(os.listdir(os.path.join(self.root_dir,mode+"/Annotation/Patches/")))
+                    
+                    for anno_patch_path,anno_path in tqdm(zip(anno_patches_list,self.anno_path[mode]), desc="Loading annotation patches..."):
+                        
+                        # read in as greyscale (0 arg)
+                        pm = cv2.imread(os.path.join(self.root_dir,mode+"/Annotation/Patches/"+anno_patch_path),0) 
                         pm = pm / 255
                         self.counts[mode].append(pm.sum())
                         self.point_maps[mode].append(pm)
-                        self.point_map_path[mode].append(anno_path)
+                        self.point_map_path[mode].append(anno_patch_path)
                         
                         # NB convert pd series to list, 0th element                   
                         gsd_sigma = gsd_table_df[gsd_table_df['name'] == anno_path[:-4]]['gsd'].values[0]
@@ -125,11 +187,12 @@ class DLRACD(Dataset):
                         self.patch_densities[mode].append(p_d)
                         
         
-        # shuffle train indices  
-        #joint_lists = list(zip(self.patches['Train'],self.patch_densities['Train'],
-        #                       self.counts['Train'],self.density_counts['Train'],self.point_maps['Train']))
-        #random.shuffle(joint_lists)
-        #self.patches['Train'],self.patch_densities['Train'],self.counts['Train'],self.density_counts['Train'],self.point_maps['Train'] = zip(*joint_lists)
+        #shuffle train indices  
+        joint_lists = list(zip(self.patches['Train'],self.patch_densities['Train'],
+                              self.counts['Train'],self.density_counts['Train'],self.point_maps['Train']))
+        
+        random.shuffle(joint_lists)
+        self.patches['Train'],self.patch_densities['Train'],self.counts['Train'],self.density_counts['Train'],self.point_maps['Train'] = zip(*joint_lists)
         
         self.train_indices = range(0,len(self.patches['Train'])-1)
         self.test_indices =  range(len(self.train_indices),len(self.train_indices)+len(self.patches['Test'])-1)
@@ -287,6 +350,8 @@ class DLRACDRotateFlipScaling(object):
     pass
     
 #### Cow Flow Classes 
+
+# GSD = 0.3m
 
 class CowObjectsDataset(Dataset):
     """Cow Objects dataset."""
@@ -655,27 +720,6 @@ class CowObjectsDataset(Dataset):
                 unnorm = UnNormalize(mean =tuple(c.norm_mean),std=tuple(c.norm_std))
                 im = unnorm(im)
                 im = im.permute(1,2,0).cpu().numpy()
-                
-                # rng = np.random.default_rng()
-                # #psf = np.ones((c.filter_size,c.filter_size)) / c.filter_size
-                
-                # def matlab_style_gauss2D(shape=(3,3),sigma=0.5):
-                #     """
-                #     2D gaussian mask - should give the same result as MATLAB's
-                #     fspecial('gaussian',[shape],[sigma])
-                #     """
-                #     m,n = [(ss-1.)/2. for ss in shape]
-                #     y,x = np.ogrid[-m:m+1,-n:n+1]
-                #     h = np.exp( -(x*x + y*y) / (2.*sigma*sigma) )
-                #     h[ h < np.finfo(h.dtype).eps*h.max() ] = 0
-                #     sumh = h.sum()
-                #     if sumh != 0:
-                #         h /= sumh
-                #     return h
-                
-                # gauss2dkern = matlab_style_gauss2D(shape = (c.filter_size,c.filter_size),sigma = c.sigma)
-                
-                # dmap, _ = restoration.unsupervised_wiener(dmap,gauss2dkern)
                 
                 fig, ax = plt.subplots(1,2)
                 # TODO - bug here! mismatch impaths and data
