@@ -6,4 +6,4 @@ WEIGHT_DIR = './weights'
 MODEL_DIR = './models'
 LOG_DIR = './logs'
 C_DIR = './cstates'
-DMAP_DIR = './data/precompute/size_{}_sigma_{}/'.format(c.filter_size,c.sigma)
+DMAP_DIR = './data/precompute/size_{}_sigma_{}/'.format(15,c.sigma)

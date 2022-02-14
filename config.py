@@ -27,10 +27,8 @@ data_prop = 0.1 # proportion of the full dataset to use (ignored in DLR ACD)
 test_train_split = 70 # percentage of data to allocate to train set
 
 ## Density Map Options ------
-uniform_noise = 0 # amount of uniform noise to add (sample evenly from 0-x) | 0 for none
-noise = 1e-3 # amount of noise to add
-filter_size = 15 # as per single image mcnn paper
-sigma = 4.0 # "   -----    " 
+noise = 1e-3 # amount of uniform noise to add (sample evenly from 0-x) | 0 for none
+sigma = 4.0 # "   -----    "  ignored for DLR ACD which uses gsd correspondence
 scale = 1 # 4, 2 = downscale dmaps four/two fold, 1 = unchanged
 
 ## Feature Extractor Options ------
@@ -67,7 +65,7 @@ clamp_alpha = 1.9
 
 # vectorised params must always be passed as lists
 lr_init = [2e-3]
-batch_size = [8] # actual batch size is this value multiplied by n_transforms(_test)
+batch_size = [16] # actual batch size is this value multiplied by n_transforms(_test)
 
 # total epochs = meta_epochs * sub_epochs
 # evaluation after <sub_epochs> epochs
@@ -75,12 +73,12 @@ meta_epochs = 1
 sub_epochs = 1
 
 ## Output Settings ----
-schema = 'debug_test_cowflow' # if debug, ignored
+schema = 'debug_test_dlracd' # if debug, ignored
 debug = False # report loads of info/debug info
 tb = True # calc and write metrics, hyper params to tb files
 verbose = True # report stats per sub epoch and other info
 report_freq = -1 # nth minibatch to report minibatch loss on (1 = always,-1 = turn off)
-viz = False # visualise outputs and stats
+viz = True # visualise outputs and stats
 hide_tqdm_bar = True
 save_model = True # also saves a copy of the config file with the name of the model
 checkpoints = False # saves after every meta epoch

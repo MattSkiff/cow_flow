@@ -80,6 +80,12 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,ba
                     "DIM"+str(c.density_map_h)]
             
             #"LRS",str(c.scheduler), # only one LR scheduler currently
+            if a.args.dlr_acd:
+                parts.append('DLRACD')
+            
+            if c.mnist:
+                parts.append('MNIST')
+            
             if c.joint_optim:
                 parts.append('JO')
                 
@@ -94,9 +100,6 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,ba
             
             if c.fixed1x1conv:
                 parts.append('1x1')
-            
-            if c.mnist:
-                parts.append('MNIST')
                 
             if c.scale != 1:
                 parts.append('SC_{}'.format(c.scale))
@@ -109,9 +112,6 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,ba
                 
             if c.train_feat_extractor or c.load_feat_extractor_str != '':
                 parts.append('FT')
-                
-            if c.filter_size != 15 and not c.mnist:
-                parts.extend(["FSZ",str(c.filter_size)])
                 
             if c.sigma != 4 and not c.mnist:
                 parts.extend(["FSG",str(c.sigma)])
@@ -156,7 +156,6 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,ba
                                 'weight decay':c.weight_decay,
                                 'epochs':c.meta_epochs*c.sub_epochs,
                                 'no. of coupling blocks':c.n_coupling_blocks,
-                                'filter size':c.filter_size,
                                 'filter sigma':c.sigma,
                                 'feat vec length':c.n_feat}
             
@@ -409,7 +408,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,ba
                     train_metric_dict = dmap_metrics(mdl, train_loader,n=1,mode='train')
                     model_metric_dict.update(train_metric_dict)
                     
-                    if c.viz and c.dlr_acd:
+                    if c.viz and mdl.dlr_acd:
                         plot_preds(mdl,train_loader,writer=writer,writer_epoch=j,writer_mode='train')
                     
                     if c.validation:
@@ -475,14 +474,14 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,ba
                 
                 if mdl.dlr_acd:
                     preds_loader = train_loader
+                    dmap_pr_mode = 'train'
                 else:
                     preds_loader = val_loader
+                    dmap_pr_mode = 'val'
                     
                 plot_preds(mdl, preds_loader, plot = True)
-                dmap_pr_curve(mdl, preds_loader,n = 10,mode = 'val')
-                
-                if not mdl.dlr_acd:
-                    dmap_pr_curve(mdl, preds_loader,n = 10,mode = 'train')
+                # TODO skip PR curve, as this funciton takes 20 minutes
+                # dmap_pr_curve(mdl, preds_loader,n = 10,mode = dmap_pr_mode)
                 
                 if c.counts:
                     print("Plotting Train R2")
