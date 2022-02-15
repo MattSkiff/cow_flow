@@ -43,7 +43,7 @@ load_feat_extractor_str = '' # '' to train from scratch, loads FE  # final_eval_
 fixed1x1conv = False 
 freq_1x1 = 1 # 1 for always | how many x coupling blocks to have a 1x1 conv permutation layer
 pyramid = True # only implemented for resnet18
-n_pyramid_blocks = 3
+n_pyramid_blocks = 1
 n_splits = 4 # number of splits
 gap = False # global average pooling
 downsampling = True # whether to downsample (5 ds layers) dmaps by converting spatial dims to channel dims
@@ -69,11 +69,11 @@ batch_size = [16] # actual batch size is this value multiplied by n_transforms(_
 
 # total epochs = meta_epochs * sub_epochs
 # evaluation after <sub_epochs> epochs
-meta_epochs = 1
+meta_epochs = 5
 sub_epochs = 1
 
 ## Output Settings ----
-schema = 'debug_test_dlracd' # if debug, ignored
+schema = 'debug_test_viz_dlr_acd' # if debug, ignored
 debug = False # report loads of info/debug info
 tb = True # calc and write metrics, hyper params to tb files
 verbose = True # report stats per sub epoch and other info

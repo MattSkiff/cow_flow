@@ -385,6 +385,8 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,ba
                         j += 1
                 
                 #### Meta epoch code (metrics) ------
+                plot_preds(mdl,train_loader)
+                
                 if mdl.mnist:
                     val_acc, train_acc = eval_mnist(mdl,val_loader,train_loader)
                     print("\n")
@@ -403,17 +405,17 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,ba
                     # DMAP Count Metrics - y,y_n,y_hat_n,y_hat_n_dists,y_hat_coords
                     # add images to TB writer
                     if c.viz:
-                        plot_preds(mdl,train_loader,writer=writer,writer_epoch=j,writer_mode='train')
+                        plot_preds(mdl,train_loader,writer=writer,writer_epoch=meta_epoch,writer_mode='train')
                         
                     train_metric_dict = dmap_metrics(mdl, train_loader,n=1,mode='train')
                     model_metric_dict.update(train_metric_dict)
                     
                     if c.viz and mdl.dlr_acd:
-                        plot_preds(mdl,train_loader,writer=writer,writer_epoch=j,writer_mode='train')
+                        plot_preds(mdl,train_loader,writer=writer,writer_epoch=meta_epoch,writer_mode='train')
                     
                     if c.validation:
                         if c.viz:
-                            plot_preds(mdl,val_loader,writer=writer,writer_epoch=j,writer_mode='val')
+                            plot_preds(mdl,val_loader,writer=writer,writer_epoch=meta_epoch,writer_mode='val')
                             
                         val_metric_dict = dmap_metrics(mdl, val_loader,n=1,mode='val')
                         model_metric_dict.update(val_metric_dict)
@@ -457,11 +459,11 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,ba
                     for name,value in model_metric_dict.items():
                         writer.add_scalar(tag=name, scalar_value=value,global_step=j)
                     
-                    #writer.add_hparams(
-                    #           hparam_dict = model_hparam_dict,
-                    #           metric_dict = model_metric_dict,
-                    #           run_name = "epoch_{}".format(j)
-                    #           )
+                    writer.add_hparams(
+                              hparam_dict = model_hparam_dict,
+                              metric_dict = model_metric_dict,
+                              run_name = "epoch_{}".format(j)
+                              )
                     
                     writer.flush()
                 

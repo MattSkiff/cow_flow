@@ -7,6 +7,7 @@ import torch
 import pandas as pd
 import numpy as np
 import random
+import time
 import cv2 # imread
 from tqdm import tqdm # progress bar
 import matplotlib.pyplot as plt
@@ -59,6 +60,7 @@ class DLRACD(Dataset):
         self.dlr_acd = True
         self.classification = False # TODO - no null filtering - yet
         self.transform = transform
+        self.overlap = overlap
         
         self.images = {'Train':[],'Test':[]}
         
@@ -91,32 +93,32 @@ class DLRACD(Dataset):
             
             if overlap == 0:
                 
-                for img_path in tqdm(images_list, desc="Loading and splitting images..."):
+                for img_path in tqdm(images_list, desc="Loading and splitting {} images...".format(mode)):
                     
                     im = cv2.imread(os.path.join(self.root_dir,mode+"/Images/"+img_path))
                     self.images[mode].append(im)
-                    im_patches = split_image(im, patch_size = 320, overlap=0)
+                    im_patches = split_image(im, patch_size = 320,save = False, overlap=0)
                     self.patches[mode].extend(im_patches)
                     self.patch_path[mode].extend([img_path]*len(im_patches))
             
             else:
                 
-                if not os.path.exists(self.root_dir+mode+"/Images/Patches/"):    
-                    im_patch_path = self.root_dir+mode+"/Images/Patches/"
-                    os.makedirs(im_patch_path, exist_ok = True)
+                #if not os.path.exists(self.root_dir+mode+"/Images/Patches/"):    
+                im_patch_path = self.root_dir+mode+"/Images/Patches/"
+                os.makedirs(im_patch_path, exist_ok = True)
                     
-                    # create image patches
-                    for img_path in tqdm(images_list, desc="Loading and splitting images..."):
-                        im = cv2.imread(os.path.join(self.root_dir,mode+"/Images/"+img_path))
-                        im_patches = split_image(im, patch_size = 320, overlap=overlap,name = img_path[:-4],path = im_patch_path,frmt = 'jpg')
+                # create image patches
+                for img_path in tqdm(images_list, desc="Loading and splitting {} images...".format(mode)):
+                    im = cv2.imread(os.path.join(self.root_dir,mode+"/Images/"+img_path))
+                    im_patches = split_image(im, patch_size = 320, overlap=overlap,name = img_path[:-4],path = im_patch_path,frmt = 'jpg')
         
                 patches_list = sorted(os.listdir(os.path.join(self.root_dir,mode+"/Images/Patches/")))
                 
                 for patch_path in tqdm(patches_list, desc="Loading {} patches...".format(mode)):
                     
                     im_patch = cv2.imread(os.path.join(self.root_dir,mode+"/Images/Patches/"+patch_path))
-                    self.patches[mode].append(im_patch) # (320, 320, 3)
-                    self.patch_path[mode].append(patch_path)
+                    self.patches[mode].append(im_patch) # (320, 320, 3) 
+                    self.patch_path[mode].append(os.path.join(self.root_dir,mode+"/Images/Patches/"+patch_path))
             
             if mode == 'Train': # only Train data available
             
@@ -132,7 +134,7 @@ class DLRACD(Dataset):
                         # read in as greyscale (0 arg)
                         annotation = cv2.imread(os.path.join(self.root_dir,mode+"/Annotation/"+anno_path),0)
                         self.annotations[mode].append(annotation)
-                        point_maps = split_image(annotation, patch_size = 320, overlap=0)   
+                        point_maps = split_image(annotation, patch_size = 320,save = False, overlap=0)   
                         
                         for pm in point_maps:
                             
@@ -171,6 +173,7 @@ class DLRACD(Dataset):
                         # read in as greyscale (0 arg)
                         pm = cv2.imread(os.path.join(self.root_dir,mode+"/Annotation/Patches/"+anno_patch_path),0) 
                         pm = pm / 255
+                        
                         self.counts[mode].append(pm.sum())
                         self.point_maps[mode].append(pm)
                         self.point_map_path[mode].append(anno_patch_path)
@@ -180,6 +183,7 @@ class DLRACD(Dataset):
                         
                         if c.debug:
                             print('Anno path is {}'.format(anno_path))
+                            print('Anno patch path is {}'.format(anno_patch_path))
                             print('GSD is {}'.format(gsd_sigma))
                         
                         p_d = scipy.ndimage.filters.gaussian_filter(pm, sigma = gsd_sigma, mode='constant')
@@ -187,7 +191,7 @@ class DLRACD(Dataset):
                         self.patch_densities[mode].append(p_d)
                         
         
-        #shuffle train indices  
+        ## jointly shuffle data indices  
         joint_lists = list(zip(self.patches['Train'],self.patch_densities['Train'],
                               self.counts['Train'],self.density_counts['Train'],self.point_maps['Train']))
         
@@ -205,6 +209,12 @@ class DLRACD(Dataset):
         self.point_maps = [*self.point_maps['Train']]
         self.point_map_path = [*self.point_map_path['Train']]
         
+        
+        print("Number of DLR ACD image patches: {}".format(len(self.patches)))
+        print("Number of DLR ACD point map patches: {}".format(len(self.point_maps)))
+        print("Number of DLR ACD density map patches: {}".format(len(self.patch_densities)))
+        time.sleep(1)
+        
         print('\nInitialisation finished')
                     
     def __len__(self):
@@ -219,10 +229,12 @@ class DLRACD(Dataset):
         sample['patch'] = self.patches[idx]
         
         if idx < len(self.patch_densities):
+            
+            # if self.overlap == 0:
             sample['patch_density'] = self.patch_densities[idx]
             sample['counts'] = self.counts[idx]
             sample['density_counts'] = self.density_counts[idx]
-            sample['point_maps'] = self.point_maps[idx]
+            sample['point_maps'] = self.point_maps[idx] 
             
         else:
             sample['patch_density'] = None

@@ -16,6 +16,8 @@ from ipywidgets import FloatProgress # fix iprogress error in tqdm
 #from utils import load_datasets, make_dataloaders
 from data_loader import CowObjectsDataset, CustToTensor, AerialNormalize, DmapAddUniformNoise, CustCrop, CustResize, train_val_split
 
+from utils import plot_preds, plot_peaks
+
 empty_cache() # free up memory for cuda
 
 # torchivsion inputs are 3x227x227, mnist_resnet 1x227...
@@ -125,3 +127,6 @@ else:
                         pin_memory=True,sampler=val_sampler))
         
         mdl = train_battery(tls,vls,lr_i=c.lr_init)
+        
+plot_preds(mdl,train_loader)
+plot_peaks(mdl,train_loader)

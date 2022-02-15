@@ -179,15 +179,15 @@ def dmap_metrics(mdl, loader,n=10,mode='',thres=c.sigma*2,null_filter=False):
             #     outputs = mdl.feat_extractor(images)
             #     _, preds = torch.max(outputs, 1)   
         
-        x, _ = mdl(images,dummy_z,rev=True)
-        
-        # replace predicted densities with null predictions if not +ve pred from feature extractor
-        if null_filter:
-            if not mdl.dlr_acd:
-                print('replacing predicted densities with empty predictions from feature extractor')
-                x[(preds == 1).bool(),:,:,:] = torch.zeros(1,608,800).to(c.device)
-        
-        x_list.append(x)
+            x, _ = mdl(images,dummy_z,rev=True)
+            
+            # replace predicted densities with null predictions if not +ve pred from feature extractor
+            if null_filter:
+                if not mdl.dlr_acd:
+                    print('replacing predicted densities with empty predictions from feature extractor')
+                    x[(preds == 1).bool(),:,:,:] = torch.zeros(1,608,800).to(c.device)
+            
+            x_list.append(x)
         
         x_agg = torch.stack(x_list,dim=1)
         x = x_agg.mean(dim=1) # take average of samples from models for mean reconstruction
