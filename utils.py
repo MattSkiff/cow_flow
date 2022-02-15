@@ -91,7 +91,7 @@ class UnNormalize(object):
 @torch.no_grad()
 def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
                hist=False,sampling="randn",plot_n=None,writer=None,writer_epoch=None,
-               writer_mode=None,include_empty=False):
+               writer_mode=None,include_empty=False,sample_n=10):
     
     assert type(loader) == torch.utils.data.dataloader.DataLoader
     
@@ -121,6 +121,8 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
         Plots n plots from the loader sequentially. If not MNIST, plots null-labelled data.
     include_empty:
         (True) Skip check for images with no annotations. Default: False.
+    sample_n:
+        Number of samples to average across 
 
     Returns
     -------
@@ -220,208 +222,215 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
             if i != idx and plot_n == None and digit == None and mdl.mnist:
                 continue
            
-            ## create noise vector ---
-            if (mdl.mnist and labels.size) or not mdl.mnist: # triggers only if there is at least one annotation
-                # Z shape: torch.Size([2, 4, 300, 400]) (batch size = 2)
-                
-                if not mdl.mnist:
-                    # TODO - remove hard coding dims here
-                    if (loader.dataset.count and not mdl.gap) or (not mdl.downsampling and mdl.subnet_type == 'conv'):
-                        dummy_z = (randn(images.size()[0],mdl.channels*4,(mdl.density_map_h) // 2,(mdl.density_map_w) // 2)).to(c.device) 
-                    elif loader.dataset.count and mdl.gap:
-                        dummy_z = (randn(images.size()[0],1)).to(c.device) 
-                    elif mdl.downsampling: # self.downsampling
-                        
-                        if mdl.scale == 1:
-                            n_ds = 5
-                        elif mdl.scale == 2:
-                            n_ds = 4
-                        elif mdl.scale == 4:
-                            n_ds = 3
-                            
-                        in_channels = c.channels*4**n_ds
-                        ft_dims = ft_dims_select(mdl)
-                        
-                        if mdl.feat_extractor.__class__.__name__ == 'NothingNet':
-                            in_channels = 2                      
-                        
-                        dummy_z = (randn(images.size()[0], in_channels,ft_dims[0],ft_dims[1])).to(c.device)
-                else:
+            images = images.float().to(c.device)
+            mdl = mdl.to(c.device)
+            x_list = []
+            
+            for i in range(sample_n):
+           
+                ## create noise vector ---
+                if (mdl.mnist and labels.size) or not mdl.mnist: # triggers only if there is at least one annotation
+                    # Z shape: torch.Size([2, 4, 300, 400]) (batch size = 2)
                     
-                    if mdl.subnet_type == 'conv':
-                       
-                        if sampling == 'ones':
-                            dummy_z = (torch.ones(images.size()[0], mdl.channels*4, mdl.density_map_h // 2,mdl.density_map_w  // 2).to(c.device))
-                        elif sampling == "zeros":
-                            dummy_z = torch.zeros(images.size()[0], mdl.channels*4, mdl.density_map_h // 2,mdl.density_map_w  // 2).to(c.device)
-                        elif sampling == "randn":
-                            dummy_z = (randn(images.size()[0], mdl.channels*4, mdl.density_map_h // 2,mdl.density_map_w  // 2)).to(c.device)
-                        else:
-                            ValueError("Invalid function arg (sampling). Try 'randn', 'zeros' or 'ones'.")
+                    if not mdl.mnist:
+                        # TODO - remove hard coding dims here
+                        if (loader.dataset.count and not mdl.gap) or (not mdl.downsampling and mdl.subnet_type == 'conv'):
+                            dummy_z = (randn(images.size()[0],mdl.channels*4,(mdl.density_map_h) // 2,(mdl.density_map_w) // 2)).to(c.device) 
+                        elif loader.dataset.count and mdl.gap:
+                            dummy_z = (randn(images.size()[0],1)).to(c.device) 
+                        elif mdl.downsampling: # self.downsampling
+                            
+                            if mdl.scale == 1:
+                                n_ds = 5
+                            elif mdl.scale == 2:
+                                n_ds = 4
+                            elif mdl.scale == 4:
+                                n_ds = 3
+                                
+                            in_channels = c.channels*4**n_ds
+                            ft_dims = ft_dims_select(mdl)
+                            
+                            if mdl.feat_extractor.__class__.__name__ == 'NothingNet':
+                                in_channels = 2                      
+                            
+                            dummy_z = (randn(images.size()[0], in_channels,ft_dims[0],ft_dims[1])).to(c.device)
                     else:
-                        dummy_z = (randn(images.size()[0], c.channels)).to(c.device)
-                
+                            if mdl.subnet_type == 'conv':
+                               
+                                if sampling == 'ones':
+                                    dummy_z = (torch.ones(images.size()[0], mdl.channels*4, mdl.density_map_h // 2,mdl.density_map_w  // 2).to(c.device))
+                                elif sampling == "zeros":
+                                    dummy_z = torch.zeros(images.size()[0], mdl.channels*4, mdl.density_map_h // 2,mdl.density_map_w  // 2).to(c.device)
+                                elif sampling == "randn":
+                                    dummy_z = (randn(images.size()[0], mdl.channels*4, mdl.density_map_h // 2,mdl.density_map_w  // 2)).to(c.device)
+                                else:
+                                    ValueError("Invalid function arg (sampling). Try 'randn', 'zeros' or 'ones'.")
+                            else:
+                                dummy_z = (randn(images.size()[0], c.channels)).to(c.device)
+                        
                 ## sample from model ---
-                images = images.float().to(c.device)
                 dummy_z = dummy_z.float().to(c.device)
-                mdl = mdl.to(c.device)
                 x, log_det_jac = mdl(images,dummy_z,rev=True)
+                x_list.append(x)
+                    
+            x_agg = torch.stack(x_list,dim=1)
+            x = x_agg.mean(dim=1) # take average of samples from models for mean reconstruction
                 
-                # replace predicted densities with null predictions if not +ve pred from feature extractor
-                if not mdl.mnist and not mdl.count:
+            # replace predicted densities with null predictions if not +ve pred from feature extractor
+            if not mdl.mnist and not mdl.count:
+                # subtract constrant for uniform noise
+                constant = ((mdl.noise)/2)*dmaps[lb_idx].shape[0]*dmaps[lb_idx].shape[1]
+                if not mdl.dlr_acd:
                     # subtract constrant for uniform noise
                     constant = ((mdl.noise)/2)*dmaps[lb_idx].shape[0]*dmaps[lb_idx].shape[1]
-                    if not mdl.dlr_acd:
-                        # subtract constrant for uniform noise
-                        constant = ((mdl.noise)/2)*dmaps[lb_idx].shape[0]*dmaps[lb_idx].shape[1]
-                        print('replacing predicted densities with empty predictions from feature extractor')
-                        outputs = mdl.classification_head(images)  
-                        _, preds = torch.max(outputs, 1)  
-                        x[(preds == 1).bool(),:,:,:] = torch.zeros(1,608,800).to(c.device)
-                        
-                if c.debug_utils:
-                    print("\nsampled from model\n")
-                
-                if lb_idx == None:
-                    lb_idx = 0
-                
-                if c.one_hot:
+                    print('replacing predicted densities with empty predictions from feature extractor')
+                    outputs = mdl.classification_head(images)  
+                    _, preds = torch.max(outputs, 1)  
+                    x[(preds == 1).bool(),:,:,:] = torch.zeros(1,608,800).to(c.device)
                     
-                    if c.subnet_type == 'conv':
-                        x = x.argmax(-3).to(torch.float)
-                    else:
-                        x = x.argmax(-1).to(torch.float)
+            if c.debug_utils:
+                print("\nsampled from model\n")
+            
+            if lb_idx == None:
+                lb_idx = 0
+            
+            if c.one_hot:
                 
-                if  plot_n != None:
-                    lb_idx = range(images.size()[0])
+                if c.subnet_type == 'conv':
+                    x = x.argmax(-3).to(torch.float)
                 else:
-                    lb_idx = [lb_idx]
+                    x = x.argmax(-1).to(torch.float)
+            
+            if  plot_n != None:
+                lb_idx = range(images.size()[0])
+            else:
+                lb_idx = [lb_idx]
+            
+            for lb_idx in lb_idx:
+                dmap_rev_np = x[lb_idx].squeeze().cpu().detach().numpy()
+                mean_pred = x[lb_idx].mean()
                 
-                for lb_idx in lb_idx:
-                    dmap_rev_np = x[lb_idx].squeeze().cpu().detach().numpy()
-                    mean_pred = x[lb_idx].mean()
-                    
-                    # TODO
-                    if (mdl.count or mdl.mnist) and not mdl.gap:
-                        x_flat = torch.reshape(x,(images.size()[0],c.density_map_h * c.density_map_w)) # torch.Size([200, 12, 12])
-                        mode = torch.mode(x_flat,dim = 1).values.cpu().detach().numpy()
-                    elif mdl.count and mdl.gap:
-                        x_flat = x
-                                            
-                    if mdl.mnist and c.subnet_type == 'conv':
-                        x = torch.mode(x,dim = 1).values.cpu().detach().numpy() #print(x.shape) (200,)
+                # TODO
+                if (mdl.count or mdl.mnist) and not mdl.gap:
+                    x_flat = torch.reshape(x,(images.size()[0],c.density_map_h * c.density_map_w)) # torch.Size([200, 12, 12])
+                    mode = torch.mode(x_flat,dim = 1).values.cpu().detach().numpy()
+                elif mdl.count and mdl.gap:
+                    x_flat = x
+                                        
+                if mdl.mnist and c.subnet_type == 'conv':
+                    x = torch.mode(x,dim = 1).values.cpu().detach().numpy() #print(x.shape) (200,)
+                else:
+                    x = torch.mode(x,dim = 0).values.cpu().detach().numpy()
+                
+                # TODO!
+                if mdl.mnist or mdl.subnet_type == 'conv':
+                    sum_pred = dmap_rev_np.sum()-constant #[lb_idx]
+                    true_dmap_count = dmaps[lb_idx].sum()-constant
+                    if not mdl.dlr_acd:
+                        label_count = len(annotations[idx])
                     else:
-                        x = torch.mode(x,dim = 0).values.cpu().detach().numpy()
+                        label_count = counts[lb_idx]
+                elif mdl.subnet_type == 'fc' and mdl.gap:  
+                    mode = x
+                    sum_pred = x
+                
+                if plot:
                     
-                    # TODO!
-                    if mdl.mnist or mdl.subnet_type == 'conv':
-                        sum_pred = dmap_rev_np.sum()-constant #[lb_idx]
-                        true_dmap_count = dmaps[lb_idx].sum()-constant
-                        if not mdl.dlr_acd:
-                            label_count = len(annotations[idx])
-                        else:
-                            label_count = counts[lb_idx]
-                    elif mdl.subnet_type == 'fc' and mdl.gap:  
-                        mode = x
-                        sum_pred = x
+                    if mdl.unconditional: 
+                        hist = False
                     
-                    if plot:
+                    n_plots = 3+hist-mdl.mnist-mdl.count
+                           
+                    fig, ax = plt.subplots(1,n_plots)
+                    plt.subplots_adjust(left=0.1, right=0.9, top=0.9, bottom=0.1)
+                    [axi.set_axis_off() for axi in ax.ravel()] # turn off subplot axes
+                    
+                    if mdl.mnist:
+                        fig.suptitle('{} \n mode of reconstruction: {}'.format(title,str(mode)),y=1.0,fontsize=16) # :.2f
+                    if mdl.count:   
+                        fig.suptitle('{} \n Predicted count: {:.2f}\n True Labelled Count: {:.1f}'.format(title,mean_pred),y=1.0,fontsize=16)
+                    else:
+                        fig.suptitle('{} \n Predicted count: {:.2f}'.format(title,sum_pred),y=1.05,fontsize=16)
                         
-                        if mdl.unconditional: 
-                            hist = False
+                    fig.set_size_inches(24*1,7*1)
+                    fig.set_dpi(100)
+                    
+                    if mdl.mnist:
+                        im = images[lb_idx].squeeze().cpu().numpy()
+                    else:
+                        unnorm = UnNormalize(mean =tuple(c.norm_mean),
+                                             std=tuple(c.norm_std))
                         
-                        n_plots = 3+hist-mdl.mnist-mdl.count
-                               
-                        fig, ax = plt.subplots(1,n_plots)
-                        plt.subplots_adjust(left=0.1, right=0.9, top=0.9, bottom=0.1)
-                        [axi.set_axis_off() for axi in ax.ravel()] # turn off subplot axes
+                        if mdl.dlr_acd:
+                            im = images[lb_idx]
+                        else:
+                            im = unnorm(images[lb_idx])
                         
+                        im = im.permute(1,2,0).cpu().numpy()
+                     
+                    if mdl.feat_extractor.__class__.__name__ == 'NothingNet':
+                        dmap_rev_np = dmap_rev_np[1,:,:] # select only data from first duplicated channel
+                    
+                    if not (mdl.count and mdl.gap) and not (mdl.mnist and c.subnet_type == 'fc'):
+                        ax[0].title.set_text('Density Map Prediction')
+                        ax[0].imshow(dmap_rev_np)#, cmap='viridis', interpolation='nearest')
+                    else:
+                        fig.delaxes(ax[0])
+                    
+                    if mdl.count:
+                        # no dmaps provided by dataloader if mdl.count
+                        ax[1].title.set_text('Conditioning Aerial Image')
+                        ax[1].imshow((im * 255).astype(np.uint8))
+                        if hist:
+                            ax[2].hist(dmap_rev_np.flatten(),bins = 30)
+                    else:
+                    
                         if mdl.mnist:
-                            fig.suptitle('{} \n mode of reconstruction: {}'.format(title,str(mode)),y=1.0,fontsize=16) # :.2f
-                        if mdl.count:   
-                            fig.suptitle('{} \n Predicted count: {:.2f}\n True Labelled Count: {:.1f}'.format(title,mean_pred),y=1.0,fontsize=16)
-                        else:
-                            fig.suptitle('{} \n Predicted count: {:.2f}'.format(title,sum_pred),y=1.05,fontsize=16)
-                            
-                        fig.set_size_inches(24*1,7*1)
-                        fig.set_dpi(100)
-                        
-                        if mdl.mnist:
-                            im = images[lb_idx].squeeze().cpu().numpy()
-                        else:
-                            unnorm = UnNormalize(mean =tuple(c.norm_mean),
-                                                 std=tuple(c.norm_std))
-                            
-                            if mdl.dlr_acd:
-                                im = images[lb_idx]
-                            else:
-                                im = unnorm(images[lb_idx])
-                            
-                            im = im.permute(1,2,0).cpu().numpy()
-                         
-                        if mdl.feat_extractor.__class__.__name__ == 'NothingNet':
-                            dmap_rev_np = dmap_rev_np[1,:,:] # select only data from first duplicated channel
-                        
-                        if not (mdl.count and mdl.gap) and not (mdl.mnist and c.subnet_type == 'fc'):
-                            ax[0].title.set_text('Density Map Prediction')
-                            ax[0].imshow(dmap_rev_np)#, cmap='viridis', interpolation='nearest')
-                        else:
-                            fig.delaxes(ax[0])
-                        
-                        if mdl.count:
-                            # no dmaps provided by dataloader if mdl.count
-                            ax[1].title.set_text('Conditioning Aerial Image')
-                            ax[1].imshow((im * 255).astype(np.uint8))
+                            ax[1].title.set_text('Conditioning Digit')
+                            ax[1].imshow(im)
                             if hist:
+                                ax[2].title.set_text('Histogram of Reconstruction Values')
                                 ax[2].hist(dmap_rev_np.flatten(),bins = 30)
                         else:
-                        
-                            if mdl.mnist:
-                                ax[1].title.set_text('Conditioning Digit')
-                                ax[1].imshow(im)
-                                if hist:
-                                    ax[2].title.set_text('Histogram of Reconstruction Values')
-                                    ax[2].hist(dmap_rev_np.flatten(),bins = 30)
-                            else:
-                                ax[1].title.set_text('Conditioning Aerial Image')
-                                ax[1].imshow((im * 255).astype(np.uint8))
-                                ax[2].title.set_text('Density Map Ground Truth: N={:.2f}\nLabel Count: N={:.2f}'.format(true_dmap_count,label_count))
-                                ax[2].imshow(dmaps[lb_idx])
-                                if hist:
-                                    ax[3].title.set_text('Histogram of Reconstruction Values')
-                                    ax[3].hist(dmap_rev_np.flatten(),bins = 30)
-                        
-                        if writer != None:
-                            writer.add_figure('{} Dmap Pred: epoch {}'.format(writer_mode,writer_epoch), fig)
-                            writer.close() 
-                        
-                        # saving and outs
-                        if save:
-                            if not os.path.exists(g.VIZ_DIR):
-                                os.makedirs(g.VIZ_DIR)
-                            plt.savefig("{}/{}.jpg".format(g.VIZ_DIR,mdl.modelname), bbox_inches='tight', pad_inches = 0)
-                        
-                        if mdl.mnist:
-                            out = labels[lb_idx],dmap_rev_np, mean_pred 
+                            ax[1].title.set_text('Conditioning Aerial Image')
+                            ax[1].imshow((im * 255).astype(np.uint8))
+                            ax[2].title.set_text('Density Map Ground Truth: N={:.2f}\nLabel Count: N={:.2f}'.format(true_dmap_count,label_count))
+                            ax[2].imshow(dmaps[lb_idx])
+                            if hist:
+                                ax[3].title.set_text('Histogram of Reconstruction Values')
+                                ax[3].hist(dmap_rev_np.flatten(),bins = 30)
+                    
+                    if writer != None:
+                        writer.add_figure('{} Dmap Pred: epoch {}'.format(writer_mode,writer_epoch), fig)
+                        writer.close() 
+                    
+                    # saving and outs
+                    if save:
+                        if not os.path.exists(g.VIZ_DIR):
+                            os.makedirs(g.VIZ_DIR)
+                        plt.savefig("{}/{}.jpg".format(g.VIZ_DIR,mdl.modelname), bbox_inches='tight', pad_inches = 0)
+                    
+                    if mdl.mnist:
+                        out = labels[lb_idx],dmap_rev_np, mean_pred 
+                    else:
+                        if mdl.count:
+                            out = counts[lb_idx],dmap_rev_np, mean_pred
                         else:
-                            if mdl.count:
-                                out = counts[lb_idx],dmap_rev_np, mean_pred
-                            else:
-                                out = {'True Density Map count':true_dmap_count,
-                                       'Predicted Density Map':dmap_rev_np, 
-                                       'Predicted Density Map count':sum_pred,
-                                       'Label Count':label_count}
-                        
-                        if digit != None and labels[idx] == digit:
-                            return out 
-                        
-                        if plot_n != None:
-                            k = k+1
-                            if k >= plot_n:
-                                lb_idx = lb_idx
-                                return out
-                        else:
+                            out = {'True Density Map count':true_dmap_count,
+                                   'Predicted Density Map':dmap_rev_np, 
+                                   'Predicted Density Map count':sum_pred,
+                                   'Label Count':label_count}
+                    
+                    if digit != None and labels[idx] == digit:
+                        return out 
+                    
+                    if plot_n != None:
+                        k = k+1
+                        if k >= plot_n:
+                            lb_idx = lb_idx
                             return out
+                    else:
+                        return out
                                 
     out = inner_func()       
 
@@ -429,7 +438,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
 
 # TODO - add plot full set and save opt
 @torch.no_grad()
-def plot_peaks(mdl, loader,n=1):
+def plot_peaks(mdl, loader,n=10):
     assert not mdl.count
     assert mdl.subnet_type == 'conv'
 
@@ -500,6 +509,12 @@ def plot_peaks(mdl, loader,n=1):
               
             dmap_uncertainty = dmap_rev_np-ground_truth_dmap #x_std_norm[idx].squeeze().cpu().detach().numpy()
             
+            # subtract constrant for uniform noise
+            constant = ((mdl.noise)/2)*ground_truth_dmap.shape[0]*ground_truth_dmap.shape[1] # TODO mdl.noise
+            sum_count -= constant
+            dist_counts -= constant
+            gt_count -= constant
+            
             if mdl.dlr_acd:
                 # https://stackoverflow.com/questions/60782965/extract-x-y-coordinates-of-each-pixel-from-an-image-in-python
                 gt_coords = np.argwhere(point_map == 1)
@@ -507,12 +522,6 @@ def plot_peaks(mdl, loader,n=1):
                 gt_coords = annotations[idx].cpu().detach().numpy()
                 
             coordinates = peak_local_max(dmap_rev_np,min_distance=4,num_peaks=max(1,int(sum_count)))
-            
-            # subtract constrant for uniform noise
-            constant = ((mdl.noise)/2)*ground_truth_dmap.shape[0]*ground_truth_dmap.shape[1] # TODO mdl.noise
-            sum_count -= constant
-            dist_counts -= constant
-            gt_count -= constant
 
             if mdl.dlr_acd:
                 im = images[idx]
@@ -766,10 +775,11 @@ def count_parameters(model):
 
 # https://github.com/Devyanshu/image-split-with-overlap/blob/master/split_image_with_overlap.py
 # minor edits to function, remove non-square opt, grey scale
-def split_image(img,patch_size,save=True,overlap=0,name=None,path=None,frmt=None):
+def split_image(img,patch_size,save=True,overlap=50,name=None,path=None,frmt=None):
     
     if overlap != 0:
         assert save and name and path and frmt
+        assert 0 < overlap < 1
     
     splits = []
     
@@ -782,7 +792,7 @@ def split_image(img,patch_size,save=True,overlap=0,name=None,path=None,frmt=None
     split_width = patch_size
     split_height = patch_size
     
-    def start_points(size, split_size, overlap=0):
+    def start_points(size, split_size, overlap=overlap):
         points = [0]
         stride = int(split_size * (1-overlap))
         counter = 1
@@ -796,15 +806,17 @@ def split_image(img,patch_size,save=True,overlap=0,name=None,path=None,frmt=None
             counter += 1
         return points
     
-    X_points = start_points(img_w, split_width, 0)
-    Y_points = start_points(img_h, split_height, 0)
+    X_points = start_points(img_w, split_width, overlap)
+    Y_points = start_points(img_h, split_height, overlap)
     
     count = 0
     
     for i in Y_points:
         for j in X_points:
             split = img[i:i+split_height, j:j+split_width]
-            splits.append(split)
+            
+            #if overlap==0:
+            splits.append(split) # appending with large image overlaps causes memory issues
             
             if save:
                 patch_name = '{}_{}.{}'.format(name, count, frmt)
