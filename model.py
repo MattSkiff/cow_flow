@@ -193,7 +193,7 @@ def sub_conv2d(dims_in,dims_out,n_filters):
                     ('batchnorm1',nn.BatchNorm2d(n_filters)),
                     ("relu1", nn.ReLU()),
                     # use small filters in subnet per glow paper
-                    ("conv2", nn.Conv2d(c.filters, n_filters*2, kernel_size = 1,padding = 0)),
+                    ("conv2", nn.Conv2d(a.args.filters, n_filters*2, kernel_size = 1,padding = 0)),
                     ('batchnorm2',nn.BatchNorm2d(n_filters*2)),
                     ("relu2", nn.ReLU()),
                     ("conv3", nn.Conv2d(n_filters*2, dims_out,kernel_size = 3,padding = 1))
@@ -219,7 +219,7 @@ def subnet(dims_in, dims_out):
     # subnet is operating over density map 
     # hence switch from linear to conv2d net
     if c.subnet_type == 'conv':
-        net = sub_conv2d(dims_in,dims_out,c.filters)
+        net = sub_conv2d(dims_in,dims_out,a.args.filters)
     elif c.subnet_type == 'fc':
         net = sub_fc(dims_in,dims_out,c.width)
 
@@ -244,13 +244,13 @@ def sub_fc(dims_in,dims_out,internal_size):
 
 def nf_pyramid(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat):
     assert c.subnet_type == 'conv'
-    assert not c.gap and not c.counts and not c.mnist
+    assert not c.gap and not c.counts and not a.args.mnist
     
     # TODO - will break because of ref to config file
     mdl = ResNetPyramid()
     # TODO: take out hardcoding activation channels (64)
     channels = 3
-    feats = mdl(torch.randn(c.batch_size[0],channels,c.density_map_h,c.density_map_w,requires_grad=False))
+    feats = mdl(torch.randn(a.args.batch_size,channels,c.density_map_h,c.density_map_w,requires_grad=False))
     del mdl
     
     if c.verbose:
@@ -273,7 +273,7 @@ def nf_pyramid(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_fea
         
         nodes.append(Ff.Node(nodes[-1].out0, Fm.HaarDownsampling, {}, name = 'Main_Downsampling_{}'.format(k)))
         
-        for j in range(c.n_pyramid_blocks):
+        for j in range(a.args.n_pyramid_blocks):
             nodes.append(Ff.Node(nodes[-1], Fm.GLOWCouplingBlock,
                             {'clamp': c.clamp_alpha,'subnet_constructor':subnet},
                             conditions=conditions[k],name = 'Couple_{}'.format(k)))
@@ -284,7 +284,7 @@ def nf_pyramid(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_fea
 
 def nf_pyramid_split(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat):
     assert c.subnet_type == 'conv'
-    assert not c.gap and not c.counts and not c.mnist
+    assert not c.gap and not c.counts and not a.args.mnist
     
     # TODO - will break because of ref to config file
     mdl = ResNetPyramid()
@@ -323,7 +323,7 @@ def nf_pyramid_split(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c
             nodes.append(split)
             
             # after every split, out1 sent to coupling, out0 split off for downsampling and later concatenation
-            for j in range(c.n_pyramid_blocks):
+            for j in range(a.args.n_pyramid_blocks):
                 if j == 0:
                     nodes.append(Ff.Node(nodes[-1].out1, Fm.GLOWCouplingBlock,
                                          {'clamp': c.clamp_alpha,'subnet_constructor':subnet},
@@ -335,7 +335,7 @@ def nf_pyramid_split(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c
                                          conditions=conditions[k],name = 'Couple_{}_{}'.format(k,j)))
                     
         else:
-            for j in range(c.n_pyramid_blocks):
+            for j in range(a.args.n_pyramid_blocks):
                 nodes.append(Ff.Node(nodes[-1].out0, Fm.GLOWCouplingBlock,
                             {'clamp': c.clamp_alpha,'subnet_constructor':subnet},
                             conditions=conditions[k],name = 'Couple_{}'.format(k)))
@@ -343,7 +343,7 @@ def nf_pyramid_split(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c
     last_coupling = nodes[-1]  # link up main chain to split chains
     
         # else:
-        #     for j in range(c.n_pyramid_blocks):
+        #     for j in range(a.args.n_pyramid_blocks):
         #         # no split
         #         nodes.append(Ff.Node(nodes[-1].out0, Fm.GLOWCouplingBlock,
         #                                      {'clamp': c.clamp_alpha,'subnet_constructor':subnet},
@@ -411,9 +411,9 @@ def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,m
     # https://github.com/VLL-HD/FrEIA/issues/9
     
     # condition = exacted image features
-    if (c.mnist or (c.counts and not c.gap)) and c.subnet_type == 'conv':
+    if (a.args.mnist or (c.counts and not c.gap)) and c.subnet_type == 'conv':
         condition = [Ff.ConditionNode(condition_dim,input_dim[0] // 2,input_dim[1] // 2, name = 'condition')]
-    elif (c.counts and c.gap) or (c.subnet_type == 'fc' and c.mnist):
+    elif (c.counts and c.gap) or (c.subnet_type == 'fc' and a.args.mnist):
         condition = [Ff.ConditionNode(condition_dim,name = 'condition')]
     else:
         # TODO: avoid hardcoding feature spatial dimensions in
@@ -432,7 +432,7 @@ def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,m
     # haar downsampling to resolves input data only having a single channel (from unsqueezed singleton dimension)
     # affine coupling performs channel wise split
     # https://github.com/VLL-HD/FrEIA/issues/8
-    if (c.mnist or (c.counts and not c.gap) or c.feat_extractor == 'none' or not c.downsampling) and c.subnet_type == 'conv':
+    if (a.args.mnist or (c.counts and not c.gap) or c.feat_extractor == 'none' or not c.downsampling) and c.subnet_type == 'conv':
         nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling'))
         
     elif not c.counts and c.feat_extractor != 'none' and c.downsampling:
@@ -521,7 +521,7 @@ class CowFlow(nn.Module):
         self.density_map_w = c.density_map_w
         self.downsampling = c.downsampling
         self.scale = c.scale
-        self.noise = c.noise
+        self.noise = a.args.noise
         self.seed = c.seed
 
     def forward(self,images,labels,rev=False): # label = dmaps or counts

@@ -22,6 +22,32 @@ MAX_DISTANCE = 100
 MIN_D = int(c.sigma*2)
 STEP = 1
 
+def dlr_acd_whole_image_eval(mdl):
+    
+    metric_dict = {'mae':None,
+                   'mnae':None,
+                   'rmse':None,
+                   'precision':None,
+                   'recall':None,
+                   'f1 score':None}
+    
+    # create dataloaders without overlap
+    
+    # loop over images and sum preds per image
+    
+    # calculate overall metrics
+    
+    # MAE
+    # MNAE
+    # RMSE
+    
+    # Precision
+    # Recall 
+    # F1 Score
+    
+    return metric_dict
+    
+
 # TODO extra args: plot = True, save=True,hist=True
 # TODO: don't shift computation over to cpu after sampling from model
 @torch.no_grad()
