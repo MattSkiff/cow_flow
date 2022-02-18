@@ -33,6 +33,8 @@ from PIL import Image
 
 import config as c
 import gvars as g
+import arguments as a
+
 from utils import UnNormalize
 from utils import split_image
 
@@ -103,14 +105,16 @@ class DLRACD(Dataset):
             
             else:
                 
-                #if not os.path.exists(self.root_dir+mode+"/Images/Patches/"):    
+                patch_save = not os.path.exists(self.root_dir+mode+"/Images/Patches/")  
                 im_patch_path = self.root_dir+mode+"/Images/Patches/"
-                os.makedirs(im_patch_path, exist_ok = True)
+                
+                if patch_save:
+                    os.makedirs(im_patch_path, exist_ok = False)
                     
                 # create image patches
                 for img_path in tqdm(images_list, desc="Loading and splitting {} images...".format(mode)):
                     im = cv2.imread(os.path.join(self.root_dir,mode+"/Images/"+img_path))
-                    im_patches = split_image(im, patch_size = 320, overlap=overlap,name = img_path[:-4],path = im_patch_path,frmt = 'jpg')
+                    im_patches = split_image(im, save = patch_save ,patch_size = 320, overlap=overlap,name = img_path[:-4],path = im_patch_path,frmt = 'jpg')
         
                 patches_list = sorted(os.listdir(os.path.join(self.root_dir,mode+"/Images/Patches/")))
                 
@@ -156,14 +160,16 @@ class DLRACD(Dataset):
                             
                 else:
                     
-                    #if not os.path.exists(self.root_dir+mode+"/Annotation/Patches/"):  
+                    patch_save = not os.path.exists(self.root_dir+mode+"/Annotation/Patches/") 
                     anno_patch_path = self.root_dir+mode+"/Annotation/Patches/"
-                    os.makedirs(anno_patch_path, exist_ok = True)
+                    
+                    if patch_save:
+                        os.makedirs(anno_patch_path, exist_ok = False)
                     
                     # create annotation patches
                     for anno_path in tqdm(annotation_list, desc="Loading and splitting images..."):
                         anno = cv2.imread(os.path.join(self.root_dir,mode+"/Annotation/"+anno_path))
-                        anno_patches = split_image(anno, patch_size = 320, overlap=overlap,name = anno_path[:-4],path = anno_patch_path,frmt = 'png')
+                        anno_patches = split_image(anno,save=patch_save, patch_size = 320, overlap=overlap,name = anno_path[:-4],path = anno_patch_path,frmt = 'png')
                         self.anno_path[mode].extend([anno_path]*len(anno_patches))
                     
                     anno_patches_list = sorted(os.listdir(os.path.join(self.root_dir,mode+"/Annotation/Patches/")))
@@ -198,8 +204,10 @@ class DLRACD(Dataset):
         random.shuffle(joint_lists)
         self.patches['Train'],self.patch_densities['Train'],self.counts['Train'],self.density_counts['Train'],self.point_maps['Train'] = zip(*joint_lists)
         
-        self.train_indices = range(0,len(self.patches['Train'])-1)
-        self.test_indices =  range(len(self.train_indices),len(self.train_indices)+len(self.patches['Test'])-1)
+        break_point = round(0.7*len(self.patches['Train']))
+        self.train_indices = range(0,break_point)
+        self.test_indices = range(break_point,len(self.patches['Train']))
+        #self.test_indices =  range(len(self.train_indices),len(self.train_indices)+len(self.patches['Test']))
         
         self.patches = [*self.patches['Train'],*self.patches['Test']]
         self.patch_path = [*self.patch_path['Train'],*self.patch_path['Test']]
@@ -208,6 +216,9 @@ class DLRACD(Dataset):
         self.density_counts = [*self.density_counts['Train']]
         self.point_maps = [*self.point_maps['Train']]
         self.point_map_path = [*self.point_map_path['Train']]
+        
+        self.hparam_dict = None
+        self.metric_dict = None
         
         
         print("Number of DLR ACD image patches: {}".format(len(self.patches)))
@@ -337,7 +348,7 @@ class DLRACDToTensor(object):
     
 class DLRACDAddUniformNoise(object):
     """Add uniform noise to Dmaps to stabilise training."""
-    def __init__(self, r1=0., r2=c.noise):
+    def __init__(self, r1=0., r2=a.args.noise):
         self.r1 = r1
         self.r2 = r2
     
@@ -921,7 +932,7 @@ class AerialNormalize(object):
 
 class DmapAddUniformNoise(object):
     """Add uniform noise to Dmaps to stabilise training."""
-    def __init__(self, r1=0., r2=c.noise):
+    def __init__(self, r1=0., r2=a.args.noise):
         self.r1 = r1
         self.r2 = r2
     

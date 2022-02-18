@@ -22,7 +22,7 @@ import arguments as a
 # tensorboard
 from torch.utils.tensorboard import SummaryWriter
 
-def train_battery(train_loader,val_loader,lr_i = c.lr_init):
+def train_battery(train_loader,val_loader,lr_i = a.args.learning_rate):
         assert c.train_model
         print("Starting battery: ",str(datetime.now().strftime("%d/%m/%Y %H:%M:%S")))
         t1 = time.perf_counter()
@@ -38,9 +38,9 @@ def train_battery(train_loader,val_loader,lr_i = c.lr_init):
                     
                     j = j+1
                     
-                    if  c.tb:
+                    if  a.args.tensorboard:
                         battery_string = 'battery_'+str(j)
-                        bt_id = 'runs/'+c.schema+'/'+battery_string
+                        bt_id = 'runs/'+a.args.schema+'/'+battery_string
                         print('beginning: {}\n'.format(bt_id))
                         writer = SummaryWriter(log_dir=bt_id)
                     else:
@@ -59,7 +59,8 @@ def train_battery(train_loader,val_loader,lr_i = c.lr_init):
         print("Battery finished. Time Elapsed (hours): ",round((t2-t1) / 60*60 ,2),"| Datetime:",str(datetime.now().strftime("%d/%m/%Y %H:%M:%S")))
                 
 
-def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,battery = False,lr_i=c.lr_init,writer=None): #def train(train_loader, test_loader):
+def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,battery = False,
+          lr_i=a.args.learning_rate,writer=None): #def train(train_loader, test_loader):
             assert c.train_model
             if c.debug:
                 torch.autograd.set_detect_anomaly(True)
@@ -70,12 +71,12 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,ba
                      
             now = datetime.now() 
             
-            parts = [c.schema,
+            parts = [a.args.schema,
                      os.uname().nodename,
                     "BS"+str(train_loader.batch_size),
                     "LR_I"+str(lr_i),
                     "NC"+str(c.n_coupling_blocks),
-                    "E"+str(c.meta_epochs*c.sub_epochs),
+                    "E"+str(a.args.meta_epochs*a.args.sub_epochs),
                     "FE",str(c.feat_extractor),
                     "DIM"+str(c.density_map_h)]
             
@@ -83,7 +84,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,ba
             if a.args.dlr_acd:
                 parts.append('DLRACD')
             
-            if c.mnist:
+            if a.args.mnist:
                 parts.append('MNIST')
             
             if c.joint_optim:
@@ -93,9 +94,9 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,ba
                 parts.append('PT')
                 
             if c.pyramid:
-                parts.append('PY_{}'.format(c.n_pyramid_blocks))
+                parts.append('PY_{}'.format(a.args.n_pyramid_blocks))
                 
-            if c.counts and not c.mnist:
+            if c.counts and not a.args.mnist:
                 parts.append('CT')
             
             if c.fixed1x1conv:
@@ -107,22 +108,22 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,ba
             if c.dropout_p != 0:
                 parts.append('DP_{}'.format(c.dropout_p))
                 
-            if c.weight_decay != 1e-5:
-                parts.extend(["WD",str(c.weight_decay)])
+            if a.args.weight_decay != 1e-5:
+                parts.extend(["WD",str(a.args.weight_decay)])
                 
             if c.train_feat_extractor or c.load_feat_extractor_str != '':
                 parts.append('FT')
                 
-            if c.sigma != 4 and not c.mnist:
+            if c.sigma != 4 and not a.args.mnist:
                 parts.extend(["FSG",str(c.sigma)])
                 
-            if c.clamp_alpha != 1.9 and not c.mnist:
+            if c.clamp_alpha != 1.9 and not a.args.mnist:
                 parts.extend(["CLA",str(c.clamp_alpha)])
                 
-            if c.test_train_split != 70 and not c.mnist:
+            if c.test_train_split != 70 and not a.args.mnist:
                 parts.extend(["SPLIT",str(c.test_train_split)])
                 
-            if c.balanced and not c.mnist:
+            if c.balanced and not a.args.mnist:
                 parts.append('BL')
                    
             parts.append(str(now.strftime("%d_%m_%Y_%H_%M_%S")))
@@ -131,8 +132,9 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,ba
     
             print("Training Model: ",modelname)
     
-            model_hparam_dict = {'schema':c.schema,
-                                 'learning rate init.':lr_i[0],
+            model_hparam_dict = {'schema':a.args.schema,
+                                'learning rate init.':a.args.learning_rate,
+                                'weight decay':a.args.weight_decay,
                                 'batch size':val_loader.batch_size,
                                 'image height':c.density_map_h,
                                 'image width':c.density_map_w,
@@ -144,17 +146,17 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,ba
                                 'feature pyramid?':c.pyramid,
                                 'feature extractor?':c.feat_extractor,
                                 '1x1convs?':c.fixed1x1conv,
-                                'conv filters':c.filters,
+                                'conv filters':a.args.filters,
                                 'fc_width':c.width,
                                 'finetuned?':c.train_feat_extractor,
-                                'mnist?':c.mnist,
+                                'mnist?':a.args.mnist,
                                 'counts?':c.counts,
-                                'n pyramid blocks?':c.n_pyramid_blocks,
+                                'n pyramid blocks?':a.args.n_pyramid_blocks,
                                 'subnet_type?':c.subnet_type,
                                 'prop. of data':c.data_prop,
                                 'clamp alpha':c.clamp_alpha,
-                                'weight decay':c.weight_decay,
-                                'epochs':c.meta_epochs*c.sub_epochs,
+                                'weight decay':a.args.weight_decay,
+                                'epochs':a.args.meta_epochs*a.args.sub_epochs,
                                 'no. of coupling blocks':c.n_coupling_blocks,
                                 'filter sigma':c.sigma,
                                 'feat vec length':c.n_feat}
@@ -166,14 +168,14 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,ba
                 print("Training using {} train samples and {} val samples...".format(len(train_loader)*train_loader.batch_size,
                                                                                             len(val_loader)*val_loader.batch_size))
     
-            if not battery and c.tb:
-                writer = SummaryWriter(log_dir='runs/'+c.schema+'/'+modelname)
+            if not battery and a.args.tensorboard:
+                writer = SummaryWriter(log_dir='runs/'+a.args.schema+'/'+modelname)
             else:
                 writer = writer
             
             feat_extractor = model.select_feat_extractor(c.feat_extractor,train_loader,val_loader)
             
-            if c.mnist:
+            if a.args.mnist:
                 mdl = model.MNISTFlow(modelname=modelname,feat_extractor = feat_extractor)    
             else:
                 mdl = model.CowFlow(modelname=modelname,feat_extractor = feat_extractor)
@@ -182,9 +184,9 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,ba
                 optimizer = torch.optim.Adam([
                             {'params': mdl.nf.parameters()},
                             {'params': mdl.feat_extractor.parameters(), 'lr_init': 1e-3,'betas':(0.9,0.999),'eps':1e-08, 'weight_decay':0}
-                        ], lr=lr_i[0], betas=(0.8, 0.8), eps=1e-04, weight_decay=c.weight_decay )
+                        ], lr=lr_i, betas=(0.8, 0.8), eps=1e-04, weight_decay=a.args.weight_decay )
             else:
-                optimizer = torch.optim.Adam(mdl.nf.parameters(), lr=lr_i[0], betas=(0.9, 0.999), eps=1e-04, weight_decay=c.weight_decay)
+                optimizer = torch.optim.Adam(mdl.nf.parameters(), lr=lr_i, betas=(0.9, 0.999), eps=1e-04, weight_decay=a.args.weight_decay)
             
             
             # add scheduler to improve stability further into training
@@ -196,14 +198,15 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,ba
             k = 0 # track total mini batches
             val_mb_iter = 0
             train_mb_iter = 0
+            best_loss = float('inf')
             j = 0 # track total sub epochs
             l = 0 # track meta epochs
             
-            for meta_epoch in range(c.meta_epochs):
+            for meta_epoch in range(a.args.meta_epochs):
                 
                 mdl.train()
                 
-                for sub_epoch in range(c.sub_epochs):
+                for sub_epoch in range(a.args.sub_epochs):
                     
                     if c.verbose:
                         t_e1 = time.perf_counter()
@@ -222,11 +225,11 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,ba
                         # TODO - can this section
                         if a.args.dlr_acd:
                             images,dmaps,counts,point_maps = data
-                        elif not c.mnist and not c.counts and not train_loader.dataset.classification:
+                        elif not a.args.mnist and not c.counts and not train_loader.dataset.classification:
                             images,dmaps,labels, _ = data # _ annotations
-                        elif not c.mnist and not c.counts:
+                        elif not a.args.mnist and not c.counts:
                             images,dmaps,labels, _, _ = data # _ = annotations
-                        elif not c.mnist:
+                        elif not a.args.mnist:
                             images,dmaps,labels,counts = data
                         else:
                             images,labels = data
@@ -237,19 +240,19 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,ba
                             
                         images = images.float().to(c.device)
                         
-                        if not c.mnist and not c.counts:
+                        if not a.args.mnist and not c.counts:
                             dmaps = dmaps.float().to(c.device)
-                        elif not c.mnist:
+                        elif not a.args.mnist:
                             counts = counts.float().to(c.device)
                         else: 
                             labels = labels.float().to(c.device)
                         
-                        if c.debug and not c.mnist and not c.counts:
+                        if c.debug and not a.args.mnist and not c.counts:
                             print("density maps from data batch size, device..")
                             print(dmaps.size())
                             print(dmaps.device,"\n")
                             
-                        elif c.debug and not c.mnist:
+                        elif c.debug and not a.args.mnist:
                             print("counts from data batch size, device..")
                             print(counts.size())
                             print(counts.device,"\n")
@@ -262,9 +265,9 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,ba
                         # z is the probability density under the latent normal distribution
                         # output of model - two elements: y (z), jacobian
                           
-                        if not c.mnist and not c.counts:
+                        if not a.args.mnist and not c.counts:
                             input_data = (images,dmaps) # inputs features,dmaps
-                        elif not c.mnist:
+                        elif not a.args.mnist:
                             input_data = (images,counts) 
                         else:
                             input_data = (images,labels)
@@ -308,14 +311,14 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,ba
                         
                         t2 = time.perf_counter()
                         
-                        total_iter = len(train_loader) * c.sub_epochs * c.meta_epochs + (len(val_loader) * c.meta_epochs)
+                        total_iter = len(train_loader) * a.args.sub_epochs * a.args.meta_epochs + (len(val_loader) * a.args.meta_epochs)
                         
                         if k % c.report_freq == 0 and c.verbose and k != 0 and c.report_freq != -1:
                                 print('\nTrain | Mini-Batch Time: {:.1f}, Mini-Batch: {:d}, Mini-Batch loss: {:.4f}'.format(t2-t1,i+1, loss_t))
                                 print('{:d} Mini-Batches in sub-epoch remaining'.format(len(train_loader)-i))
                                 print('Total Iterations: ',total_iter,'| Passed Iterations: ',k)
                                 
-                        if c.debug and not c.mnist:
+                        if c.debug and not a.args.mnist:
                             print("number of elements in density maps list:")
                             print(len(dmaps)) # images
                             print("number of images in image tensor:")
@@ -326,14 +329,15 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,ba
                     if c.verbose:
                         t_e2 = time.perf_counter()
                         print("\nTrain | Sub Epoch Time (s): {:f}, Epoch loss: {:.4f}".format(t_e2-t_e1,mean_train_loss))
-                        print('Meta Epoch: {:d}, Sub Epoch: {:d}, | Epoch {:d} out of {:d} Total Epochs'.format(meta_epoch, sub_epoch,meta_epoch*c.sub_epochs + sub_epoch+1,c.meta_epochs*c.sub_epochs))
+                        print('Meta Epoch: {:d}, Sub Epoch: {:d}, | Epoch {:d} out of {:d} Total Epochs'.format(meta_epoch, sub_epoch,meta_epoch*a.args.sub_epochs + sub_epoch+1,a.args.meta_epochs*a.args.sub_epochs))
                     
                     if c.debug:
-                        print("loss/epoch_train:",j)
+                        print("loss/epoch_train:",meta_epoch)
                     
                     if writer != None:
-                        writer.add_scalar('loss/epoch_train',mean_train_loss, j)
+                        writer.add_scalar('loss/epoch_train',mean_train_loss, meta_epoch)
                     
+                    ### Validation Loop ------
                     if c.validation and not a.args.dlr_acd: 
                         val_loss = list()
                         val_z = list()
@@ -345,18 +349,22 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,ba
                                 
                                 # Validation
                                 # TODO - DRY violation...
-                                if not c.mnist and not c.counts:
-                                    input_data = (images,dmaps) # inputs features,dmaps
-                                elif not c.mnist:
-                                    input_data = (images,counts) 
+                                if a.args.dlr_acd:
+                                    images,dmaps,counts,point_maps = data
+                                elif not a.args.mnist and not c.counts and not train_loader.dataset.classification:
+                                    images,dmaps,labels, _ = data # _ annotations
+                                elif not a.args.mnist and not c.counts:
+                                    images,dmaps,labels, _, _ = data # _ = annotations
+                                elif not a.args.mnist:
+                                    images,dmaps,labels,counts = data
                                 else:
-                                    input_data = (images,labels)
+                                    images,labels = data
                             
                                 z, log_det_jac = mdl(*input_data)
                                     
                                 val_z.append(z)
                                 
-                                if i % c.report_freq == 0 and c.debug and not c.mnist and not c.counts:
+                                if i % c.report_freq == 0 and c.debug and not a.args.mnist and not c.counts:
                                         print('val true count: {:f}'.format(dmaps.sum()))
                                     
                                 dims = tuple(range(1, len(z.size())))
@@ -377,10 +385,17 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,ba
                                 print('Validation | Sub Epoch: {:d} \t Epoch loss: {:4f}'.format(sub_epoch,mean_val_loss))
                         
                         if c.debug:
-                            print('loss/epoch_val: ',j)
+                            print('loss/epoch_val: ',meta_epoch)
                         
                         if writer != None:
-                            writer.add_scalar('loss/epoch_val',mean_val_loss, j)
+                            writer.add_scalar('loss/epoch_val',mean_val_loss, meta_epoch)
+                        
+                        # simple early stopping based on val loss
+                        # https://stackoverflow.com/questions/68929471/implementing-early-stopping-in-pytorch-without-torchsample
+                        if mean_val_loss > best_loss and c.save_model:
+                            best_loss = mean_val_loss
+                            # At this point also save a snapshot of the current model
+                            model.save_model(mdl,"best"+str(l)+"_"+modelname)
                             
                         j += 1
                 
@@ -390,8 +405,8 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,ba
                 if mdl.mnist:
                     val_acc, train_acc = eval_mnist(mdl,val_loader,train_loader)
                     print("\n")
-                    print("Training Accuracy: ", train_acc,"| Epoch: ",j)
-                    print("val Accuracy: ",val_acc,"| Epoch: ",j)
+                    print("Training Accuracy: ", train_acc,"| Epoch: ",meta_epoch)
+                    print("val Accuracy: ",val_acc,"| Epoch: ",meta_epoch)
                 
                 if (c.save_model or battery) and c.checkpoints:
                     mdl.to('cpu')
@@ -422,16 +437,16 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,ba
 
                 # MNIST Model metrics
                 if writer != None and mdl.mnist:
-                    writer.add_scalar('acc/meta_epoch_train',train_acc, j)
+                    writer.add_scalar('acc/meta_epoch_train',train_acc, meta_epoch)
                     model_metric_dict['acc/meta_epoch_train'] = train_acc
                     
-                    writer.add_scalar('acc/meta_epoch_val',val_acc, j)
+                    writer.add_scalar('acc/meta_epoch_val',val_acc, meta_epoch)
                     model_metric_dict['acc/meta_epoch_val'] = val_acc
                 
                 # Count Model Metrics
                 if writer != None and mdl.count:
                     train_R2 = torch_r2(mdl,train_loader)
-                    writer.add_scalar('R2/meta_epoch_train',train_R2, j)
+                    writer.add_scalar('R2/meta_epoch_train',train_R2, meta_epoch)
                     model_metric_dict['R2/meta_epoch_train'] = train_R2
                     
                     if c.verbose:
@@ -443,7 +458,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,ba
                     
                     if c.validation:
                         val_R2 = torch_r2(mdl,val_loader)
-                        writer.add_scalar('R2/meta_epoch_val',val_R2, j)
+                        writer.add_scalar('R2/meta_epoch_val',val_R2, meta_epoch)
                         model_metric_dict['R2/meta_epoch_val'] = val_R2
                         
                         if c.verbose:
@@ -457,12 +472,13 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,ba
                 if writer != None:
                     
                     for name,value in model_metric_dict.items():
-                        writer.add_scalar(tag=name, scalar_value=value,global_step=j)
+                        writer.add_scalar(tag=name, scalar_value=value,global_step=meta_epoch)
                     
                     writer.add_hparams(
                               hparam_dict = model_hparam_dict,
                               metric_dict = model_metric_dict,
-                              run_name = "epoch_{}".format(j)
+                              # TOD0 - this will create an entry per meta epoch
+                              run_name = "epoch_{}".format(meta_epoch)
                               )
                     
                     writer.flush()
@@ -470,6 +486,8 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,ba
                 l += 1
             
             ### Post-Training ---
+            mdl.hparam_dict = model_hparam_dict
+            mdl.metric_dict = model_metric_dict
             
             # visualise a random reconstruction
             if c.viz:
@@ -492,7 +510,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,ba
             # save final model, unless models are being saved at end of every meta peoch
             if c.save_model and not c.checkpoints:
                 
-                filename = "./models/"+"final_"+modelname+".txt"
+                filename = "./models/"+"final"+modelname+".txt"
                 
                 # could switch to using json and print params on model reload
                 with open(filename, 'w') as f:

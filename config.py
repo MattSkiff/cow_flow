@@ -1,18 +1,23 @@
-'''This file configures the training procedure'''
-proj_dir = "/home/matthew/Desktop/laptop_desktop/clones/cow_flow/data"
+'''This file configures the training procedure (infrequently changed options)'''
 
 # device settings
 import torch
 import arguments as a
+import os
+
+# this file configures opts that are changed infrequnetly or were used for development
+if os.uname().nodename == 'weka-13':
+    proj_dir = "/home/matthew/Desktop/laptop_desktop/clones/cow_flow/data"
+else:
+    proj_dir = "/home/mks29/clones/cow_flow/data"
 
 gpu = True
 seed = 101
 
 ## Dataset Options ------
-mnist = False 
-load_stored_dmaps = False # speeds up precomputation (with RAM = True)
+load_stored_dmaps = True # speeds up precomputation (with RAM = True)
 store_dmaps = False # this will save dmap objects (numpy arrays) to file
-ram = False # load aerial imagery and precompute dmaps and load both into ram before training
+ram = True # load aerial imagery and precompute dmaps and load both into ram before training
 counts = False # must be off for pretraining feature extractor (#TODO)
 
 ## Training Options ------
@@ -20,14 +25,12 @@ train_model = True # (if false, will only prep dataset,dataloaders)
 balanced = False # whether to have a 1:1 mixture of empty:annotated images
 weighted = False # whether to weight minibatch samples
 annotations_only = True # whether to only use image patches that have annotations
-test_run = False # use only a small fraction of data to check everything works
-validation = False # whether to run validation data per meta epoch
+validation = True # whether to run validation data per meta epoch
 eval_n = 1
-data_prop = 0.1 # proportion of the full dataset to use (ignored in DLR ACD)
+data_prop = 0.1 # proportion of the full dataset to use (ignored in DLR ACD,MNIST)
 test_train_split = 70 # percentage of data to allocate to train set
 
 ## Density Map Options ------
-noise = 1e-3 # amount of uniform noise to add (sample evenly from 0-x) | 0 for none
 sigma = 4.0 # "   -----    "  ignored for DLR ACD which uses gsd correspondence
 scale = 1 # 4, 2 = downscale dmaps four/two fold, 1 = unchanged
 
@@ -43,7 +46,6 @@ load_feat_extractor_str = '' # '' to train from scratch, loads FE  # final_eval_
 fixed1x1conv = False 
 freq_1x1 = 1 # 1 for always | how many x coupling blocks to have a 1x1 conv permutation layer
 pyramid = True # only implemented for resnet18
-n_pyramid_blocks = 1
 n_splits = 4 # number of splits
 gap = False # global average pooling
 downsampling = True # whether to downsample (5 ds layers) dmaps by converting spatial dims to channel dims
@@ -51,7 +53,6 @@ n_coupling_blocks = 5 # if pyramid, total blocks will be n_pyramid_blocks x 5
 
 ## Subnet Architecture Options
 subnet_type = 'conv' # options = fc, conv
-filters = 32 # conv ('64' recommended min)
 batchnorm = False # conv
 width = 400 # fc ('128' recommended min)
 dropout_p = 0.0 # fc only param - 0 for no dropout
@@ -59,23 +60,11 @@ dropout_p = 0.0 # fc only param - 0 for no dropout
 # Hyper Params and Optimisation ------
 joint_optim = True # jointly optimse feature extractor and flow
 scheduler = 'none' # exponential, none
-weight_decay = 1e-3 # differnet: 1e-5
 clip_value = 1 # gradient clipping
 clamp_alpha = 1.9 
 
-# vectorised params must always be passed as lists
-lr_init = [2e-3]
-batch_size = [16] # actual batch size is this value multiplied by n_transforms(_test)
-
-# total epochs = meta_epochs * sub_epochs
-# evaluation after <sub_epochs> epochs
-meta_epochs = 5
-sub_epochs = 1
-
 ## Output Settings ----
-schema = 'debug_test_viz_dlr_acd' # if debug, ignored
 debug = False # report loads of info/debug info
-tb = True # calc and write metrics, hyper params to tb files
 verbose = True # report stats per sub epoch and other info
 report_freq = -1 # nth minibatch to report minibatch loss on (1 = always,-1 = turn off)
 viz = True # visualise outputs and stats
@@ -115,20 +104,20 @@ elif feat_extractor == "vgg16_bn":
 elif feat_extractor == "resnet18":
     n_feat = 512
 elif feat_extractor == "none":
-    if mnist:
+    if a.args.mnist:
         n_feat = 1 
     else:
         # conditioning on raw RGB image
          n_feat = 3
 
-if mnist:
+if a.args.mnist:
     one_hot = True # only for MNIST
 else:
     one_hot = False
 
 if one_hot:
     channels = 10 # onehot 1 num -> 0,0,0,1 etc
-elif mnist or feat_extractor != "none":
+elif a.args.mnist or feat_extractor != "none":
     channels = 1 # greyscale mnist, density maps
 elif counts:
     channels = 1 # duplication not needed (linear subnets)
@@ -137,13 +126,13 @@ else:
     channels = 2 # duplicate dmap over channel dimension (1->2)
 
 if debug:
-    schema = 'debug' # aka ignore debugs
+    a.args.schema = 'debug' # aka ignore debugs
 
 if a.args.dlr_acd:
     img_size = (320,320)
-elif mnist and feat_extractor == "none":
+elif a.args.mnist and feat_extractor == "none":
     img_size = (28,28)
-elif mnist:
+elif a.args.mnist:
     img_size = (228,228) # (28,28)
 else:
     img_size = (800, 600) # width, height (x-y)
@@ -154,7 +143,7 @@ img_dims = [3] + list(img_size) # RGB + x-y
 # this effects the padding applied to the density maps
 if a.args.dlr_acd:
     density_map_h,density_map_w = 320,320
-elif not mnist and not counts and downsampling:
+elif not a.args.mnist and not counts and downsampling:
     density_map_w = 800//scale #img_size[0]
     if feat_extractor == 'resnet18':
         density_map_h = 608//scale #img_size[1]
@@ -165,21 +154,21 @@ elif not mnist and not counts and downsampling:
         density_map_h = 576//scale #img_size[1]
     elif feat_extractor == 'none':
         density_map_h = 600//scale
-elif not mnist and not counts and not downsampling:
+elif not a.args.mnist and not counts and not downsampling:
     density_map_w = 800//scale
     density_map_h = 600//scale
-elif not mnist:
+elif not a.args.mnist:
     # size of count expanded to map spatial feature dimensions
     density_map_h = 19 * 2 # need at least 2 channels, expand x2, then downsample (haar)
     density_map_w = 25 * 2 # TODO - rework so this ties to ft_dims (vgg,alexnet, resnet, etc)
-elif mnist and feat_extractor != "none":
+elif a.args.mnist and feat_extractor != "none":
     if gap:
         density_map_h = img_size[1] * 2
         density_map_w = img_size[0] * 2
     else:
         density_map_h = 6 * 2
         density_map_w = 6 * 2 # feature size x2 (account for downsampling)
-elif mnist and feat_extractor == "none":
+elif a.args.mnist and feat_extractor == "none":
     # minimum possible dimensionality of flow possible with coupling layers
     density_map_h = 4
     density_map_w = 4
@@ -191,9 +180,10 @@ if a.args.gpu_number != 0:
     assert gpu
 
 # Checks ------ 
-#assert not (pyramid and fixed1x1conv)
-#assert not (weighted and annotations_only)
-assert not (a.args.dlr_acd and validation) # test data not provided for DLR ACD
+
+# TODO
+# assert not (pyramid and fixed1x1conv)
+# assert not (weighted and annotations_only)
 
 assert not (feat_extractor == 'none' and gap == True)
 assert gap != downsampling
@@ -204,7 +194,7 @@ assert scheduler in ['exponential','none']
 
 if subnet_type == 'fc':
     assert gap
-    assert mnist or counts
+    assert a.args.mnist or counts
     assert not fixed1x1conv
 
 assert not (load_stored_dmaps and store_dmaps)
@@ -218,7 +208,7 @@ if store_dmaps:
 if subnet_type == 'conv':
     assert dropout_p == 0
     
-if mnist:
+if a.args.mnist:
     assert not counts
 
 if counts:

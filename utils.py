@@ -350,7 +350,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
                     if mdl.count:   
                         fig.suptitle('{} \n Predicted count: {:.2f}\n True Labelled Count: {:.1f}'.format(title,mean_pred),y=1.0,fontsize=16)
                     else:
-                        fig.suptitle('{} \n Predicted count: {:.2f}'.format(title,sum_pred),y=1.05,fontsize=16)
+                        fig.suptitle('{} \n Predicted count: {:.2f} (-{} from noise adj.)'.format(title,sum_pred,constant),y=1.05,fontsize=16)
                         
                     fig.set_size_inches(24*1,7*1)
                     fig.set_dpi(100)
@@ -550,7 +550,7 @@ def plot_peaks(mdl, loader,n=10):
                 ax[1,2].set_xlim(ax[1,0].get_xlim())
                 ax[1,2].title.set_text('Localizations via Peak Finding on Reconstruction\nN = {}'.format(len(coordinates)))   
                 
-            ax[0,0].title.set_text('Mean (N={}) Reconstructed Density Map from Aerial Imagery\nSum Density Map = {:.2f}'.format(n,sum_count))
+            ax[0,0].title.set_text('Mean (N={}) Reconstructed Density Map\nSum Density Map = {:.2f} (-{} manual noise adj.)'.format(n,sum_count,constant))
             #ax[1,0].title.set_text('Pixel-wise Uncertainty Estimate (normalised std. dev)')
             ax[0,1].title.set_text('Image Differencing (Reconstruction, Ground Truth Density Map)')
             ax[0,2].title.set_text('Sum (Integration) Prediction Distribution (N = {})'.format(n))
@@ -777,8 +777,10 @@ def count_parameters(model):
 # minor edits to function, remove non-square opt, grey scale
 def split_image(img,patch_size,save=True,overlap=50,name=None,path=None,frmt=None):
     
+    if save:
+        assert name and path and frmt
+        
     if overlap != 0:
-        assert save and name and path and frmt
         assert 0 < overlap < 1
     
     splits = []
@@ -827,3 +829,30 @@ def split_image(img,patch_size,save=True,overlap=50,name=None,path=None,frmt=Non
             count += 1
     
     return splits
+
+# For MNIST
+# from: https://discuss.pytorch.org/t/how-to-add-noise-to-mnist-dataset-when-using-pytorch/59745
+# @ptrblck
+class AddGaussianNoise(object):
+    def __init__(self, mean=0., std=1.):
+        self.std = std
+        self.mean = mean
+        
+    def __call__(self, tensor):
+        return tensor + torch.randn(tensor.size()) * self.std + self.mean
+    
+    def __repr__(self):
+        return self.__class__.__name__ + '(mean={0}, std={1})'.format(self.mean, self.std)
+    
+class AddUniformNoise(object):
+    def __init__(self, r1=0., r2=1e-2):
+        self.r1 = r1
+        self.r2 = r2
+        
+    def __call__(self, tensor):
+        # uniform tensor in pytorch: 
+        # https://stackoverflow.com/questions/44328530/how-to-get-a-uniform-distribution-in-a-range-r1-r2-in-pytorch
+        return tensor + torch.FloatTensor(tensor.size()).uniform_(self.r1, self.r2)
+    
+    def __repr__(self):
+        return self.__class__.__name__ + '(r1={0}, r2={1})'.format(self.r1, self.r2)
