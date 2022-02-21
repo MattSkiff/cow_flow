@@ -370,7 +370,33 @@ class DLRACDDoubleCrop(object):
     pass
 
 class DLRACDRotateFlipScaling(object):
-    pass
+    """Randomly rotate, flip and scale aerial image and density map."""
+
+    def __call__(self, sample):
+              
+        # Left - Right, Up - Down flipping
+        # 1/4 chance of no flip, 1/4 chance of no rotation, 1/16 chance of no flip or rotate
+        
+        sample['patch'] = TF.resized_crop(sample['patch'],(3,))
+        sample['patch_density'] = TF.resized_crop(sample['patch_density'],(3,))
+        sample['point_maps'] = TF.resized_crop(sample['point_maps'],(3,))
+        
+        if random.randint(0,1):
+            sample['patch'] = torch.flip(sample['patch'],(3,))
+            sample['patch_density'] = torch.flip(sample['patch_density'],(3,))
+            sample['point_maps'] = torch.flip(sample['point_maps'],(3,))
+            
+        if random.randint(0,1):
+            sample['patch'] = torch.flip(sample['patch'],(2,))
+            sample['patch_density'] = torch.flip(sample['patch_density'],(2,))
+            sample['point_maps'] = torch.flip(sample['point_maps'],(2,))
+            
+        rangle = float(random.randint(0,3)*90)
+        sample['patch'] = TF.rotate(sample['patch'],angle=rangle)
+        sample['patch_density'] = TF.rotate(sample['patch_density'],angle=rangle)
+        sample['point_maps'] = TF.rotate(sample['point_maps'],angle=rangle)
+
+        return sample
     
 #### Cow Flow Classes 
 

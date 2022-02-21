@@ -27,7 +27,7 @@ weighted = False # whether to weight minibatch samples
 annotations_only = True # whether to only use image patches that have annotations
 validation = True # whether to run validation data per meta epoch
 eval_n = 1
-data_prop = 0.1 # proportion of the full dataset to use (ignored in DLR ACD,MNIST)
+data_prop = 1 # proportion of the full dataset to use (ignored in DLR ACD,MNIST)
 test_train_split = 70 # percentage of data to allocate to train set
 
 ## Density Map Options ------
@@ -37,7 +37,7 @@ scale = 1 # 4, 2 = downscale dmaps four/two fold, 1 = unchanged
 ## Feature Extractor Options ------
 pretrained = True
 feat_extractor = "resnet18" # alexnet, vgg16_bn,resnet18, none # TODO mnist_resnet, efficient net
-feat_extractor_epochs = 50
+feat_extractor_epochs = 200
 train_feat_extractor = False # whether to finetune or load finetuned model # redundent
 load_feat_extractor_str = '' # '' to train from scratch, loads FE  # final_eval_test_weka-13_BS2_LR_I[0.002]_NC5_E1_FE_resnet18_DIM608_JO_PT_PY_1_1x1_WD_0.001_FSZ_16_14_12_2021_21_49_14
 # nb: pretraining FE saves regardless of save flag
@@ -53,13 +53,13 @@ n_coupling_blocks = 5 # if pyramid, total blocks will be n_pyramid_blocks x 5
 
 ## Subnet Architecture Options
 subnet_type = 'conv' # options = fc, conv
-batchnorm = False # conv
+batchnorm = True # conv
 width = 400 # fc ('128' recommended min)
 dropout_p = 0.0 # fc only param - 0 for no dropout
 
 # Hyper Params and Optimisation ------
 joint_optim = True # jointly optimse feature extractor and flow
-scheduler = 'none' # exponential, none
+scheduler = 'exponential' # exponential, none
 clip_value = 1 # gradient clipping
 clamp_alpha = 1.9 
 

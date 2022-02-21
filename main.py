@@ -60,7 +60,7 @@ if a.args.cows:
     f_t_indices, f_t_weights, f_v_indices, f_v_weights  = train_val_split(dataset = transformed_dataset,
                                                       train_percent = c.test_train_split,
                                                       annotations_only = False,
-                                                      balanced = True,seed = c.seed)
+                                                      balanced = False,seed = c.seed)
     
     # Creating data samplers and loaders:
     # only train part for dev purposes 
@@ -74,14 +74,17 @@ if a.args.cows:
         val_sampler = SubsetRandomSampler(v_indices)    
     
     if c.weighted:
+        pass
         # the weight sizes correspond to whether each indices 0...5900 is null-annotated or not
         # the weights correspond to the probability that that indice is sampled, they don't have to sum to one
-        train_sampler = WeightedRandomSampler(weights=t_weights,
-                                              num_samples=len(t_weights),
-                                              replacement=True)
-        val_sampler = WeightedRandomSampler(weights=v_weights,
-                                            num_samples=len(v_weights),
-                                            replacement=True)
+        
+        # TODO - bug here somehow!
+    full_train_sampler = WeightedRandomSampler(weights=t_weights,
+                                          num_samples=len(t_weights),
+                                          replacement=True)
+    full_val_sampler = WeightedRandomSampler(weights=v_weights,
+                                        num_samples=len(v_weights),
+                                        replacement=True)
     
     if False: #len(a.args.batch_size) != 1 or len(a.args.learning_rate) != 1 and a.args.feat_extract_only:
         ValueError('Training batteries not available for Feature Extractor only runs')
@@ -89,8 +92,10 @@ if a.args.cows:
     if True: #len(c.batch_size) == 1:
         # CPU tensors can't be pinned; leave false
         
-        full_train_sampler = SubsetRandomSampler(f_t_indices)
-        full_val_sampler = SubsetRandomSampler(f_v_indices) 
+        # using balanced samplers cuts dataset from 6k to 800 patches
+        if False:
+            full_train_sampler = SubsetRandomSampler(f_t_indices)
+            full_val_sampler = SubsetRandomSampler(f_v_indices) 
         # TODO - fix random sampling !
         # full_train_sampler = WeightedRandomSampler(weights=f_t_weights,
         #                           num_samples=len(f_t_weights),

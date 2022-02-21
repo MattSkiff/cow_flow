@@ -17,6 +17,10 @@ import arguments as a
 from skimage.feature import peak_local_max # 
 #from skimage import data, img_as_float
 
+if any('SPYDER' in name for name in os.environ):
+    import matplotlib
+    matplotlib.use('TkAgg') # get around agg non-GUI backend error
+
 def ft_dims_select(mdl=None):
     
     if mdl == None:
