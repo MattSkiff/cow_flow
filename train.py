@@ -392,7 +392,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,ba
                         
                         # simple early stopping based on val loss
                         # https://stackoverflow.com/questions/68929471/implementing-early-stopping-in-pytorch-without-torchsample
-                        if mean_val_loss > best_loss and c.save_model:
+                        if mean_val_loss < best_loss and c.save_model:
                             best_loss = mean_val_loss
                             # At this point also save a snapshot of the current model
                             model.save_model(mdl,"best"+str(l)+"_"+modelname)
