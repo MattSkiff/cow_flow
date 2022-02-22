@@ -9,7 +9,7 @@ import config as c
 import arguments as a
 import model
 import os
-from train import train, train_battery
+from train import train, train_baselines
 
 from dlr_acd import train_dlr_acd
 from mnist import train_mnist
@@ -62,9 +62,6 @@ if a.args.cows:
                                                       annotations_only = False,
                                                       balanced = False,seed = c.seed)
     
-    # Creating data samplers and loaders:
-    # only train part for dev purposes 
-    
     if not c.annotations_only:
         train_sampler = SubsetRandomSampler(t_indices)
         val_sampler = SubsetRandomSampler(v_indices)
@@ -86,16 +83,11 @@ if a.args.cows:
                                         num_samples=len(v_weights),
                                         replacement=True)
     
-    if False: #len(a.args.batch_size) != 1 or len(a.args.learning_rate) != 1 and a.args.feat_extract_only:
-        ValueError('Training batteries not available for Feature Extractor only runs')
         
-    if True: #len(c.batch_size) == 1:
-        # CPU tensors can't be pinned; leave false
-        
-        # using balanced samplers cuts dataset from 6k to 800 patches
-        if False:
-            full_train_sampler = SubsetRandomSampler(f_t_indices)
-            full_val_sampler = SubsetRandomSampler(f_v_indices) 
+    # using balanced samplers cuts dataset from 6k to 800 patches
+    if False:
+        full_train_sampler = SubsetRandomSampler(f_t_indices)
+        full_val_sampler = SubsetRandomSampler(f_v_indices) 
         # TODO - fix random sampling !
         # full_train_sampler = WeightedRandomSampler(weights=f_t_weights,
         #                           num_samples=len(f_t_weights),
@@ -105,40 +97,27 @@ if a.args.cows:
         #                                     num_samples=len(f_v_weights),
         #                                     replacement=True)
         
-        full_train_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 
-                            num_workers=0,collate_fn=transformed_dataset.custom_collate_aerial,
-                            pin_memory=False,sampler=full_train_sampler)
+    full_train_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 
+                        num_workers=0,collate_fn=transformed_dataset.custom_collate_aerial,
+                        pin_memory=False,sampler=full_train_sampler)
+
+    full_val_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 
+                        num_workers=0,collate_fn=transformed_dataset.custom_collate_aerial,
+                        pin_memory=False,sampler=full_val_sampler)
     
-        full_val_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 
-                            num_workers=0,collate_fn=transformed_dataset.custom_collate_aerial,
-                            pin_memory=False,sampler=full_val_sampler)
-        
-        train_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 
-                            num_workers=0,collate_fn=transformed_dataset.custom_collate_aerial,
-                            pin_memory=False,sampler=train_sampler)
+    train_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 
+                        num_workers=0,collate_fn=transformed_dataset.custom_collate_aerial,
+                        pin_memory=False,sampler=train_sampler)
+
+    val_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 
+                        num_workers=0,collate_fn=transformed_dataset.custom_collate_aerial,
+                        pin_memory=False,sampler=val_sampler)
     
-        val_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 
-                            num_workers=0,collate_fn=transformed_dataset.custom_collate_aerial,
-                            pin_memory=False,sampler=val_sampler)
-        
-        if True:#len(a.args.learning_rate) == 1:
-            if a.args.feat_extract_only:
-                feat_extractor = model.select_feat_extractor(c.feat_extractor,train_loader,val_loader)
-            else:
-                mdl = train(train_loader,val_loader,full_train_loader,full_val_loader,lr_i=a.args.learning_rate)
-        else:
-            mdl = train_battery([train_loader],[val_loader],lr_i=a.args.learning_rate)
-                
+    if a.args.model_name in ['CSRNet', 'UNet', 'FCRN']:
+        mdl = train_baselines(a.args.model_name,train_loader,val_loader)
     else:
-        tls,vls = [],[]
-        
-        for bs in a.args.batch_size:
-            tls.append(DataLoader(transformed_dataset, batch_size=bs,shuffle=False, 
-                            num_workers=0,collate_fn=transformed_dataset.custom_collate_aerial,
-                            pin_memory=True,sampler=train_sampler))
-            
-            vls.append(DataLoader(transformed_dataset, batch_size=bs,shuffle=False, 
-                            num_workers=0,collate_fn=transformed_dataset.custom_collate_density,
-                            pin_memory=True,sampler=val_sampler))
-            
-            mdl = train_battery(tls,vls,lr_i=c.lr_init)
+        if a.args.feat_extract_only:
+            feat_extractor = model.select_feat_extractor(c.feat_extractor,train_loader,val_loader)
+        else:
+            mdl = train(train_loader,val_loader,full_train_loader,full_val_loader,lr_i=a.args.learning_rate)
+                

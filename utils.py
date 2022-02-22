@@ -6,6 +6,7 @@ import os
 import torch
 import numpy as np
 import random
+from datetime import datetime 
 import cv2
 from prettytable import PrettyTable
 
@@ -860,3 +861,103 @@ class AddUniformNoise(object):
     
     def __repr__(self):
         return self.__class__.__name__ + '(r1={0}, r2={1})'.format(self.r1, self.r2)
+
+def make_model_name(train_loader,lr_i):
+     now = datetime.now() 
+     
+     parts = [a.args.schema,
+              os.uname().nodename,
+             "BS"+str(train_loader.batch_size),
+             "LR_I"+str(lr_i),
+             "NC"+str(c.n_coupling_blocks),
+             "E"+str(a.args.meta_epochs*a.args.sub_epochs),
+             "FE",str(c.feat_extractor),
+             "DIM"+str(c.density_map_h)]
+     
+     #"LRS",str(c.scheduler), # only one LR scheduler currently
+     if a.args.dlr_acd:
+         parts.append('DLRACD')
+     
+     if a.args.mnist:
+         parts.append('MNIST')
+     
+     if c.joint_optim:
+         parts.append('JO')
+         
+     if c.pretrained:
+         parts.append('PT')
+         
+     if c.pyramid:
+         parts.append('PY_{}'.format(a.args.n_pyramid_blocks))
+         
+     if c.counts and not a.args.mnist:
+         parts.append('CT')
+     
+     if c.fixed1x1conv:
+         parts.append('1x1')
+         
+     if c.scale != 1:
+         parts.append('SC_{}'.format(c.scale))
+         
+     if c.dropout_p != 0:
+         parts.append('DP_{}'.format(c.dropout_p))
+         
+     if a.args.weight_decay != 1e-5:
+         parts.extend(["WD",str(a.args.weight_decay)])
+         
+     if c.train_feat_extractor or c.load_feat_extractor_str != '':
+         parts.append('FT')
+         
+     if c.sigma != 4 and not a.args.mnist:
+         parts.extend(["FSG",str(c.sigma)])
+         
+     if c.clamp_alpha != 1.9 and not a.args.mnist:
+         parts.extend(["CLA",str(c.clamp_alpha)])
+         
+     if c.test_train_split != 70 and not a.args.mnist:
+         parts.extend(["SPLIT",str(c.test_train_split)])
+         
+     if c.balanced and not a.args.mnist:
+         parts.append('BL')
+            
+     parts.append(str(now.strftime("%d_%m_%Y_%H_%M_%S")))
+     
+     modelname = "_".join(parts)
+     
+     print("Training Model: ",modelname)
+     
+     return modelname
+ 
+def make_hparam_dict(val_loader):
+    
+    hparam_dict = {'schema':a.args.schema,
+                        'arch':a.args.model_name,
+                        'learning rate init.':a.args.learning_rate,
+                        'weight decay':a.args.weight_decay,
+                        'batch size':val_loader.batch_size,
+                        'image height':c.density_map_h,
+                        'image width':c.density_map_w,
+                        'joint optimisation?':c.joint_optim,
+                        'global average pooling?':c.gap,
+                        'scale:':c.scale,
+                        'annotations only?':c.annotations_only,
+                        'pretrained?':c.pretrained,
+                        'feature pyramid?':c.pyramid,
+                        'feature extractor?':c.feat_extractor,
+                        '1x1convs?':c.fixed1x1conv,
+                        'conv filters':a.args.filters,
+                        'fc_width':c.width,
+                        'finetuned?':c.train_feat_extractor,
+                        'mnist?':a.args.mnist,
+                        'counts?':c.counts,
+                        'n pyramid blocks?':a.args.n_pyramid_blocks,
+                        'subnet_type?':c.subnet_type,
+                        'prop. of data':c.data_prop,
+                        'clamp alpha':c.clamp_alpha,
+                        'weight decay':a.args.weight_decay,
+                        'epochs':a.args.meta_epochs*a.args.sub_epochs,
+                        'no. of coupling blocks':c.n_coupling_blocks,
+                        'filter sigma':c.sigma,
+                        'feat vec length':c.n_feat}
+    
+    return hparam_dict

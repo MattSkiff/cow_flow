@@ -4,6 +4,7 @@ import socket
 # command line params
 parser = argparse.ArgumentParser(description='Create dataloaders and train a conditional NF.')
 
+parser.add_argument('-mod',"--model_name",help="Specify model to train (NF, CSRNet, UNet, FCRN).",default='Unet')
 parser.add_argument("-fe_only", "--feat_extract_only", help="Trains the feature extractor component only.", action="store_true")
 parser.add_argument("-uc", "--unconditional", help="Trains the model without labels.", action="store_true")
 parser.add_argument("-gn", "--gpu_number", help="Selects which GPU to train on.", type=int, default=0)
@@ -17,7 +18,6 @@ parser.add_argument("-split", "--split_dimensions", help="Whether to split off h
 # parser.add_argument("-cfile", "--config_file", help="Specify a config file that will determine training options.", type=int, default=0)
 # parser.add_argument("-c", "--counts", help="Train a model that predicts only counts.", action="store_true")
 
-# vectorised params must always be passed as lists
 parser.add_argument("-name","--schema",type=str,default='debug') # if debug, ignored
 parser.add_argument("-tb","--tensorboard",help='calc and write metrics, hyper params to tb files',action="store_true")
 
@@ -30,6 +30,7 @@ parser.add_argument("-npb","--n_pyramid_blocks",type=int,default=3)
 parser.add_argument('-nse',"--noise",help='amount of uniform noise (sample evenly from 0-x) | 0 for none',type=float,default=1e-3)
 parser.add_argument('-f','--filters',help='width of conv subnetworks',type=int,default=32)
 parser.add_argument('-wd','--weight_decay',type=float,default=1e-3) # differnet: 1e-5
+
 # to implement functions
 # parser.add_argument("-eval_image",'--img',help="Run the model on the image specified (requires model loaded)",type=str,default='')
 # parser.add_argument("-load_model",'--load',help="load the model (from path) for evaluation, inference, or visualisation",type=str,default='')
@@ -39,6 +40,7 @@ args = parser.parse_args()
 host = socket.gethostname()
 
 assert args.gpu_number > -1
+assert args.model_name in ['NF','UNet','CSRNet',]
 
 if host == 'hydra':
      assert args.gpu_number < 8
