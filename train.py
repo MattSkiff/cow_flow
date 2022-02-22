@@ -11,57 +11,63 @@ import os
 from datetime import datetime 
 
 from eval import eval_mnist, dmap_metrics, dmap_pr_curve
-from utils import get_loss, plot_preds, counts_preds_vs_actual, t2np, torch_r2
+from utils import get_loss, plot_preds, counts_preds_vs_actual, t2np, torch_r2, make_model_name, make_hparam_dict
 import model # importing entire file fixes 'cyclical import' issues
 #from model import CowFlow, MNISTFlow, select_feat_extractor, save_model #, save_weights
 
 import config as c
 import gvars as g
 import arguments as a
+import baselines as b
 
 # tensorboard
 from torch.utils.tensorboard import SummaryWriter
-
-def train_battery(train_loader,val_loader,lr_i = a.args.learning_rate):
-        assert c.train_model
-        print("Starting battery: ",str(datetime.now().strftime("%d/%m/%Y %H:%M:%S")))
-        t1 = time.perf_counter()
+               
+def train_baselines(train_loader,val_loader):
+    
+    if a.args.model_name == "CSRNet":
+        mdl = b.FCRN_A()
+    elif a.args.model_name == "Unet":
+        mdl = b.UNet()
+     
+    modelname = make_model_name(train_loader)
+    model_hparam_dict = make_hparam_dict(val_loader)
+    
+    writer = SummaryWriter(log_dir='runs/'+a.args.schema+'/'+modelname) 
+     
+    optimizer = torch.optim.Adam(mdl.parameters(), lr=a.args.learning_rate, betas=(0.9, 0.999), eps=1e-04, weight_decay=a.args.weight_decay)
+    loss = torch.nn.MSELoss()
+    
+    train_loss = []; val_loss = []
+    
+    for meta_epoch in range(a.args.meta_epochs):
+        
+        for sub_epoch in range(a.args.sub_epochs):
+    
+            for i, data in enumerate(tqdm(train_loader, disable=c.hide_tqdm_bar)):
+                
+                images,dmaps,labels, _, _ = data # _ = annotations
+                results = mdl(images)
+                train_loss.append(loss(results,images))
+                loss.backward()
+                clip_grad_value_(mdl.parameters(), c.clip_value)
+                optimizer.step()
+                
+            for i, data in enumerate(tqdm(val_loader, disable=c.hide_tqdm_bar)):
+                
+                
+                images,dmaps,labels, _, _ = data # _ = annotations
+                results = mdl(images)
+                val_loss.append(loss(results,images))
+                loss.backward()
+                clip_grad_value_(mdl.parameters(), c.clip_value)
+                optimizer.step()
         
     
-        if len(lr_i) >= 1 or type(train_loader) == list and type(val_loader) == list:
-            
-            j = 0
-            
-            for tl, vl in zip(train_loader,val_loader):
-            
-                for param in lr_i:
-                    
-                    j = j+1
-                    
-                    if  a.args.tensorboard:
-                        battery_string = 'battery_'+str(j)
-                        bt_id = 'runs/'+a.args.schema+'/'+battery_string
-                        print('beginning: {}\n'.format(bt_id))
-                        writer = SummaryWriter(log_dir=bt_id)
-                    else:
-                        writer = None
-                        
-                    train(train_loader=tl,
-                          val_loader=vl,
-                          battery = True,
-                          lr_i = [param],
-                          writer = writer)
-            
-        else:
-            ValueError("lr_i must have more than one value, or the dataloaders must be supplied as lists")
-            
-        t2 = time.perf_counter()
-        print("Battery finished. Time Elapsed (hours): ",round((t2-t1) / 60*60 ,2),"| Datetime:",str(datetime.now().strftime("%d/%m/%Y %H:%M:%S")))
-                
 
-def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,battery = False,
-          lr_i=a.args.learning_rate,writer=None): #def train(train_loader, test_loader):
+def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,writer=None):
             assert c.train_model
+            
             if c.debug:
                 torch.autograd.set_detect_anomaly(True)
     
@@ -69,97 +75,8 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,ba
                 print("Training run using {} train samples and {} valid samples...".format(str(len(train_loader)*int(train_loader.batch_size)),str(len(val_loader)*int(val_loader.batch_size))))
                 print("Using device: {}".format(c.device))
                      
-            now = datetime.now() 
-            
-            parts = [a.args.schema,
-                     os.uname().nodename,
-                    "BS"+str(train_loader.batch_size),
-                    "LR_I"+str(lr_i),
-                    "NC"+str(c.n_coupling_blocks),
-                    "E"+str(a.args.meta_epochs*a.args.sub_epochs),
-                    "FE",str(c.feat_extractor),
-                    "DIM"+str(c.density_map_h)]
-            
-            #"LRS",str(c.scheduler), # only one LR scheduler currently
-            if a.args.dlr_acd:
-                parts.append('DLRACD')
-            
-            if a.args.mnist:
-                parts.append('MNIST')
-            
-            if c.joint_optim:
-                parts.append('JO')
-                
-            if c.pretrained:
-                parts.append('PT')
-                
-            if c.pyramid:
-                parts.append('PY_{}'.format(a.args.n_pyramid_blocks))
-                
-            if c.counts and not a.args.mnist:
-                parts.append('CT')
-            
-            if c.fixed1x1conv:
-                parts.append('1x1')
-                
-            if c.scale != 1:
-                parts.append('SC_{}'.format(c.scale))
-                
-            if c.dropout_p != 0:
-                parts.append('DP_{}'.format(c.dropout_p))
-                
-            if a.args.weight_decay != 1e-5:
-                parts.extend(["WD",str(a.args.weight_decay)])
-                
-            if c.train_feat_extractor or c.load_feat_extractor_str != '':
-                parts.append('FT')
-                
-            if c.sigma != 4 and not a.args.mnist:
-                parts.extend(["FSG",str(c.sigma)])
-                
-            if c.clamp_alpha != 1.9 and not a.args.mnist:
-                parts.extend(["CLA",str(c.clamp_alpha)])
-                
-            if c.test_train_split != 70 and not a.args.mnist:
-                parts.extend(["SPLIT",str(c.test_train_split)])
-                
-            if c.balanced and not a.args.mnist:
-                parts.append('BL')
-                   
-            parts.append(str(now.strftime("%d_%m_%Y_%H_%M_%S")))
-            
-            modelname = "_".join(parts)
-    
-            print("Training Model: ",modelname)
-    
-            model_hparam_dict = {'schema':a.args.schema,
-                                'learning rate init.':a.args.learning_rate,
-                                'weight decay':a.args.weight_decay,
-                                'batch size':val_loader.batch_size,
-                                'image height':c.density_map_h,
-                                'image width':c.density_map_w,
-                                'joint optimisation?':c.joint_optim,
-                                'global average pooling?':c.gap,
-                                'scale:':c.scale,
-                                'annotations only?':c.annotations_only,
-                                'pretrained?':c.pretrained,
-                                'feature pyramid?':c.pyramid,
-                                'feature extractor?':c.feat_extractor,
-                                '1x1convs?':c.fixed1x1conv,
-                                'conv filters':a.args.filters,
-                                'fc_width':c.width,
-                                'finetuned?':c.train_feat_extractor,
-                                'mnist?':a.args.mnist,
-                                'counts?':c.counts,
-                                'n pyramid blocks?':a.args.n_pyramid_blocks,
-                                'subnet_type?':c.subnet_type,
-                                'prop. of data':c.data_prop,
-                                'clamp alpha':c.clamp_alpha,
-                                'weight decay':a.args.weight_decay,
-                                'epochs':a.args.meta_epochs*a.args.sub_epochs,
-                                'no. of coupling blocks':c.n_coupling_blocks,
-                                'filter sigma':c.sigma,
-                                'feat vec length':c.n_feat}
+            modelname = make_model_name(train_loader)
+            model_hparam_dict = make_hparam_dict(val_loader)
             
             run_start = time.perf_counter()
             print("Starting run: ",str(datetime.now().strftime("%d/%m/%Y %H:%M:%S")))
@@ -168,7 +85,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,ba
                 print("Training using {} train samples and {} val samples...".format(len(train_loader)*train_loader.batch_size,
                                                                                             len(val_loader)*val_loader.batch_size))
     
-            if not battery and a.args.tensorboard:
+            if a.args.tensorboard:
                 writer = SummaryWriter(log_dir='runs/'+a.args.schema+'/'+modelname)
             else:
                 writer = writer
@@ -181,12 +98,13 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,ba
                 mdl = model.CowFlow(modelname=modelname,feat_extractor = feat_extractor)
                     
             if c.joint_optim:
+                # TODO
                 optimizer = torch.optim.Adam([
                             {'params': mdl.nf.parameters()},
-                            {'params': mdl.feat_extractor.parameters(), 'lr_init': 1e-3,'betas':(0.9,0.999),'eps':1e-08, 'weight_decay':0}
-                        ], lr=lr_i, betas=(0.8, 0.8), eps=1e-04, weight_decay=a.args.weight_decay )
+                            {'params': mdl.feat_extractor.parameters() } # , 'lr_init': 1e-3,'betas':(0.9,0.999),'eps':1e-08, 'weight_decay':0}
+                        ], lr=a.args.learning_rate, betas=(0.8, 0.8), eps=1e-04, weight_decay=a.args.weight_decay )
             else:
-                optimizer = torch.optim.Adam(mdl.nf.parameters(), lr=lr_i, betas=(0.9, 0.999), eps=1e-04, weight_decay=a.args.weight_decay)
+                optimizer = torch.optim.Adam(mdl.nf.parameters(), lr=a.args.learning_rate, betas=(0.9, 0.999), eps=1e-04, weight_decay=a.args.weight_decay)
             
             
             # add scheduler to improve stability further into training
@@ -393,9 +311,12 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,ba
                         # simple early stopping based on val loss
                         # https://stackoverflow.com/questions/68929471/implementing-early-stopping-in-pytorch-without-torchsample
                         if mean_val_loss < best_loss and c.save_model:
+                            print(mean_val_loss)
+                            print(best_loss)
                             best_loss = mean_val_loss
                             # At this point also save a snapshot of the current model
                             model.save_model(mdl,"best"+str(l)+"_"+modelname)
+                            1/0
                             
                         j += 1
                 
