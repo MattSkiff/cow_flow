@@ -23,13 +23,17 @@ import baselines as b
 # tensorboard
 from torch.utils.tensorboard import SummaryWriter
                
-def train_baselines(train_loader,val_loader):
+def train_baselines(model_name,train_loader,val_loader):
+    
+    model_metric_dict = {}
     
     if a.args.model_name == "CSRNet":
         mdl = b.FCRN_A()
-    elif a.args.model_name == "Unet":
+    elif a.args.model_name == "UNet":
         mdl = b.UNet()
-     
+    
+    mdl.to(c.device) 
+    
     modelname = make_model_name(train_loader)
     model_hparam_dict = make_hparam_dict(val_loader)
     
@@ -43,25 +47,54 @@ def train_baselines(train_loader,val_loader):
     for meta_epoch in range(a.args.meta_epochs):
         
         for sub_epoch in range(a.args.sub_epochs):
-    
+            
+            t_e1 = time.perf_counter()
+            
             for i, data in enumerate(tqdm(train_loader, disable=c.hide_tqdm_bar)):
                 
                 images,dmaps,labels, _, _ = data # _ = annotations
+                images = images.float().to(c.device)
                 results = mdl(images)
-                train_loss.append(loss(results,images))
-                loss.backward()
+                iter_loss = loss(results.squeeze(),dmaps)
+                t_loss = t2np(iter_loss)
+                iter_loss.backward()
+                train_loss.append(t_loss)
                 clip_grad_value_(mdl.parameters(), c.clip_value)
                 optimizer.step()
+            
+            with torch.no_grad():
                 
-            for i, data in enumerate(tqdm(val_loader, disable=c.hide_tqdm_bar)):
+                for i, data in enumerate(tqdm(val_loader, disable=c.hide_tqdm_bar)):
+                    
+                    images,dmaps,labels, _, _ = data # _ = annotations
+                    images = images.float().to(c.device)
+                    results = mdl(images)
+                    iter_loss = loss(results.squeeze(),dmaps)
+                    v_loss = t2np(iter_loss)
+                    val_loss.append(v_loss)
                 
+            mean_train_loss = np.mean(train_loss)
+            mean_val_loss = np.mean(val_loss)
                 
-                images,dmaps,labels, _, _ = data # _ = annotations
-                results = mdl(images)
-                val_loss.append(loss(results,images))
-                loss.backward()
-                clip_grad_value_(mdl.parameters(), c.clip_value)
-                optimizer.step()
+            t_e2 = time.perf_counter()
+            print("\nTrain | Sub Epoch Time (s): {:f}, Epoch train loss: {:.4f},Epoch train loss: {:.4f}".format(t_e2-t_e1,mean_train_loss,mean_val_loss))
+            print('Meta Epoch: {:d}, Sub Epoch: {:d}, | Epoch {:d} out of {:d} Total Epochs'.format(meta_epoch, sub_epoch,meta_epoch*a.args.sub_epochs + sub_epoch+1,a.args.meta_epochs*a.args.sub_epochs))
+            
+            writer.add_scalar('loss/epoch_train',mean_train_loss, meta_epoch)
+            writer.add_scalar('loss/epoch_val',mean_val_loss, meta_epoch)
+    
+    writer.add_hparams(
+              hparam_dict = model_hparam_dict,
+              metric_dict = model_metric_dict,
+              # this will create an entry per meta epoch
+              run_name = "epoch_{}".format(meta_epoch)
+              )
+    
+    mdl.to('cpu')
+    model.save_model(mdl,modelname)
+    mdl.to(c.device)
+    
+    return mdl
         
     
 
@@ -329,7 +362,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                     print("Training Accuracy: ", train_acc,"| Epoch: ",meta_epoch)
                     print("val Accuracy: ",val_acc,"| Epoch: ",meta_epoch)
                 
-                if (c.save_model or battery) and c.checkpoints:
+                if c.save_model and c.checkpoints:
                     mdl.to('cpu')
                     model.save_model(mdl,"checkpoint_"+str(l)+"_"+modelname)
                     #save_weights(model,"checkpoint_"+str(l)+"_"+modelname) # currently have no use for saving weights
@@ -451,8 +484,8 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
             run_end = time.perf_counter()
             print("Finished Model: ",modelname)
             print("Run finished. Time Elapsed (mins): ",round((run_end-run_start)/60,2),"| Datetime:",str(datetime.now().strftime("%d/%m/%Y %H:%M:%S")))
-            if not battery:
-                return mdl
+
+            return mdl
 
 # train classification head to predict empty patches
 def train_classification_head(mdl,full_trainloader,full_valloader,criterion = nn.CrossEntropyLoss()):
@@ -674,4 +707,5 @@ def train_feat_extractor(feat_extractor,trainloader,valloader,criterion = nn.Cro
         
     feat_extractor.load_state_dict(best_model_wts)
     model.save_model(feat_extractor,filename=filename,loc=g.FEAT_MOD_DIR)
+    
     return feat_extractor

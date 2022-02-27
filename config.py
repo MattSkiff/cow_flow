@@ -15,9 +15,9 @@ gpu = True
 seed = 101
 
 ## Dataset Options ------
-load_stored_dmaps = True # speeds up precomputation (with RAM = True)
+load_stored_dmaps = False # speeds up precomputation (with RAM = True)
 store_dmaps = False # this will save dmap objects (numpy arrays) to file
-ram = True # load aerial imagery and precompute dmaps and load both into ram before training
+ram = False # load aerial imagery and precompute dmaps and load both into ram before training
 counts = False # must be off for pretraining feature extractor (#TODO)
 
 ## Training Options ------
@@ -68,7 +68,7 @@ debug = False # report loads of info/debug info
 verbose = True # report stats per sub epoch and other info
 report_freq = -1 # nth minibatch to report minibatch loss on (1 = always,-1 = turn off)
 viz = True # visualise outputs and stats
-hide_tqdm_bar = True
+hide_tqdm_bar = False
 save_model = True # also saves a copy of the config file with the name of the model
 checkpoints = False # saves after every meta epoch
 

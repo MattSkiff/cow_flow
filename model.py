@@ -721,9 +721,7 @@ class MNISTFlow(nn.Module):
         return z
 
 # only include density map based models?
-class unet():
-    # from https://github.com/milesial/Pytorch-UNet/blob/master/unet/unet_model.py
-    pass
+
 
 class csrnet():
     # from https://github.com/leeyeehoo/CSRNet-pytorch
@@ -731,7 +729,4 @@ class csrnet():
 
 class lcffcn():
     # https://github.com/ElementAI/LCFCN
-    pass
-
-class fcrn():
     pass
