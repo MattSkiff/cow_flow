@@ -47,7 +47,7 @@ def train_dlr_acd(load_only=False):
         dlr_dataset.show_annotations(2345)
     
     if not load_only:
-        mdl = train(train_loader,val_loader,lr_i=a.args.learning_rate)
+        mdl = train(train_loader,val_loader)
     else:
         mdl = None
     

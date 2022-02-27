@@ -6,6 +6,7 @@ from torch.cuda import empty_cache
 from torch.utils.data import DataLoader # Dataset                                                                                                                                                                    
 # from torchvision import transforms
 import config as c
+import arguments as a
 from train import train
 
 from torch.utils.data.sampler import SubsetRandomSampler # RandomSampling
@@ -29,10 +30,10 @@ def train_mnist(load_only=False):
     else:
         toy_sampler = None
     
-    train_loader = DataLoader(mnist_train,batch_size = c.batch_size[0],pin_memory=True,
+    train_loader = DataLoader(mnist_train,batch_size = a.args.batch_size,pin_memory=True,
                                       shuffle=False,sampler=toy_sampler)
-    val_loader = DataLoader(mnist_test,batch_size = c.batch_size[0],pin_memory=True,
+    val_loader = DataLoader(mnist_test,batch_size = a.args.batch_size,pin_memory=True,
                                       shuffle=False,sampler=toy_sampler)
-    mdl = train(train_loader,val_loader,lr_i=c.lr_init)
+    mdl = train(train_loader,val_loader)
     
     return mdl, train_loader, val_loader

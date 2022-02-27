@@ -20,7 +20,7 @@ from skimage.feature import peak_local_max #
 
 if any('SPYDER' in name for name in os.environ):
     import matplotlib
-    matplotlib.use('TkAgg') # get around agg non-GUI backend error
+    #matplotlib.use('TkAgg') # get around agg non-GUI backend error
 
 def ft_dims_select(mdl=None):
     
@@ -91,6 +91,35 @@ class UnNormalize(object):
             t.mul_(s).add_(m)
             # The normalize code -> t.sub_(m).div_(s)
         return tensor      
+
+@torch.no_grad()
+def plot_preds_baselines(mdl, loader):
+        
+        lb_idx = random.randint(0,loader.batch_size-1)
+    
+        for i, data in enumerate(tqdm(loader, disable=c.hide_tqdm_bar)):
+            
+                images,dmaps,labels,binary_labels,annotations = data
+                preds = mdl(images)
+                unnorm = UnNormalize(mean =tuple(c.norm_mean),
+                                     std=tuple(c.norm_std))
+                
+                im = unnorm(images[lb_idx])
+                im = im.permute(1,2,0).cpu().numpy()
+                preds = preds[lb_idx].permute(1,2,0).cpu().numpy()
+
+
+                fig, ax = plt.subplots(1,2)
+                ax[0].title.set_text('Density Map Prediction')
+                ax[0].imshow(preds)
+                ax[1].title.set_text('Conditioning Aerial Image')
+                ax[1].imshow((im * 255).astype(np.uint8))
+                
+                return preds
+                
+                
+                
+        
 
 # TODO split into minst and non mnist funcs
 @torch.no_grad()
@@ -862,13 +891,14 @@ class AddUniformNoise(object):
     def __repr__(self):
         return self.__class__.__name__ + '(r1={0}, r2={1})'.format(self.r1, self.r2)
 
-def make_model_name(train_loader,lr_i):
+def make_model_name(train_loader):
      now = datetime.now() 
      
      parts = [a.args.schema,
+              a.args.model_name,
               os.uname().nodename,
              "BS"+str(train_loader.batch_size),
-             "LR_I"+str(lr_i),
+             "LR_I"+str(a.args.learning_rate),
              "NC"+str(c.n_coupling_blocks),
              "E"+str(a.args.meta_epochs*a.args.sub_epochs),
              "FE",str(c.feat_extractor),
