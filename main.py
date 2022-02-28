@@ -54,7 +54,7 @@ if a.args.cows:
     # create test train split
     t_indices, t_weights, v_indices, v_weights  = train_val_split(dataset = transformed_dataset,
                                                       train_percent = c.test_train_split,
-                                                      annotations_only = c.annotations_only,
+                                                      annotations_only = a.args.annotations_only,
                                                       balanced = True,seed = c.seed)
     
     f_t_indices, f_t_weights, f_v_indices, f_v_weights  = train_val_split(dataset = transformed_dataset,
@@ -62,11 +62,11 @@ if a.args.cows:
                                                       annotations_only = False,
                                                       balanced = False,seed = c.seed)
     
-    if not c.annotations_only:
+    if not a.args.annotations_only:
         train_sampler = SubsetRandomSampler(t_indices)
         val_sampler = SubsetRandomSampler(v_indices)
     
-    if c.annotations_only:
+    if a.args.annotations_only:
         train_sampler = SubsetRandomSampler(t_indices)
         val_sampler = SubsetRandomSampler(v_indices)    
     
@@ -119,5 +119,5 @@ if a.args.cows:
         if a.args.feat_extract_only:
             feat_extractor = model.select_feat_extractor(c.feat_extractor,train_loader,val_loader)
         else:
-            mdl = train(train_loader,val_loader,full_train_loader,full_val_loader,lr_i=a.args.learning_rate)
+            mdl = train(train_loader,val_loader,full_train_loader,full_val_loader)
                 

@@ -22,9 +22,8 @@ counts = False # must be off for pretraining feature extractor (#TODO)
 
 ## Training Options ------
 train_model = True # (if false, will only prep dataset,dataloaders)
-balanced = False # whether to have a 1:1 mixture of empty:annotated images
+balanced = True # whether to have a 1:1 mixture of empty:annotated images
 weighted = False # whether to weight minibatch samples
-annotations_only = True # whether to only use image patches that have annotations
 validation = True # whether to run validation data per meta epoch
 eval_n = 1
 data_prop = 1 # proportion of the full dataset to use (ignored in DLR ACD,MNIST)

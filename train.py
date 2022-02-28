@@ -31,12 +31,18 @@ def train_baselines(model_name,train_loader,val_loader):
     writer = SummaryWriter(log_dir='runs/'+a.args.schema+'/'+modelname)   
     loss = torch.nn.MSELoss()
     
-    if a.args.model_name == "CSRNet":
+    if a.args.model_name == "FCRN":
         mdl = b.FCRN_A(modelname=modelname)
     elif a.args.model_name == "UNet":
         mdl = b.UNet(modelname=modelname)
+    elif a.args.model_name == "CSRNet":
+        raise ValueError#mdl = b.UNet(modelname=modelname)
+    
         
     optimizer = torch.optim.Adam(mdl.parameters(), lr=a.args.learning_rate, betas=(0.9, 0.999), eps=1e-04, weight_decay=a.args.weight_decay)
+    # add scheduler to improve stability further into training
+    if c.scheduler == "exponential":
+        scheduler = ExponentialLR(optimizer, gamma=0.9)
     mdl.to(c.device) 
     
     train_loss = []; val_loss = []
@@ -58,6 +64,8 @@ def train_baselines(model_name,train_loader,val_loader):
                 train_loss.append(t_loss)
                 clip_grad_value_(mdl.parameters(), c.clip_value)
                 optimizer.step()
+                if c.scheduler != "none":
+                    scheduler.step()
             
             with torch.no_grad():
                 
@@ -135,7 +143,6 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                         ], lr=a.args.learning_rate, betas=(0.8, 0.8), eps=1e-04, weight_decay=a.args.weight_decay )
             else:
                 optimizer = torch.optim.Adam(mdl.nf.parameters(), lr=a.args.learning_rate, betas=(0.9, 0.999), eps=1e-04, weight_decay=a.args.weight_decay)
-            
             
             # add scheduler to improve stability further into training
             if c.scheduler == "exponential":
