@@ -26,21 +26,18 @@ from torch.utils.tensorboard import SummaryWriter
 def train_baselines(model_name,train_loader,val_loader):
     
     model_metric_dict = {}
-    
-    if a.args.model_name == "CSRNet":
-        mdl = b.FCRN_A()
-    elif a.args.model_name == "UNet":
-        mdl = b.UNet()
-    
-    mdl.to(c.device) 
-    
     modelname = make_model_name(train_loader)
     model_hparam_dict = make_hparam_dict(val_loader)
-    
-    writer = SummaryWriter(log_dir='runs/'+a.args.schema+'/'+modelname) 
-     
-    optimizer = torch.optim.Adam(mdl.parameters(), lr=a.args.learning_rate, betas=(0.9, 0.999), eps=1e-04, weight_decay=a.args.weight_decay)
+    writer = SummaryWriter(log_dir='runs/'+a.args.schema+'/'+modelname)   
     loss = torch.nn.MSELoss()
+    
+    if a.args.model_name == "CSRNet":
+        mdl = b.FCRN_A(modelname=modelname)
+    elif a.args.model_name == "UNet":
+        mdl = b.UNet(modelname=modelname)
+        
+    optimizer = torch.optim.Adam(mdl.parameters(), lr=a.args.learning_rate, betas=(0.9, 0.999), eps=1e-04, weight_decay=a.args.weight_decay)
+    mdl.to(c.device) 
     
     train_loss = []; val_loss = []
     
