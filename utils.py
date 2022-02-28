@@ -100,14 +100,13 @@ def plot_preds_baselines(mdl, loader):
         for i, data in enumerate(tqdm(loader, disable=c.hide_tqdm_bar)):
             
                 images,dmaps,labels,binary_labels,annotations = data
-                preds = mdl(images)
-                unnorm = UnNormalize(mean =tuple(c.norm_mean),
+                preds = mdl(images.cpu())
+                unnorm = UnNormalize(mean=tuple(c.norm_mean),
                                      std=tuple(c.norm_std))
                 
                 im = unnorm(images[lb_idx])
                 im = im.permute(1,2,0).cpu().numpy()
                 preds = preds[lb_idx].permute(1,2,0).cpu().numpy()
-
 
                 fig, ax = plt.subplots(1,2)
                 ax[0].title.set_text('Density Map Prediction')
@@ -117,10 +116,6 @@ def plot_preds_baselines(mdl, loader):
                 
                 return preds
                 
-                
-                
-        
-
 # TODO split into minst and non mnist funcs
 @torch.no_grad()
 def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,

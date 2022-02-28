@@ -5,6 +5,8 @@ from typing import Tuple
 import numpy as np
 import torch
 from torch import nn
+import arguments as a
+import config as c
 
 def conv_block(channels: Tuple[int, int],
                size: Tuple[int, int],
@@ -120,7 +122,7 @@ class UNet(nn.Module):
     image segmentation."
     """
 
-    def __init__(self, filters: int=64, input_filters: int=3, **kwargs):
+    def __init__(self,modelname,filters: int=64, input_filters: int=3, **kwargs):
         """
         Create U-Net model with:
             * fixed kernel size = (3, 3)
@@ -131,6 +133,32 @@ class UNet(nn.Module):
             filters: no. of filters for convolutional layers
             input_filters: no. of input channels
         """
+        
+        if a.args.dlr_acd:
+            self.dlr_acd = True
+        else:
+            self.dlr_acd = False
+        
+        # these attr's are needed to make the model object independant of the config file
+        self.modelname = modelname
+        self.unconditional = False
+        self.count = False
+        self.subnet_type = None
+        self.mnist = False
+        self.gap = c.gap
+        self.n_coupling_blocks = c.n_coupling_blocks
+        self.joint_optim = False
+        self.pretrained = False
+        self.finetuned = False
+        self.scheduler = c.scheduler
+        self.scale = c.scale
+        self.density_map_h = c.density_map_h
+        self.density_map_w = c.density_map_w
+        self.downsampling = c.downsampling
+        self.scale = c.scale
+        self.noise = a.args.noise
+        self.seed = c.seed
+        
         super(UNet, self).__init__()
         # first block channels size
         initial_filters = (input_filters, filters)
