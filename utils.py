@@ -93,14 +93,18 @@ class UnNormalize(object):
         return tensor      
 
 @torch.no_grad()
-def plot_preds_baselines(mdl, loader):
+def plot_preds_baselines(mdl, loader,mode="",mdl_type=''):
+    
+        assert mode in ['train','val']
+        assert mdl_type in ['UNet','CSRNet','FCRN','LCFCN']
         
         lb_idx = random.randint(0,loader.batch_size-1)
     
         for i, data in enumerate(tqdm(loader, disable=c.hide_tqdm_bar)):
-            
+                
+                mdl.to(c.device)
                 images,dmaps,labels,binary_labels,annotations = data
-                preds = mdl(images.cpu())
+                preds = mdl(images)
                 unnorm = UnNormalize(mean=tuple(c.norm_mean),
                                      std=tuple(c.norm_std))
                 
@@ -108,13 +112,23 @@ def plot_preds_baselines(mdl, loader):
                 im = im.permute(1,2,0).cpu().numpy()
                 preds = preds[lb_idx].permute(1,2,0).cpu().numpy()
 
-                fig, ax = plt.subplots(1,2)
+                fig, ax = plt.subplots(1,3)
+                plt.subplots_adjust(left=0.1, right=0.9, top=0.9, bottom=0.1)
+                fig.set_size_inches(24*1,7*1)
+                fig.set_dpi(100)
+                fig.suptitle('Baseline ({}) Test - {}'.format(mdl_type,mode),y=1.0,fontsize=16) # :.2f
+                
+                [axi.set_axis_off() for axi in ax.ravel()] # turn off subplot axes
+
                 ax[0].title.set_text('Density Map Prediction')
                 ax[0].imshow(preds)
                 ax[1].title.set_text('Conditioning Aerial Image')
                 ax[1].imshow((im * 255).astype(np.uint8))
+                ax[2].title.set_text('Ground Truth Density Map')
+                ax[2].imshow(dmaps[lb_idx].cpu().numpy())
                 
-                return preds
+                return preds,dmaps[lb_idx]
+                return preds, preds.sum(),dmaps[lb_idx].sum(),len(labels[lb_idx])
                 
 # TODO split into minst and non mnist funcs
 @torch.no_grad()
@@ -965,7 +979,7 @@ def make_hparam_dict(val_loader):
                         'joint optimisation?':c.joint_optim,
                         'global average pooling?':c.gap,
                         'scale:':c.scale,
-                        'annotations only?':c.annotations_only,
+                        'annotations only?':a.args.annotations_only,
                         'pretrained?':c.pretrained,
                         'feature pyramid?':c.pyramid,
                         'feature extractor?':c.feat_extractor,
