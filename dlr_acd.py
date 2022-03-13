@@ -12,7 +12,7 @@ from utils import plot_preds, plot_peaks
 import arguments as a
 
 #from utils import load_datasets, make_dataloaders
-from data_loader import DLRACD, DLRACDToTensor, DLRACDAddUniformNoise
+from data_loader import DLRACD, DLRACDToTensor, DLRACDAddUniformNoise,DLRACDCropRotateFlipScaling
 
 def train_dlr_acd(load_only=False):    
     empty_cache() # free up memory for cuda
@@ -21,7 +21,7 @@ def train_dlr_acd(load_only=False):
         DLRACDToTensor(),
         DLRACDAddUniformNoise(),
         # DLRACDDoubleCrop
-        # DLRACDRotateFlipScaling
+        DLRACDCropRotateFlipScaling(),
         ])
     
     dlr_dataset = DLRACD(root_dir=c.proj_dir,transform = dlracd_pre,overlap=0.5)

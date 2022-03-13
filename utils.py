@@ -8,6 +8,7 @@ import numpy as np
 import random
 from datetime import datetime 
 import cv2
+import re # lukas
 from prettytable import PrettyTable
 
 import config as c
@@ -127,7 +128,6 @@ def plot_preds_baselines(mdl, loader,mode="",mdl_type=''):
                 ax[2].title.set_text('Ground Truth Density Map')
                 ax[2].imshow(dmaps[lb_idx].cpu().numpy())
                 
-                return preds,dmaps[lb_idx]
                 return preds, preds.sum(),dmaps[lb_idx].sum(),len(labels[lb_idx])
                 
 # TODO split into minst and non mnist funcs
@@ -823,8 +823,8 @@ def split_image(img,patch_size,save=True,overlap=50,name=None,path=None,frmt=Non
     if save:
         assert name and path and frmt
         
-    if overlap != 0:
-        assert 0 < overlap < 1
+
+    assert 0 <= overlap < 1
     
     splits = []
     
@@ -872,6 +872,44 @@ def split_image(img,patch_size,save=True,overlap=50,name=None,path=None,frmt=Non
             count += 1
     
     return splits
+
+def predict_image():
+    
+    return None
+
+# def stich_image(img_dir=None,img_prefix=None,raw_img_path=None,patch_width=None):
+    
+#     img_ls = os.listdir(img_dir)
+#     patch_name_ls = [[{'name':'','path':''}]]
+    
+#     for img in img_ls:
+    
+#       match = re.match(pattern=img_prefix,string=img)
+#       if match != None:
+#           if match.group() == img_prefix:
+#               patch_name_ls.append(img.removeprefix(img_prefix)) # Python 3.9+
+              
+#     sorted(patch_name_ls, key=lambda x: int(x.split('.', 1)[0]))
+    
+#     im_width = cv2.imread(raw_img_path).shape[1]
+#     row_split = im_width - patch_width
+#     counter = 0
+#     for patch_name in patch_name_ls:
+#         patch = cv2.imread(os.path.join(img_dir,img_prefix,patch_name))
+        
+
+          
+              
+              
+
+
+     #if re.match(pattern=img_name,string=img):
+
+    
+    
+    return None
+    
+    
 
 # For MNIST
 # from: https://discuss.pytorch.org/t/how-to-add-noise-to-mnist-dataset-when-using-pytorch/59745
@@ -956,7 +994,7 @@ def make_model_name(train_loader):
      if c.test_train_split != 70 and not a.args.mnist:
          parts.extend(["SPLIT",str(c.test_train_split)])
          
-     if c.balanced and not a.args.mnist:
+     if a.args.balance and not a.args.mnist:
          parts.append('BL')
             
      parts.append(str(now.strftime("%d_%m_%Y_%H_%M_%S")))

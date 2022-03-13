@@ -25,6 +25,7 @@ from scipy.signal import convolve2d as conv2
 from torch.utils.data import Dataset, DataLoader
 
 import torchvision.transforms.functional as TF
+import torchvision.transforms as T
 import torch.nn.functional as F
 
 from torchvision import utils
@@ -154,7 +155,12 @@ class DLRACD(Dataset):
                                 print('Anno path is {}'.format(anno_path))
                                 print('GSD is {}'.format(gsd_sigma))
                             
-                            p_d = scipy.ndimage.filters.gaussian_filter(pm, sigma = gsd_sigma, mode='constant')
+                            if a.args.dmap_type == 'max':
+                                p_d = scipy.ndimage.filters.maximum_filter(pm,size = (7,7))
+                            else:
+                                p_d = scipy.ndimage.filters.gaussian_filter(pm, sigma = gsd_sigma, mode='constant')
+                                
+                            
                             self.density_counts[mode].append(p_d.sum())
                             self.patch_densities[mode].append(p_d)
                             
@@ -365,21 +371,24 @@ class DLRACDAddUniformNoise(object):
         
         return sample
 
-
-class DLRACDDoubleCrop(object):
-    pass
-
-class DLRACDRotateFlipScaling(object):
+class DLRACDCropRotateFlipScaling(object):
     """Randomly rotate, flip and scale aerial image and density map."""
 
     def __call__(self, sample):
               
         # Left - Right, Up - Down flipping
         # 1/4 chance of no flip, 1/4 chance of no rotation, 1/16 chance of no flip or rotate
+        resize = T.Resize(size=(256,256))
         
-        sample['patch'] = TF.resized_crop(sample['patch'],(3,))
-        sample['patch_density'] = TF.resized_crop(sample['patch_density'],(3,))
-        sample['point_maps'] = TF.resized_crop(sample['point_maps'],(3,))
+        sample['patch'] = resize(sample['patch'].unsqueeze(0))
+        sample['patch_density'] = resize(sample['patch_density'].unsqueeze(0).unsqueeze(0))
+        sample['point_maps'] = resize(sample['point_maps'].unsqueeze(0).unsqueeze(0))
+        
+        
+        i, j, h, w = T.RandomCrop.get_params(sample['patch'], output_size=(256, 256))
+        sample['patch'] = TF.crop(sample['patch'], i, j, h, w)
+        sample['patch_density'] = TF.crop(sample['patch_density'], i, j, h, w)
+        sample['point_maps'] = TF.crop(sample['point_maps'], i, j, h, w)
         
         if random.randint(0,1):
             sample['patch'] = torch.flip(sample['patch'],(3,))
@@ -395,6 +404,10 @@ class DLRACDRotateFlipScaling(object):
         sample['patch'] = TF.rotate(sample['patch'],angle=rangle)
         sample['patch_density'] = TF.rotate(sample['patch_density'],angle=rangle)
         sample['point_maps'] = TF.rotate(sample['point_maps'],angle=rangle)
+        
+        sample['patch'] = sample['patch'].squeeze()
+        sample['patch_density'] = sample['patch_density'].squeeze().squeeze()
+        sample['point_maps'] = sample['point_maps'].squeeze().squeeze()
 
         return sample
     
@@ -474,11 +487,17 @@ class CowObjectsDataset(Dataset):
         self.train_im_paths = train_im_paths
         
         def compute_labels(idx):
+                         
+            if a.args.dmap_type == 'max':
+                dmap_type = '_max'
+            else:
+                dmap_type = '' # _gauss
             
             """ computes and returns labels for a single annotation file"""
             labels = []
             img_path = os.path.join(self.root_dir,
                                     self.train_im_paths[idx])
+            
             txt_path = img_path[:-3]+'txt'
             image = io.imread(img_path)
             
@@ -493,8 +512,8 @@ class CowObjectsDataset(Dataset):
             if c.load_stored_dmaps:
                 if not os.path.exists(dmap_path):
                     ValueError("Dmaps must have been previously stored!")
-                
-                store = load(dmap_path[:-4]+'npz',allow_pickle=True)
+   
+                store = load(dmap_path[:-5]+dmap_type+'.npz',allow_pickle=True)
                 density_map = store['arr_0'][0]
                 labels = store['arr_0'][1]
                 annotations = store['arr_0'][2]
@@ -542,8 +561,11 @@ class CowObjectsDataset(Dataset):
                                 
                             # subtract 1 to account for 0 indexing
                             base_map[int(round(point[2]*c.img_size[1])-1),int(round(point[1]*c.img_size[0])-1)] += 1
-        
-                            density_map += scipy.ndimage.filters.gaussian_filter(base_map, sigma = c.sigma, mode='constant')
+                            
+                            if a.args.dmap_type == 'max':
+                                density_map += scipy.ndimage.filters.maximum_filter(base_map,size = (7,7))
+                            else:                                
+                                density_map += scipy.ndimage.filters.gaussian_filter(base_map, sigma = c.sigma, mode='constant')
                             
                             labels.append(point[0])
                             
@@ -559,7 +581,7 @@ class CowObjectsDataset(Dataset):
                         os.makedirs(g.DMAP_DIR)
                     
                     store = [density_map,labels,annotations]
-                    savez_compressed(dmap_path[:-5],store)
+                    savez_compressed(dmap_path[:-5]+dmap_type,store)
             
             sample = {'image': image}
                 
@@ -827,7 +849,7 @@ class CowObjectsDataset(Dataset):
         if show:
             plt.show()
     
-        return im
+        return im, dmap
             
     # because batches have varying numbers of bounding boxes, need to define custom collate func
     # https://discuss.pytorch.org/t/dataloader-gives-stack-expects-each-tensor-to-be-equal-size-due-to-different-image-has-different-objects-number/91941/5
@@ -974,7 +996,45 @@ class DmapAddUniformNoise(object):
                 print("uniform noise ({},{}) added to dmap".format(self.r1, self.r2))
         
         return sample
-    
+
+class CropRotateFlipScaling(object):
+    """Randomly rotate, flip and scale aerial image and density map."""
+
+    def __call__(self, sample):
+              
+        # Left - Right, Up - Down flipping
+        # 1/4 chance of no flip, 1/4 chance of no rotation, 1/16 chance of no flip or rotate
+        # want identical transforms to density and image
+        # https://discuss.pytorch.org/t/torchvision-transfors-how-to-perform-identical-transform-on-both-image-and-target/10606/7
+        resize = T.Resize(size=(256,256))
+        
+        sample['image'] = resize(sample['image'].unsqueeze(0))
+        sample['density'] = resize(sample['density'].unsqueeze(0).unsqueeze(0))
+        
+        i, j, h, w = T.RandomCrop.get_params(sample['image'], output_size=(256, 256))
+        sample['image'] = TF.crop(sample['image'], i, j, h, w)
+        sample['density'] = TF.crop(sample['density'], i, j, h, w)
+
+        if random.randint(0,1):
+            sample['image'] = torch.flip(sample['image'],(3,))
+            sample['density'] = torch.flip(sample['density'],(3,))
+            #sample['point_maps'] = torch.flip(sample['point_maps'],(3,))
+            
+        if random.randint(0,1):
+            sample['image'] = torch.flip(sample['image'],(2,))
+            sample['density'] = torch.flip(sample['density'],(2,))
+           #sample['point_maps'] = torch.flip(sample['point_maps'],(2,))
+            
+        rangle = float(random.randint(0,3)*90)
+        sample['image'] = TF.rotate(sample['image'],angle=rangle)
+        sample['density'] = TF.rotate(sample['density'],angle=rangle)
+        #sample['point_maps'] = TF.rotate(sample['point_maps'],angle=rangle)
+        
+        sample['image'] = sample['image'].squeeze()
+        sample['density'] = sample['density'].squeeze().squeeze()
+        
+        return sample    
+
 class CustCrop(object):
     """Crop images to match vgg feature sizes."""
 
@@ -1041,7 +1101,9 @@ class CustResize(object):
 # Dataset is highly imbalanced, want test set to mirror train set imbalance
 # TODO: implement 'balanced' argument
 # TODO: get split function to only iterate over txt files, not images 
-def train_val_split(dataset,train_percent,balanced = False,annotations_only = False,seed = -1):
+def train_val_split(dataset,train_percent,oversample=False,
+                    balanced = False,annotations_only = False,seed = -1):
+    
     ''' 
      Args:
          dataset: pytorch dataset
@@ -1058,6 +1120,7 @@ def train_val_split(dataset,train_percent,balanced = False,annotations_only = Fa
      
      '''
     
+    assert not (balanced and oversample)
     assert type(seed) == int
     
     if seed != -1:
@@ -1081,6 +1144,10 @@ def train_val_split(dataset,train_percent,balanced = False,annotations_only = Fa
             a_indices.append(i)
         else:
             e_indices.append(i)
+    
+    # designed to be used with balanced sampler
+    if oversample:
+        a_indices = np.tile(np.array(a_indices),int(np.round(len(e_indices)/len(a_indices))))
             
     if c.debug:
         print(len(a_indices))
@@ -1108,6 +1175,12 @@ def train_val_split(dataset,train_percent,balanced = False,annotations_only = Fa
     a_weights = ((np.ones(len(a_indices))/weight_a).tolist())
     e_weights = ((np.ones(len(e_indices))/weight_e).tolist())
     
+    # print("Length Annotated and Eempty Weights")
+    # print(len(a_weights))
+    # print(len(e_weights))
+    # print(a_weights[0])
+    # print(e_weights[0])
+    
     # only split if not annotations ony
     # TODO: DRY (and ugly)
     if not annotations_only:
@@ -1117,8 +1190,9 @@ def train_val_split(dataset,train_percent,balanced = False,annotations_only = Fa
         v_indices.extend(e_indices[split_e:])
         
     t_indices.extend(a_indices[:split_a])
-    t_weights.extend(a_weights[:split_a]) 
     v_indices.extend(a_indices[split_a:])
+    
+    t_weights.extend(a_weights[:split_a])
     v_weights.extend(a_weights[split_a:])
         
     # shuffle in unison
