@@ -24,7 +24,7 @@ import baselines as b
 from torch.utils.tensorboard import SummaryWriter
                
 def train_baselines(model_name,train_loader,val_loader):
-    
+    assert c.train_model
     model_metric_dict = {}
     modelname = make_model_name(train_loader)
     model_hparam_dict = make_hparam_dict(val_loader)
@@ -36,7 +36,8 @@ def train_baselines(model_name,train_loader,val_loader):
     elif a.args.model_name == "UNet":
         mdl = b.UNet(modelname=modelname)
     elif a.args.model_name == "CSRNet":
-        raise ValueError#mdl = b.UNet(modelname=modelname)
+        mdl = b.UNet(modelname=modelname)
+        #raise ValueError#mdl = b.UNet(modelname=modelname)
     
         
     optimizer = torch.optim.Adam(mdl.parameters(), lr=a.args.learning_rate, betas=(0.9, 0.999), eps=1e-04, weight_decay=a.args.weight_decay)
@@ -82,7 +83,7 @@ def train_baselines(model_name,train_loader,val_loader):
             mean_val_loss = np.mean(val_loss)
                 
             t_e2 = time.perf_counter()
-            print("\nTrain | Sub Epoch Time (s): {:f}, Epoch train loss: {:.4f},Epoch train loss: {:.4f}".format(t_e2-t_e1,mean_train_loss,mean_val_loss))
+            print("\nTrain | Sub Epoch Time (s): {:f}, Epoch train loss: {:.4f},Epoch val loss: {:.4f}".format(t_e2-t_e1,mean_train_loss,mean_val_loss))
             print('Meta Epoch: {:d}, Sub Epoch: {:d}, | Epoch {:d} out of {:d} Total Epochs'.format(meta_epoch, sub_epoch,meta_epoch*a.args.sub_epochs + sub_epoch+1,a.args.meta_epochs*a.args.sub_epochs))
             
             writer.add_scalar('loss/epoch_train',mean_train_loss, meta_epoch)
@@ -353,7 +354,6 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                             best_loss = mean_val_loss
                             # At this point also save a snapshot of the current model
                             model.save_model(mdl,"best"+str(l)+"_"+modelname)
-                            1/0
                             
                         j += 1
                 

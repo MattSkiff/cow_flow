@@ -17,7 +17,7 @@ from mnist import train_mnist
 from ipywidgets import FloatProgress # fix iprogress error in tqdm
 
 #from utils import load_datasets, make_dataloaders
-from data_loader import CowObjectsDataset, CustToTensor, AerialNormalize, DmapAddUniformNoise, CustCrop, CustResize, train_val_split
+from data_loader import CowObjectsDataset, CustToTensor, AerialNormalize, DmapAddUniformNoise, CustCrop, CustResize, train_val_split, CropRotateFlipScaling
 
 from utils import plot_preds, plot_peaks
 
@@ -36,8 +36,9 @@ if a.args.cows:
     dmaps_pre = Compose([
                 CustToTensor(),
                 AerialNormalize(),
-                CustResize(),
-                CustCrop(),
+                CropRotateFlipScaling(),
+                #CustResize(),
+                #CustCrop(),
                 DmapAddUniformNoise(),
             ])
                         
@@ -55,48 +56,44 @@ if a.args.cows:
     t_indices, t_weights, v_indices, v_weights  = train_val_split(dataset = transformed_dataset,
                                                       train_percent = c.test_train_split,
                                                       annotations_only = a.args.annotations_only,
-                                                      balanced = True,seed = c.seed)
+                                                      balanced = a.args.balance,seed = c.seed,
+                                                      oversample=True)
     
     f_t_indices, f_t_weights, f_v_indices, f_v_weights  = train_val_split(dataset = transformed_dataset,
                                                       train_percent = c.test_train_split,
                                                       annotations_only = False,
-                                                      balanced = False,seed = c.seed)
+                                                      balanced = a.args.balance,seed = c.seed,
+                                                      oversample=True)
     
-    if not a.args.annotations_only:
+    if True:#a.args.annotations_only or a.args.balance:
         train_sampler = SubsetRandomSampler(t_indices)
         val_sampler = SubsetRandomSampler(v_indices)
+    else:
+        train_sampler = WeightedRandomSampler(weights=t_weights,
+                                              num_samples=len(t_weights),
+                                              replacement=True)
+        
+        val_sampler = WeightedRandomSampler(weights=v_weights,
+                                            num_samples=len(v_weights),
+                                            replacement=True)    
     
-    if a.args.annotations_only:
-        train_sampler = SubsetRandomSampler(t_indices)
-        val_sampler = SubsetRandomSampler(v_indices)    
-    
-    if c.weighted:
-        pass
+    if False:#a.args.weighted_sampler:
         # the weight sizes correspond to whether each indices 0...5900 is null-annotated or not
         # the weights correspond to the probability that that indice is sampled, they don't have to sum to one
+        full_train_sampler = WeightedRandomSampler(weights=t_weights,
+                                              num_samples=len(t_weights),
+                                              replacement=True)
         
-        # TODO - bug here somehow!
-    full_train_sampler = WeightedRandomSampler(weights=t_weights,
-                                          num_samples=len(t_weights),
-                                          replacement=True)
-    full_val_sampler = WeightedRandomSampler(weights=v_weights,
-                                        num_samples=len(v_weights),
-                                        replacement=True)
+        full_val_sampler = WeightedRandomSampler(weights=v_weights,
+                                            num_samples=len(v_weights),
+                                            replacement=True)                    
     
-        
-    # using balanced samplers cuts dataset from 6k to 800 patches
-    if False:
+    else:
+        # using balanced samplers cuts dataset from 6k to 800 patches
         full_train_sampler = SubsetRandomSampler(f_t_indices)
         full_val_sampler = SubsetRandomSampler(f_v_indices) 
-        # TODO - fix random sampling !
-        # full_train_sampler = WeightedRandomSampler(weights=f_t_weights,
-        #                           num_samples=len(f_t_weights),
-        #                           replacement=True)
-                    
-        # full_val_sampler = WeightedRandomSampler(weights=f_v_weights,
-        #                                     num_samples=len(f_v_weights),
-        #                                     replacement=True)
-        
+    
+    # leave shuffle off for use of any samplers
     full_train_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 
                         num_workers=0,collate_fn=transformed_dataset.custom_collate_aerial,
                         pin_memory=False,sampler=full_train_sampler)

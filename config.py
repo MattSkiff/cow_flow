@@ -15,15 +15,13 @@ gpu = True
 seed = 101
 
 ## Dataset Options ------
-load_stored_dmaps = False # speeds up precomputation (with RAM = True)
+load_stored_dmaps = True # speeds up precomputation (with RAM = True)
 store_dmaps = False # this will save dmap objects (numpy arrays) to file
-ram = False # load aerial imagery and precompute dmaps and load both into ram before training
+ram = True # load aerial imagery and precompute dmaps and load both into ram before training
 counts = False # must be off for pretraining feature extractor (#TODO)
 
 ## Training Options ------
 train_model = True # (if false, will only prep dataset,dataloaders)
-balanced = True # whether to have a 1:1 mixture of empty:annotated images
-weighted = False # whether to weight minibatch samples
 validation = True # whether to run validation data per meta epoch
 eval_n = 1
 data_prop = 1 # proportion of the full dataset to use (ignored in DLR ACD,MNIST)
@@ -128,24 +126,24 @@ if debug:
     a.args.schema = 'debug' # aka ignore debugs
 
 if a.args.dlr_acd:
-    img_size = (320,320)
+    img_size = (256,256)
 elif a.args.mnist and feat_extractor == "none":
     img_size = (28,28)
 elif a.args.mnist:
     img_size = (228,228) # (28,28)
 else:
-    img_size = (800, 600) # width, height (x-y)
+    img_size = (256, 256) # width, height (x-y)
 
 img_dims = [3] + list(img_size) # RGB + x-y
 
 # TODO: rename this parameter
 # this effects the padding applied to the density maps
 if a.args.dlr_acd:
-    density_map_h,density_map_w = 320,320
+    density_map_h,density_map_w = 256,256
 elif not a.args.mnist and not counts and downsampling:
-    density_map_w = 800//scale #img_size[0]
+    density_map_w = 256//scale #img_size[0]
     if feat_extractor == 'resnet18':
-        density_map_h = 608//scale #img_size[1]
+        density_map_h = 256//scale #img_size[1]
     elif feat_extractor == 'alexnet':
          density_map_h = 544//scale #img_size[1]
          density_map_w = 768//scale
@@ -154,8 +152,8 @@ elif not a.args.mnist and not counts and downsampling:
     elif feat_extractor == 'none':
         density_map_h = 600//scale
 elif not a.args.mnist and not counts and not downsampling:
-    density_map_w = 800//scale
-    density_map_h = 600//scale
+    density_map_w = 256//scale
+    density_map_h = 256//scale
 elif not a.args.mnist:
     # size of count expanded to map spatial feature dimensions
     density_map_h = 19 * 2 # need at least 2 channels, expand x2, then downsample (haar)
@@ -182,8 +180,6 @@ if a.args.gpu_number != 0:
 
 # TODO
 # assert not (pyramid and fixed1x1conv)
-# assert not (weighted and annotations_only)
-
 assert not (feat_extractor == 'none' and gap == True)
 assert gap != downsampling
 assert n_splits >= 0 and n_splits < 6
