@@ -10,8 +10,8 @@ parser.add_argument("-uc", "--unconditional", help="Trains the model without lab
 parser.add_argument("-gn", "--gpu_number", help="Selects which GPU to train on.", type=int, default=0)
 
 # Choose Dataset
-parser.add_argument("-dlr", "--dlr_acd", help="Run the architecture on the DLR ACD dataset.", action="store_true",default=True)
-parser.add_argument("-cows", "--cows", help="Run the architecture on the aerial cows dataset.", action="store_true",default=False)
+parser.add_argument("-dlr", "--dlr_acd", help="Run the architecture on the DLR ACD dataset.", action="store_true",default=False)
+parser.add_argument("-cows", "--cows", help="Run the architecture on the aerial cows dataset.", action="store_true",default=True)
 parser.add_argument('-mnist',help='Run the architecture on the DLR ACD dataset.', action="store_true",default=False)
 
 parser.add_argument('-anno','--annotations_only',help='whether to only use image patches that have annotations',action="store_true",default=False)

@@ -46,7 +46,7 @@ def train_baselines(model_name,train_loader,val_loader):
         scheduler = ExponentialLR(optimizer, gamma=0.9)
     mdl.to(c.device) 
     
-    train_loss = []; val_loss = []
+    train_loss = []; val_loss = []; best_loss = float('inf'); l = 0
     
     for meta_epoch in range(a.args.meta_epochs):
         
@@ -81,6 +81,12 @@ def train_baselines(model_name,train_loader,val_loader):
                 
             mean_train_loss = np.mean(train_loss)
             mean_val_loss = np.mean(val_loss)
+            l = l + 1
+            
+            if mean_val_loss < best_loss and c.save_model:
+                best_loss = mean_val_loss
+                # At this point also save a snapshot of the current model
+                model.save_model(mdl,"best"+str(l)+"_"+modelname)
                 
             t_e2 = time.perf_counter()
             print("\nTrain | Sub Epoch Time (s): {:f}, Epoch train loss: {:.4f},Epoch val loss: {:.4f}".format(t_e2-t_e1,mean_train_loss,mean_val_loss))
@@ -294,7 +300,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                         writer.add_scalar('loss/epoch_train',mean_train_loss, meta_epoch)
                     
                     ### Validation Loop ------
-                    if c.validation and not a.args.dlr_acd: 
+                    if c.validation: 
                         val_loss = list()
                         val_z = list()
                         # val_coords = list() # todo
@@ -349,8 +355,6 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                         # simple early stopping based on val loss
                         # https://stackoverflow.com/questions/68929471/implementing-early-stopping-in-pytorch-without-torchsample
                         if mean_val_loss < best_loss and c.save_model:
-                            print(mean_val_loss)
-                            print(best_loss)
                             best_loss = mean_val_loss
                             # At this point also save a snapshot of the current model
                             model.save_model(mdl,"best"+str(l)+"_"+modelname)
