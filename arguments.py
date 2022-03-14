@@ -26,12 +26,12 @@ parser.add_argument("-split", "--split_dimensions", help="Whether to split off h
 # parser.add_argument("-c", "--counts", help="Train a model that predicts only counts.", action="store_true")
 
 parser.add_argument("-name","--schema",type=str,default='debug') # if debug, ignored
-parser.add_argument("-tb","--tensorboard",help='calc and write metrics, hyper params to tb files',action="store_true")
+parser.add_argument("-tb","--tensorboard",help='calc and write metrics, hyper params to tb files',action="store_true",default=False)
 
 
 # Key params
-parser.add_argument("-se","--sub_epochs",help='evaluation is not performed in sub epochs',type=int,default=5)
-parser.add_argument("-me","--meta_epochs",help='eval after every meta epoch. total epochs = meta*sub',type=int,default=5)
+parser.add_argument("-se","--sub_epochs",help='evaluation is not performed in sub epochs',type=int,default=1)
+parser.add_argument("-me","--meta_epochs",help='eval after every meta epoch. total epochs = meta*sub',type=int,default=1)
 parser.add_argument("-lr","--learning_rate",type=float,default=2e-3)
 parser.add_argument("-bs","--batch_size",type=int,default=4)
 parser.add_argument("-npb","--n_pyramid_blocks",type=int,default=3)

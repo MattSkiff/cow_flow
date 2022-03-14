@@ -33,9 +33,9 @@ def ft_dims_select(mdl=None):
     if c.downsampling:
         
         if a.args.dlr_acd:
-            ft_dims = (10,10)    
+            ft_dims = (8,8) # 10, 10
         elif fe in ['resnet18','ResNetPyramid'] or fe == 'Sequential':
-            ft_dims = (19,25)
+            ft_dims = (8,8) # 19, 25
         elif fe == 'vgg16_bn' or fe == 'VGG':
             ft_dims = (18,25)
         elif fe == 'alexnet' or fe == 'AlexNet':
@@ -329,7 +329,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
                     print('replacing predicted densities with empty predictions from feature extractor')
                     outputs = mdl.classification_head(images)  
                     _, preds = torch.max(outputs, 1)  
-                    x[(preds == 1).bool(),:,:,:] = torch.zeros(1,608,800).to(c.device)
+                    x[(preds == 1).bool(),:,:,:] = torch.zeros(1,mdl.density_map_h,mdl.density_map_w).to(c.device)
                     
             if c.debug_utils:
                 print("\nsampled from model\n")
@@ -370,7 +370,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
                     sum_pred = dmap_rev_np.sum()-constant #[lb_idx]
                     true_dmap_count = dmaps[lb_idx].sum()-constant
                     if not mdl.dlr_acd:
-                        label_count = len(annotations[idx])
+                        label_count = len(annotations[lb_idx])
                     else:
                         label_count = counts[lb_idx]
                 elif mdl.subnet_type == 'fc' and mdl.gap:  
