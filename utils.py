@@ -33,9 +33,9 @@ def ft_dims_select(mdl=None):
     if c.downsampling:
         
         if a.args.dlr_acd:
-            ft_dims = (8,8) # 10, 10
+            ft_dims = (a.args.image_size // 2**5,a.args.image_size // 2**5) # 10, 10
         elif fe in ['resnet18','ResNetPyramid'] or fe == 'Sequential':
-            ft_dims = (8,8) # 19, 25
+            ft_dims = (a.args.image_size // 2**5,a.args.image_size // 2**5) # 19, 25
         elif fe == 'vgg16_bn' or fe == 'VGG':
             ft_dims = (18,25)
         elif fe == 'alexnet' or fe == 'AlexNet':

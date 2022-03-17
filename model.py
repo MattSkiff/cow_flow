@@ -178,8 +178,14 @@ def select_feat_extractor(feat_extractor,train_loader=None,valid_loader=None):
     
     if c.train_feat_extractor:
     # pretrain feature extractor with classification problem
-        num_ftrs = feat_extractor.fc.in_features
-        feat_extractor.fc = nn.Linear(num_ftrs, 2)  
+        if c.feat_extractor == "resnet18":
+            num_ftrs = feat_extractor.fc.in_features
+            feat_extractor.fc = nn.Linear(num_ftrs, 2)  
+        elif c.feat_extractor == "vgg16_bn":
+            # find less horific model surgery
+            num_ftrs = feat_extractor.classifier._modules['6'].in_features
+            feat_extractor.classifier._modules['6'] = nn.Linear(num_ftrs, 2)
+        
         feat_extractor = train.train_feat_extractor(feat_extractor,train_loader,valid_loader)
         
     return feat_extractor
@@ -721,11 +727,6 @@ class MNISTFlow(nn.Module):
         return z
 
 # only include density map based models?
-
-
-class csrnet():
-    # from https://github.com/leeyeehoo/CSRNet-pytorch
-    pass
 
 class lcffcn():
     # https://github.com/ElementAI/LCFCN
