@@ -2,7 +2,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch.nn.utils import clip_grad_value_
-from torch.optim.lr_scheduler import ExponentialLR
+from torch.optim.lr_scheduler import ExponentialLR, StepLR
 from tqdm import tqdm # progress bar
 
 import time 
@@ -29,7 +29,11 @@ def train_baselines(model_name,train_loader,val_loader):
     modelname = make_model_name(train_loader)
     model_hparam_dict = make_hparam_dict(val_loader)
     writer = SummaryWriter(log_dir='runs/'+a.args.schema+'/'+modelname)   
-    loss = torch.nn.MSELoss()
+    
+    if not a.args.model_name == 'UNet':
+        loss = torch.nn.MSELoss()
+    else:
+        loss = torch.nn.CrossEntropyLoss()
     
     if a.args.model_name == "FCRN":
         mdl = b.FCRN_A(modelname=modelname)
@@ -42,8 +46,12 @@ def train_baselines(model_name,train_loader,val_loader):
         
     optimizer = torch.optim.Adam(mdl.parameters(), lr=a.args.learning_rate, betas=(0.9, 0.999), eps=1e-04, weight_decay=a.args.weight_decay)
     # add scheduler to improve stability further into training
-    if c.scheduler == "exponential":
+    
+    if a.args.scheduler == "exponential":
         scheduler = ExponentialLR(optimizer, gamma=0.9)
+    elif a.args.scheduler == "step":
+        scheduler = StepLR(optimizer,step_size=20,gamma=0.1)
+        
     mdl.to(c.device) 
     
     train_loss = []; val_loss = []; best_loss = float('inf'); l = 0
@@ -65,7 +73,8 @@ def train_baselines(model_name,train_loader,val_loader):
                 train_loss.append(t_loss)
                 clip_grad_value_(mdl.parameters(), c.clip_value)
                 optimizer.step()
-                if c.scheduler != "none":
+                
+                if a.args.scheduler != "none":
                     scheduler.step()
             
             with torch.no_grad():
@@ -86,7 +95,7 @@ def train_baselines(model_name,train_loader,val_loader):
             if mean_val_loss < best_loss and c.save_model:
                 best_loss = mean_val_loss
                 # At this point also save a snapshot of the current model
-                model.save_model(mdl,"best"+str(l)+"_"+modelname)
+                model.save_model(mdl,"best"+"_"+modelname) # want to overwrite - else too many copies stored # +str(l)
                 
             t_e2 = time.perf_counter()
             print("\nTrain | Sub Epoch Time (s): {:f}, Epoch train loss: {:.4f},Epoch val loss: {:.4f}".format(t_e2-t_e1,mean_train_loss,mean_val_loss))
@@ -152,8 +161,10 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                 optimizer = torch.optim.Adam(mdl.nf.parameters(), lr=a.args.learning_rate, betas=(0.9, 0.999), eps=1e-04, weight_decay=a.args.weight_decay)
             
             # add scheduler to improve stability further into training
-            if c.scheduler == "exponential":
+            if a.args.scheduler == "exponential":
                 scheduler = ExponentialLR(optimizer, gamma=0.9)
+            elif a.args.scheduler == "step":
+                scheduler = StepLR(optimizer,step_size=20,gamma=0.1)
         
             mdl.to(c.device)   
             
@@ -175,7 +186,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                     
                     train_loss = list()
                     
-                    if c.debug and c.scheduler != 'none':
+                    if c.debug and a.args.scheduler != 'none':
                         print('Initial Scheduler Learning Rate: ',scheduler.get_lr()[0])
                     
                     for i, data in enumerate(tqdm(train_loader, disable=c.hide_tqdm_bar)):
@@ -268,7 +279,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                         clip_grad_value_(mdl.parameters(), c.clip_value)
                         optimizer.step()
                         
-                        if c.scheduler != "none":
+                        if a.args.scheduler != "none":
                             scheduler.step()
                         
                         t2 = time.perf_counter()
@@ -357,7 +368,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                         if mean_val_loss < best_loss and c.save_model:
                             best_loss = mean_val_loss
                             # At this point also save a snapshot of the current model
-                            model.save_model(mdl,"best"+str(l)+"_"+modelname)
+                            model.save_model(mdl,"best"+"_"+modelname) # want to overwrite - else too many copies stored # +str(l)
                             
                         j += 1
                 

@@ -24,7 +24,7 @@ counts = False # must be off for pretraining feature extractor (#TODO)
 train_model = True # (if false, will only prep dataset,dataloaders)
 validation = True # whether to run validation data per meta epoch
 eval_n = 1
-data_prop = 0.1 # proportion of the full dataset to use (ignored in DLR ACD,MNIST)
+data_prop = 1 # proportion of the full dataset to use (ignored in DLR ACD,MNIST)
 test_train_split = 70 # percentage of data to allocate to train set
 
 ## Density Map Options ------
@@ -33,16 +33,16 @@ scale = 1 # 4, 2 = downscale dmaps four/two fold, 1 = unchanged
 
 ## Feature Extractor Options ------
 pretrained = True
-feat_extractor = "resnet18" # alexnet, vgg16_bn,resnet18, none # TODO mnist_resnet, efficient net
-feat_extractor_epochs = 200
-train_feat_extractor = False # whether to finetune or load finetuned model # redundent
+feat_extractor = "vgg16_bn" # alexnet, vgg16_bn,resnet18, none # TODO mnist_resnet, efficient net
+feat_extractor_epochs = 10
+train_feat_extractor = True # whether to finetune or load finetuned model # redundent
 load_feat_extractor_str = '' # '' to train from scratch, loads FE  # final_eval_test_weka-13_BS2_LR_I[0.002]_NC5_E1_FE_resnet18_DIM608_JO_PT_PY_1_1x1_WD_0.001_FSZ_16_14_12_2021_21_49_14
 # nb: pretraining FE saves regardless of save flag
 
 ## Architecture Options ------
 fixed1x1conv = False 
 freq_1x1 = 1 # 1 for always | how many x coupling blocks to have a 1x1 conv permutation layer
-pyramid = True # only implemented for resnet18
+pyramid = False # only implemented for resnet18
 n_splits = 4 # number of splits
 gap = False # global average pooling
 downsampling = True # whether to downsample (5 ds layers) dmaps by converting spatial dims to channel dims
@@ -56,7 +56,6 @@ dropout_p = 0.0 # fc only param - 0 for no dropout
 
 # Hyper Params and Optimisation ------
 joint_optim = True # jointly optimse feature extractor and flow
-scheduler = 'exponential' # exponential, none
 clip_value = 1 # gradient clipping
 clamp_alpha = 1.9 
 
@@ -126,13 +125,13 @@ if debug:
     a.args.schema = 'debug' # aka ignore debugs
 
 if a.args.dlr_acd:
-    img_size = (256,256)
+    img_size = (a.args.image_size,a.args.image_size)
 elif a.args.mnist and feat_extractor == "none":
     img_size = (28,28)
 elif a.args.mnist:
     img_size = (228,228) # (28,28)
 else:
-    img_size = (256, 256) # width, height (x-y)
+    img_size = (a.args.image_size, a.args.image_size) # width, height (x-y)
 
 img_dims = [3] + list(img_size) # RGB + x-y
 
@@ -185,7 +184,6 @@ assert gap != downsampling
 assert n_splits >= 0 and n_splits < 6
 assert subnet_type in ['conv','fc']
 assert feat_extractor in ['none' ,'alexnet','vgg16_bn','resnet18']
-assert scheduler in ['exponential','none']
 
 if subnet_type == 'fc':
     assert gap

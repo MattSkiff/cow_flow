@@ -9,7 +9,7 @@ import config as c
 import arguments as a
 import model
 import os
-from train import train, train_baselines
+from train import train, train_baselines, train_feat_extractor
 
 from dlr_acd import train_dlr_acd
 from mnist import train_mnist
@@ -110,11 +110,12 @@ if a.args.cows:
                         num_workers=0,collate_fn=transformed_dataset.custom_collate_aerial,
                         pin_memory=False,sampler=val_sampler)
     
-    if a.args.model_name in ['CSRNet', 'UNet', 'FCRN']:
-        mdl = train_baselines(a.args.model_name,train_loader,val_loader)
+    if a.args.feat_extract_only:
+        feat_extractor = model.select_feat_extractor(c.feat_extractor,train_loader,val_loader)
+        train_feat_extractor(feat_extractor,train_loader,val_loader)
     else:
-        if a.args.feat_extract_only:
-            feat_extractor = model.select_feat_extractor(c.feat_extractor,train_loader,val_loader)
+        if a.args.model_name in ['CSRNet', 'UNet', 'FCRN']:
+            mdl = train_baselines(a.args.model_name,train_loader,val_loader)
         else:
             mdl = train(train_loader,val_loader,full_train_loader,full_val_loader)
                 
