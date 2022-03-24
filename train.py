@@ -30,10 +30,10 @@ def train_baselines(model_name,train_loader,val_loader):
     model_hparam_dict = make_hparam_dict(val_loader)
     writer = SummaryWriter(log_dir='runs/'+a.args.schema+'/'+modelname)   
     
-    if not a.args.model_name == 'UNet':
-        loss = torch.nn.MSELoss()
-    else:
-        loss = torch.nn.CrossEntropyLoss()
+    #if not a.args.model_name == 'UNet':
+    loss = torch.nn.MSELoss()
+    #else:
+    #    loss = torch.nn.CrossEntropyLoss()
     
     if a.args.model_name == "FCRN":
         mdl = b.FCRN_A(modelname=modelname)
@@ -42,9 +42,8 @@ def train_baselines(model_name,train_loader,val_loader):
     elif a.args.model_name == "CSRNet":
         mdl = b.UNet(modelname=modelname)
         #raise ValueError#mdl = b.UNet(modelname=modelname)
-    
-        
-    optimizer = torch.optim.Adam(mdl.parameters(), lr=a.args.learning_rate, betas=(0.9, 0.999), eps=1e-04, weight_decay=a.args.weight_decay)
+    if a.args.optim == 'adam':   
+        optimizer = torch.optim.Adam(mdl.parameters(), lr=a.args.learning_rate, betas=(a.args.adam_b1, a.args.adam_b2), eps=a.args.adam_e, weight_decay=a.args.weight_decay)
     # add scheduler to improve stability further into training
     
     if a.args.scheduler == "exponential":
@@ -67,7 +66,7 @@ def train_baselines(model_name,train_loader,val_loader):
                 images,dmaps,labels, _, _ = data # _ = annotations
                 images = images.float().to(c.device)
                 results = mdl(images)
-                iter_loss = loss(results.squeeze(),dmaps)
+                iter_loss = loss(results*1000,dmaps*1000)
                 t_loss = t2np(iter_loss)
                 iter_loss.backward()
                 train_loss.append(t_loss)
@@ -84,7 +83,7 @@ def train_baselines(model_name,train_loader,val_loader):
                     images,dmaps,labels, _, _ = data # _ = annotations
                     images = images.float().to(c.device)
                     results = mdl(images)
-                    iter_loss = loss(results.squeeze(),dmaps)
+                    iter_loss = loss(results*1000,dmaps*1000)
                     v_loss = t2np(iter_loss)
                     val_loss.append(v_loss)
                 
@@ -101,8 +100,8 @@ def train_baselines(model_name,train_loader,val_loader):
             print("\nTrain | Sub Epoch Time (s): {:f}, Epoch train loss: {:.4f},Epoch val loss: {:.4f}".format(t_e2-t_e1,mean_train_loss,mean_val_loss))
             print('Meta Epoch: {:d}, Sub Epoch: {:d}, | Epoch {:d} out of {:d} Total Epochs'.format(meta_epoch, sub_epoch,meta_epoch*a.args.sub_epochs + sub_epoch+1,a.args.meta_epochs*a.args.sub_epochs))
             
-            writer.add_scalar('loss/epoch_train',mean_train_loss, meta_epoch)
-            writer.add_scalar('loss/epoch_val',mean_val_loss, meta_epoch)
+            writer.add_scalar('loss/epoch_train',mean_train_loss, l)
+            writer.add_scalar('loss/epoch_val',mean_val_loss, l)
     
     writer.add_hparams(
               hparam_dict = model_hparam_dict,
@@ -115,9 +114,7 @@ def train_baselines(model_name,train_loader,val_loader):
     model.save_model(mdl,modelname)
     mdl.to(c.device)
     
-    return mdl
-        
-    
+    return mdl    
 
 def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,writer=None):
             assert c.train_model
@@ -164,7 +161,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
             if a.args.scheduler == "exponential":
                 scheduler = ExponentialLR(optimizer, gamma=0.9)
             elif a.args.scheduler == "step":
-                scheduler = StepLR(optimizer,step_size=20,gamma=0.1)
+                scheduler = StepLR(optimizer,step_size=a.args.step_size,gamma=a.args.step_gamma)
         
             mdl.to(c.device)   
             

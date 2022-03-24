@@ -160,7 +160,6 @@ class DLRACD(Dataset):
                             else:
                                 p_d = scipy.ndimage.filters.gaussian_filter(pm, sigma = gsd_sigma, mode='constant')
                                 
-                            
                             self.density_counts[mode].append(p_d.sum())
                             self.patch_densities[mode].append(p_d)
                             
@@ -495,6 +494,7 @@ class CowObjectsDataset(Dataset):
             
             """ computes and returns labels for a single annotation file"""
             labels = []
+            
             img_path = os.path.join(self.root_dir,
                                     self.train_im_paths[idx])
             
@@ -1098,9 +1098,7 @@ class CustResize(object):
         return sample
 
 # Need to create lists of test and train indices
-# Dataset is highly imbalanced, want test set to mirror train set imbalance
-# TODO: implement 'balanced' argument
-# TODO: get split function to only iterate over txt files, not images 
+# Dataset is highly imbalanced, want test set to mirror train set imbalance 
 def train_val_split(dataset,train_percent,oversample=False,
                     balanced = False,annotations_only = False,seed = -1):
     

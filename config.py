@@ -15,9 +15,9 @@ gpu = True
 seed = 101
 
 ## Dataset Options ------
-load_stored_dmaps = False # speeds up precomputation (with RAM = True)
+load_stored_dmaps = True # speeds up precomputation (with RAM = True)
 store_dmaps = False # this will save dmap objects (numpy arrays) to file
-ram = False # load aerial imagery and precompute dmaps and load both into ram before training
+ram = True # load aerial imagery and precompute dmaps and load both into ram before training
 counts = False # must be off for pretraining feature extractor (#TODO)
 
 ## Training Options ------
@@ -35,7 +35,7 @@ scale = 1 # 4, 2 = downscale dmaps four/two fold, 1 = unchanged
 pretrained = True
 feat_extractor = "vgg16_bn" # alexnet, vgg16_bn,resnet18, none # TODO mnist_resnet, efficient net
 feat_extractor_epochs = 10
-train_feat_extractor = True # whether to finetune or load finetuned model # redundent
+train_feat_extractor = False # whether to finetune or load finetuned model # redundent
 load_feat_extractor_str = '' # '' to train from scratch, loads FE  # final_eval_test_weka-13_BS2_LR_I[0.002]_NC5_E1_FE_resnet18_DIM608_JO_PT_PY_1_1x1_WD_0.001_FSZ_16_14_12_2021_21_49_14
 # nb: pretraining FE saves regardless of save flag
 
