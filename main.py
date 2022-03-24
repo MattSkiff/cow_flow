@@ -57,18 +57,19 @@ if a.args.cows:
                                                       train_percent = c.test_train_split,
                                                       annotations_only = a.args.annotations_only,
                                                       balanced = a.args.balance,seed = c.seed,
-                                                      oversample=True)
+                                                      oversample=a.args.weighted_sampler)
     
     f_t_indices, f_t_weights, f_v_indices, f_v_weights  = train_val_split(dataset = transformed_dataset,
                                                       train_percent = c.test_train_split,
                                                       annotations_only = False,
                                                       balanced = a.args.balance,seed = c.seed,
-                                                      oversample=True)
+                                                      oversample=a.args.weighted_sampler)
     
     if True:#a.args.annotations_only or a.args.balance:
         train_sampler = SubsetRandomSampler(t_indices)
         val_sampler = SubsetRandomSampler(v_indices)
     else:
+        ValueError
         train_sampler = WeightedRandomSampler(weights=t_weights,
                                               num_samples=len(t_weights),
                                               replacement=True)
@@ -80,6 +81,7 @@ if a.args.cows:
     if False:#a.args.weighted_sampler:
         # the weight sizes correspond to whether each indices 0...5900 is null-annotated or not
         # the weights correspond to the probability that that indice is sampled, they don't have to sum to one
+        ValueError # remove when balanced working correctly
         full_train_sampler = WeightedRandomSampler(weights=t_weights,
                                               num_samples=len(t_weights),
                                               replacement=True)
