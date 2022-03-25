@@ -66,7 +66,7 @@ def train_baselines(model_name,train_loader,val_loader):
                 images,dmaps,labels, _, _ = data # _ = annotations
                 images = images.float().to(c.device)
                 results = mdl(images)
-                iter_loss = loss(results*1000,dmaps*1000)
+                iter_loss = loss(results.squeeze(),dmaps.squeeze()*1000)
                 t_loss = t2np(iter_loss)
                 iter_loss.backward()
                 train_loss.append(t_loss)
@@ -83,7 +83,7 @@ def train_baselines(model_name,train_loader,val_loader):
                     images,dmaps,labels, _, _ = data # _ = annotations
                     images = images.float().to(c.device)
                     results = mdl(images)
-                    iter_loss = loss(results*1000,dmaps*1000)
+                    iter_loss = loss(results.squeeze(),dmaps.squeeze()*1000)
                     v_loss = t2np(iter_loss)
                     val_loss.append(v_loss)
                 

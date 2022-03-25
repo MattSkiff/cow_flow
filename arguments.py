@@ -35,8 +35,9 @@ parser.add_argument('-optim',help='choose optimizer',type=str,default='adam')
 parser.add_argument('-adam_b1',help='choose adam beta1',type=float,default=0)
 parser.add_argument('-adam_b2',help='choose adam beta2',type=float,default=0)
 parser.add_argument('-adam_e',help='choose adam episilon',type=float,default=0)
+parser.add_argument('-sgd_mom',help='choose sgd momentum',type=float,default=0)
 parser.add_argument("-lr","--learning_rate",type=float,default=1e-3)
-parser.add_argument("-scheduler",help="Learning rate scheduler (exponential,step,none)",default ='exponential')
+parser.add_argument("-scheduler",help="Learning rate scheduler (exponential,stepLR,none)",default ='exponential')
 parser.add_argument("-step_size",help="step size of stepLR scheduler",type=int,default=0)
 parser.add_argument("-step_gamma",help="gamma of stepLR scheduler",type=float,default=0)
 
@@ -62,6 +63,9 @@ if (args.step_size != 0 or args.step_gamma != 0) and args.scheduler != 'step':
 if (args.adam_b1 != 0 or args.adam_b2 != 0 or args.adam_e != 0) and args.optim != 'adam':
     ValueError
     
+if args.sgd_mom != 0 and args.optim != 'sgd':
+    ValueError
+  
 assert args.model_name in ['NF','UNet','CSRNet','FCRN']
 assert not (args.weighted_sampler and args.annotations_only)
 assert args.dmap_type in ['gauss','max']
