@@ -946,10 +946,14 @@ def make_model_name(train_loader):
               os.uname().nodename,
              "BS"+str(train_loader.batch_size),
              "LR_I"+str(a.args.learning_rate),
-             "NC"+str(c.n_coupling_blocks),
              "E"+str(a.args.meta_epochs*a.args.sub_epochs),
-             "FE",str(c.feat_extractor),
              "DIM"+str(c.density_map_h)]
+     
+     if a.args.mod not in ['UNet','FCRN']:
+         parts.append("FE",str(c.feat_extractor))
+            
+     if a.args.mod == 'NF':
+         parts.append("NC"+str(c.n_coupling_blocks))
      
      #"LRS",str(c.scheduler), # only one LR scheduler currently
      if a.args.dlr_acd:
