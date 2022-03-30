@@ -35,6 +35,17 @@ parser.add_argument("-lr","--learning_rate",type=float,default=1e-2)
 parser.add_argument("-scheduler",help="Learning rate scheduler (exponential,step,none)",action='store_true',default ='exponential')
 
 parser.add_argument("-bs","--batch_size",type=int,default=8)
+parser.add_argument('-optim',help='choose optimizer',type=str,default='adam')
+parser.add_argument('-adam_b1',help='choose adam beta1',type=float,default=0)
+parser.add_argument('-adam_b2',help='choose adam beta2',type=float,default=0)
+parser.add_argument('-adam_e',help='choose adam episilon',type=float,default=0)
+parser.add_argument('-sgd_mom',help='choose sgd momentum',type=float,default=0)
+parser.add_argument("-lr","--learning_rate",type=float,default=1e-3)
+parser.add_argument("-scheduler",help="Learning rate scheduler (exponential,stepLR,none)",default ='exponential')
+parser.add_argument("-step_size",help="step size of stepLR scheduler",type=int,default=0)
+parser.add_argument("-step_gamma",help="gamma of stepLR scheduler",type=float,default=0)
+
+parser.add_argument("-bs","--batch_size",type=int,default=32)
 parser.add_argument("-npb","--n_pyramid_blocks",type=int,default=3)
 parser.add_argument('-nse',"--noise",help='amount of uniform noise (sample evenly from 0-x) | 0 for none',type=float,default=0)
 parser.add_argument('-f','--filters',help='width of conv subnetworks',type=int,default=32)
@@ -49,10 +60,21 @@ args = parser.parse_args()
 host = socket.gethostname()
 
 assert args.gpu_number > -1
+
+if (args.step_size != 0 or args.step_gamma != 0) and args.scheduler != 'step':
+    ValueError
+
+if (args.adam_b1 != 0 or args.adam_b2 != 0 or args.adam_e != 0) and args.optim != 'adam':
+    ValueError
+    
+if args.sgd_mom != 0 and args.optim != 'sgd':
+    ValueError
+  
 assert args.model_name in ['NF','UNet','CSRNet','FCRN']
 assert not (args.weighted_sampler and args.annotations_only)
 assert args.dmap_type in ['gauss','max']
 assert args.scheduler in ['exponential','step','none']
+assert args.optim in ['sgd','adam']
 
 # todo - find better way of checking NF only arguments
 if args.model_name in ['UNet','CSRNet','FCRN']:
