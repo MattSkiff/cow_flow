@@ -31,6 +31,10 @@ parser.add_argument("-tb","--tensorboard",help='calc and write metrics, hyper pa
 # Key params
 parser.add_argument("-se","--sub_epochs",help='evaluation is not performed in sub epochs',type=int,default=1)
 parser.add_argument("-me","--meta_epochs",help='eval after every meta epoch. total epochs = meta*sub',type=int,default=1)
+parser.add_argument("-lr","--learning_rate",type=float,default=1e-2)
+parser.add_argument("-scheduler",help="Learning rate scheduler (exponential,step,none)",action='store_true',default ='exponential')
+
+parser.add_argument("-bs","--batch_size",type=int,default=8)
 parser.add_argument('-optim',help='choose optimizer',type=str,default='adam')
 parser.add_argument('-adam_b1',help='choose adam beta1',type=float,default=0)
 parser.add_argument('-adam_b2',help='choose adam beta2',type=float,default=0)

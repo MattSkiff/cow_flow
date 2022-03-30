@@ -47,7 +47,10 @@ def train_baselines(model_name,train_loader,val_loader):
         optimizer = torch.optim.Adam(mdl.parameters(), lr=a.args.learning_rate, betas=(a.args.adam_b1, a.args.adam_b2), eps=a.args.adam_e, weight_decay=a.args.weight_decay)
     if a.args.optim == 'sgd':
         optimizer = torch.optim.SGD(mdl.parameters(), lr=a.args.learning_rate,momentum=a.args.sgd_mom)
-    
+
+    if a.args.optim == 'adam':   
+        optimizer = torch.optim.Adam(mdl.parameters(), lr=a.args.learning_rate, betas=(a.args.adam_b1, a.args.adam_b2), eps=a.args.adam_e, weight_decay=a.args.weight_decay)
+
     # add scheduler to improve stability further into training
     if a.args.scheduler == "exponential":
         scheduler = ExponentialLR(optimizer, gamma=0.9)
