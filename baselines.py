@@ -215,8 +215,29 @@ class UNet(nn.Module):
 # https://github.com/leeyeehoo/CSRNet-pytorch- official CSRNet repo
 
 class CSRNet(nn.Module):
-    def __init__(self, load_weights=False):
+    def __init__(self,modelname,load_weights=False):
         super(CSRNet, self).__init__()
+        
+        # these attr's are needed to make the model object independant of the config file
+        self.modelname = modelname
+        self.unconditional = False
+        self.count = False
+        self.subnet_type = None
+        self.mnist = False
+        self.gap = c.gap
+        self.n_coupling_blocks = c.n_coupling_blocks
+        self.joint_optim = False
+        self.pretrained = False
+        self.finetuned = False
+        self.scheduler = a.args.scheduler
+        self.scale = c.scale
+        self.density_map_h = c.density_map_h
+        self.density_map_w = c.density_map_w
+        self.downsampling = c.downsampling
+        self.scale = c.scale
+        self.noise = a.args.noise
+        self.seed = c.seed
+        
         self.seen = 0
         self.frontend_feat = [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512]
         self.backend_feat  = [512, 512, 512,256,128,64]
@@ -227,7 +248,8 @@ class CSRNet(nn.Module):
             mod = models.vgg16(pretrained = True)
             self._initialize_weights()
             for i in range(len(self.frontend.state_dict().items())):
-                self.frontend.state_dict().items()[i][1].data[:] = mod.state_dict().items()[i][1].data[:]
+                list(self.frontend.state_dict().items())[i][1].data[:] = list(mod.state_dict().items())[i][1].data[:]
+                
     def forward(self,x):
         x = self.frontend(x)
         x = self.backend(x)

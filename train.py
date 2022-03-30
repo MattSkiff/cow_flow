@@ -31,7 +31,11 @@ def train_baselines(model_name,train_loader,val_loader):
     writer = SummaryWriter(log_dir='runs/'+a.args.schema+'/'+modelname)   
     
     #if not a.args.model_name == 'UNet':
-    loss = torch.nn.MSELoss()
+    if a.args.model_name == 'CSRNet':
+        loss = torch.nn.MSELoss(size_average=False)
+    else:
+        loss = torch.nn.MSELoss()
+        
     #else:
     #    loss = torch.nn.CrossEntropyLoss()
     
@@ -40,16 +44,13 @@ def train_baselines(model_name,train_loader,val_loader):
     elif a.args.model_name == "UNet":
         mdl = b.UNet(modelname=modelname)
     elif a.args.model_name == "CSRNet":
-        mdl = b.UNet(modelname=modelname)
+        mdl = b.CSRNet(modelname=modelname)
         #raise ValueError#mdl = b.UNet(modelname=modelname)
         
     if a.args.optim == 'adam':   
         optimizer = torch.optim.Adam(mdl.parameters(), lr=a.args.learning_rate, betas=(a.args.adam_b1, a.args.adam_b2), eps=a.args.adam_e, weight_decay=a.args.weight_decay)
     if a.args.optim == 'sgd':
         optimizer = torch.optim.SGD(mdl.parameters(), lr=a.args.learning_rate,momentum=a.args.sgd_mom)
-
-    if a.args.optim == 'adam':   
-        optimizer = torch.optim.Adam(mdl.parameters(), lr=a.args.learning_rate, betas=(a.args.adam_b1, a.args.adam_b2), eps=a.args.adam_e, weight_decay=a.args.weight_decay)
 
     # add scheduler to improve stability further into training
     if a.args.scheduler == "exponential":
@@ -72,8 +73,10 @@ def train_baselines(model_name,train_loader,val_loader):
                 images,dmaps,labels, _, _ = data # _ = annotations
                 images = images.float().to(c.device)
                 results = mdl(images)
+
                 iter_loss = loss(results.squeeze(),dmaps.squeeze()*1000)
                 t_loss = t2np(iter_loss)
+                print(t_loss)
                 iter_loss.backward()
                 train_loss.append(t_loss)
                 clip_grad_value_(mdl.parameters(), c.clip_value)

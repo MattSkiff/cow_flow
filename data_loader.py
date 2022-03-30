@@ -19,14 +19,14 @@ warnings.filterwarnings("ignore", message=r"Passing", category=FutureWarning)
 
 # https://docs.opencv.org/4.5.2/d4/d13/tutorial_py_filtering.html
 import scipy
-from skimage import restoration
-from scipy.signal import convolve2d as conv2
+#from skimage import restoration
+#from scipy.signal import convolve2d as conv2
 
 from torch.utils.data import Dataset, DataLoader
 
 import torchvision.transforms.functional as TF
 import torchvision.transforms as T
-import torch.nn.functional as F
+#import torch.nn.functional as F
 
 from torchvision import utils
 from skimage import io
@@ -251,7 +251,7 @@ class DLRACD(Dataset):
             sample['counts'] = self.counts[idx]
             sample['density_counts'] = self.density_counts[idx]
             sample['point_maps'] = self.point_maps[idx] 
-            
+        
         else:
             sample['patch_density'] = None
             sample['counts'] = None
@@ -585,7 +585,13 @@ class CowObjectsDataset(Dataset):
             
             sample = {'image': image}
                 
-            if self.density and not self.count:  
+            if self.density and not self.count:
+                
+                if a.args.model_name == 'CSRNet':
+                    tgt = density_map
+                    density_map = cv2.resize(tgt,(int(tgt.shape[1]/8),int(tgt.shape[0]/8)),interpolation = cv2.INTER_CUBIC)*64
+                
+                
                 sample['density'] = density_map; sample['labels'] = labels
                 
             if self.count:
@@ -1009,11 +1015,18 @@ class CropRotateFlipScaling(object):
         resize = T.Resize(size=(256,256))
         
         sample['image'] = resize(sample['image'].unsqueeze(0))
-        sample['density'] = resize(sample['density'].unsqueeze(0).unsqueeze(0))
+        
+        if not a.args.model_name == 'CSRNet':
+            sample['density'] = resize(sample['density'].unsqueeze(0).unsqueeze(0))
+        else:
+            sample['density'] = sample['density'].unsqueeze(0).unsqueeze(0)
+            
         
         i, j, h, w = T.RandomCrop.get_params(sample['image'], output_size=(256, 256))
         sample['image'] = TF.crop(sample['image'], i, j, h, w)
-        sample['density'] = TF.crop(sample['density'], i, j, h, w)
+        
+        if not a.args.model_name == 'CSRNet':
+            sample['density'] = TF.crop(sample['density'], i, j, h, w)
 
         if random.randint(0,1):
             sample['image'] = torch.flip(sample['image'],(3,))

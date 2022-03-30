@@ -949,10 +949,10 @@ def make_model_name(train_loader):
              "E"+str(a.args.meta_epochs*a.args.sub_epochs),
              "DIM"+str(c.density_map_h)]
      
-     if a.args.mod not in ['UNet','FCRN']:
-         parts.append("FE",str(c.feat_extractor))
+     if a.args.model_name not in ['UNet','FCRN']:
+         parts.append("FE_"+str(c.feat_extractor))
             
-     if a.args.mod == 'NF':
+     if a.args.model_name == 'NF':
          parts.append("NC"+str(c.n_coupling_blocks))
      
      #"LRS",str(c.scheduler), # only one LR scheduler currently
