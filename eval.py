@@ -22,7 +22,12 @@ MAX_DISTANCE = 100
 MIN_D = int(c.sigma*2)
 STEP = 1
 
-def dlr_acd_whole_image_eval(mdl):
+def eval_baselines(mdl):
+    pass
+    
+    
+
+def dlr_acd_whole_image_eval(mdl,loader):
     
     metric_dict = {'mae':None,
                    'mnae':None,

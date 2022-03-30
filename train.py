@@ -30,10 +30,10 @@ def train_baselines(model_name,train_loader,val_loader):
     model_hparam_dict = make_hparam_dict(val_loader)
     writer = SummaryWriter(log_dir='runs/'+a.args.schema+'/'+modelname)   
     
-    if not a.args.model_name == 'UNet':
-        loss = torch.nn.MSELoss()
-    else:
-        loss = torch.nn.CrossEntropyLoss()
+    #if not a.args.model_name == 'UNet':
+    loss = torch.nn.MSELoss()
+    #else:
+    #    loss = torch.nn.CrossEntropyLoss()
     
     if a.args.model_name == "FCRN":
         mdl = b.FCRN_A(modelname=modelname)
@@ -42,7 +42,6 @@ def train_baselines(model_name,train_loader,val_loader):
     elif a.args.model_name == "CSRNet":
         mdl = b.UNet(modelname=modelname)
         #raise ValueError#mdl = b.UNet(modelname=modelname)
-    
         
     optimizer = torch.optim.Adam(mdl.parameters(), lr=a.args.learning_rate, betas=(0.9, 0.999), eps=1e-04, weight_decay=a.args.weight_decay)
     # add scheduler to improve stability further into training
@@ -67,7 +66,7 @@ def train_baselines(model_name,train_loader,val_loader):
                 images,dmaps,labels, _, _ = data # _ = annotations
                 images = images.float().to(c.device)
                 results = mdl(images)
-                iter_loss = loss(results.squeeze(),dmaps)
+                iter_loss = loss(results.squeeze(),dmaps.squeeze())
                 t_loss = t2np(iter_loss)
                 iter_loss.backward()
                 train_loss.append(t_loss)
@@ -84,7 +83,7 @@ def train_baselines(model_name,train_loader,val_loader):
                     images,dmaps,labels, _, _ = data # _ = annotations
                     images = images.float().to(c.device)
                     results = mdl(images)
-                    iter_loss = loss(results.squeeze(),dmaps)
+                    iter_loss = loss(results,dmaps)
                     v_loss = t2np(iter_loss)
                     val_loss.append(v_loss)
                 
@@ -115,9 +114,7 @@ def train_baselines(model_name,train_loader,val_loader):
     model.save_model(mdl,modelname)
     mdl.to(c.device)
     
-    return mdl
-        
-    
+    return mdl    
 
 def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,writer=None):
             assert c.train_model
