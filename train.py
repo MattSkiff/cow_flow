@@ -73,10 +73,8 @@ def train_baselines(model_name,train_loader,val_loader):
                 images,dmaps,labels, _, _ = data # _ = annotations
                 images = images.float().to(c.device)
                 results = mdl(images)
-
                 iter_loss = loss(results.squeeze(),dmaps.squeeze()*1000)
                 t_loss = t2np(iter_loss)
-                print(t_loss)
                 iter_loss.backward()
                 train_loss.append(t_loss)
                 clip_grad_value_(mdl.parameters(), c.clip_value)

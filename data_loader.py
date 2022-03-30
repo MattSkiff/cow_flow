@@ -587,11 +587,10 @@ class CowObjectsDataset(Dataset):
                 
             if self.density and not self.count:
                 
-                if a.args.model_name == 'CSRNet':
-                    tgt = density_map
-                    density_map = cv2.resize(tgt,(int(tgt.shape[1]/8),int(tgt.shape[0]/8)),interpolation = cv2.INTER_CUBIC)*64
-                
-                
+                # if a.args.model_name == 'CSRNet':
+                #     tgt = density_map
+                #     density_map = cv2.resize(tgt,(int(tgt.shape[1]/8),int(tgt.shape[0]/8)),interpolation = cv2.INTER_CUBIC)*64
+
                 sample['density'] = density_map; sample['labels'] = labels
                 
             if self.count:
@@ -1019,7 +1018,8 @@ class CropRotateFlipScaling(object):
         if not a.args.model_name == 'CSRNet':
             sample['density'] = resize(sample['density'].unsqueeze(0).unsqueeze(0))
         else:
-            sample['density'] = sample['density'].unsqueeze(0).unsqueeze(0)
+            resize = T.Resize(size=(32,32))
+            sample['density'] = resize(sample['density'].unsqueeze(0).unsqueeze(0))
             
         
         i, j, h, w = T.RandomCrop.get_params(sample['image'], output_size=(256, 256))
