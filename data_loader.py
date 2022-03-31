@@ -1013,6 +1013,8 @@ class CropRotateFlipScaling(object):
         # https://discuss.pytorch.org/t/torchvision-transfors-how-to-perform-identical-transform-on-both-image-and-target/10606/7
         resize = T.Resize(size=(256,256))
         
+        # TODO - fix this by swapping crop and resize (currently no random crop, just flips)
+        
         sample['image'] = resize(sample['image'].unsqueeze(0))
         
         if not a.args.model_name == 'CSRNet':

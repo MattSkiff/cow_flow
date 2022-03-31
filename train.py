@@ -56,7 +56,7 @@ def train_baselines(model_name,train_loader,val_loader):
     if a.args.scheduler == "exponential":
         scheduler = ExponentialLR(optimizer, gamma=0.9)
     elif a.args.scheduler == "step":
-        scheduler = StepLR(optimizer,step_size=20,gamma=0.1)
+        scheduler = StepLR(optimizer,step_size=a.args.step_size,gamma=a.args.step_gamma)
         
     mdl.to(c.device) 
     
@@ -157,13 +157,25 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                     
             if c.joint_optim:
                 # TODO
-                optimizer = torch.optim.Adam([
-                            {'params': mdl.nf.parameters()},
-                            {'params': mdl.feat_extractor.parameters() } # , 'lr_init': 1e-3,'betas':(0.9,0.999),'eps':1e-08, 'weight_decay':0}
-                        ], lr=a.args.learning_rate, betas=(0.8, 0.8), eps=1e-04, weight_decay=a.args.weight_decay )
+                if a.args.optim == 'adam':   
+                    optimizer = torch.optim.Adam([
+                                {'params': mdl.nf.parameters()},
+                                {'params': mdl.feat_extractor.parameters() } # , 'lr_init': 1e-3,'betas':(0.9,0.999),'eps':1e-08, 'weight_decay':0}
+                            ], lr=a.args.learning_rate, betas=(0.8, 0.8), eps=1e-04, weight_decay=a.args.weight_decay )                
+                
+                if a.args.optim == 'sgd':
+                    optimizer = torch.optim.SGD([
+                                {'params': mdl.nf.parameters()},
+                                {'params': mdl.feat_extractor.parameters() } # , 'lr_init': 1e-3,'betas':(0.9,0.999),'eps':1e-08, 'weight_decay':0}
+                            ], lr=a.args.learning_rate,momentum=a.args.sgd_mom)
+                    
             else:
-                optimizer = torch.optim.Adam(mdl.nf.parameters(), lr=a.args.learning_rate, betas=(0.9, 0.999), eps=1e-04, weight_decay=a.args.weight_decay)
-            
+                
+                if a.args.optim == 'adam':   
+                    optimizer = torch.optim.Adam(mdl.parameters(), lr=a.args.learning_rate, betas=(a.args.adam_b1, a.args.adam_b2), eps=a.args.adam_e, weight_decay=a.args.weight_decay)
+                if a.args.optim == 'sgd':
+                    optimizer = torch.optim.SGD(mdl.parameters(), lr=a.args.learning_rate,momentum=a.args.sgd_mom)   
+                    
             # add scheduler to improve stability further into training
             if a.args.scheduler == "exponential":
                 scheduler = ExponentialLR(optimizer, gamma=0.9)
