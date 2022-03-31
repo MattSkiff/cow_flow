@@ -947,7 +947,8 @@ def make_model_name(train_loader):
              "BS"+str(train_loader.batch_size),
              "LR_I"+str(a.args.learning_rate),
              "E"+str(a.args.meta_epochs*a.args.sub_epochs),
-             "DIM"+str(c.density_map_h)]
+             #"DIM"+str(c.density_map_h),
+             "OPTIM"+str(a.args.optim)]
      
      if a.args.model_name not in ['UNet','FCRN']:
          parts.append("FE_"+str(c.feat_extractor))
