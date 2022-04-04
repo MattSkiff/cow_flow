@@ -12,7 +12,7 @@ import torch
 from torch import randn
 
 import matplotlib.pyplot as plt
-from utils import ft_dims_select, UnNormalize, np_split
+from utils import ft_dims_select, np_split,is_baseline
 import config as c
 import gvars as g
 
@@ -22,11 +22,218 @@ MAX_DISTANCE = 100
 MIN_D = int(c.sigma*2)
 STEP = 1
 
-def eval_baselines(mdl):
-    pass
+def eval_baselines(mdl,loader,mode,thres=c.sigma*2):
     
+    assert not mdl.count
+    assert mode in ['train','val']
+    assert is_baseline(mdl)
+   
+    print("Dmap Evaluation....")
+    t1 = time.perf_counter()
     
+    localisation_dict = {
+        'tp':0,
+        'fp':0,
+        'fn':0
+        }
+    
+    y_n = []; y_coords = []
+    y_hat_n = []; y_hat_coords = []
+    dm_mae = []; dm_mse = []; dm_psnr = []; dm_ssim = [] #;dm_kl = []
+    game = []; gampe = []
+    
+    mdl = mdl.to(c.device)
+    
+    for i, data in enumerate(tqdm(loader, disable=False)):
+        
+        images,dmaps,labels, _ , annotations = data # binary labels
+        images = images.float().to(c.device)
+        x = mdl(images)
 
+        for idx in range(images.size()[0]):               
+                
+            dmap_np = x[idx].squeeze().cpu().detach().numpy()
+            dmap_np = dmap_np / 1000 #mdl.dmap_scaling # TODO
+            sum_count = dmap_np.sum() # sum across channel, spatial dims for counts
+            
+            # We 'DONT' evaluate using the GT dmap
+            ground_truth_dmap = dmaps[idx].squeeze().cpu().detach().numpy()
+            
+            # if sum_count > 0:
+            #     thres = int(sum_count)
+                       
+            # add points onto basemap
+            
+            # TODO
+            #base_map = np.zeros((mdl.density_map_w, mdl.density_map_h), dtype=np.float32)
+            base_map = np.zeros((256,256), dtype=np.float32)
+            
+            # TODO- retrieve points from point annotated masks
+            # anno = annotations[idx].cpu().detach().numpy()
+            ground_truth_point_map = base_map
+            gt_count = ground_truth_point_map.sum().round()
+            gt_coords = annotations[idx]
+            
+            if gt_coords.nelement() != 0:
+                gt_coords = torch.stack([gt_coords[:,2]*256,gt_coords[:,1]*256]).cpu().detach().numpy()
+            else:
+                gt_coords = None
+            
+            # subtract constrant for uniform noise
+            constant = ((mdl.noise)/2)*ground_truth_dmap.shape[0]*ground_truth_dmap.shape[1] 
+            sum_count -= constant
+            gt_count -= constant
+            
+            coordinates = peak_local_max(dmap_np,min_distance=MIN_D,num_peaks=max(1,int(sum_count)))
+
+            #y.append(labels[idx].cpu().detach().numpy())
+            y_n.append(len(labels[idx]))
+            
+            if gt_coords is not None:
+                y_coords.append(gt_coords)
+                
+            y_hat_n.append(sum_count)
+            y_hat_coords.append(coordinates) 
+            
+            # dmap metrics (we do use the kernalised dmap for this)
+            dm_mae.append(sum(abs(dmap_np-ground_truth_dmap)))
+            dm_mse.append(sum(np.square(dmap_np-ground_truth_dmap)))
+            # TODO - mismatched data type warning here
+            dm_psnr.append(peak_signal_noise_ratio(ground_truth_dmap,dmap_np))
+            dm_ssim.append(structural_similarity(ground_truth_dmap,dmap_np))
+            #dm_kl.append(entropy(pk=ground_truth_dmap,qk=dmap_rev_np)) # both dists normalised to one automatically
+                        
+            # local-count metrics # TODO
+            l = 1 # cell size param - number of cells to split images into: 0 = 1, 1 = 4, 2 = 16, etc
+            
+            # this splits the density maps into cells for counting per cell
+            # mdl.density_map_w//4**l, mdl.density_map_h//4**l
+            gt_dmap_split_counts = np_split(ground_truth_point_map,nrows=256//4**l,ncols=256//4**l).sum(axis=(1,2))
+            
+            # mdl.density_map_w//4**l, mdl.density_map_h//4**l
+            pred_dmap_split_counts = np_split(dmap_np,nrows=256//4**l,ncols=256//4**l).sum(axis=(1,2))
+
+            game.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)))
+            gampe.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)/np.maximum(np.ones(len(gt_dmap_split_counts)),gt_dmap_split_counts)))     
+    
+    # localisation metrics (using kernalised dmaps)
+    for gt_dmap, pred_dmap in zip(y_coords, y_hat_coords):
+        if not mdl.dlr_acd:
+            gt_dmap = np.swapaxes(gt_dmap,1,0)
+        else:
+            gt_dmap = np.array(gt_dmap)
+        
+        if c.debug:
+            print('dmap metrics: gt dmap')
+            print(gt_dmap)
+            print(len(gt_dmap))
+            print(gt_dmap.shape)
+            print(pred_dmap.shape)
+        
+        if not len(gt_dmap) == 0:
+            dist_matrix = distance.cdist(gt_dmap, pred_dmap, 'euclidean')
+            
+            # hungarian algorithm from scipy (yes, optimality is critical, even for eval)
+            optim = linear_sum_assignment(dist_matrix)
+            
+            dists = [] # matched distances per density map
+            
+            # match all pred points (if pred < gt) or match up to predicted number of points
+            for i in range(min(int(gt_dmap.sum()),len(optim[0]))):
+                # delete entry from distance matrix when match is found
+                dists.append(dist_matrix[optim[0][i],optim[1][i]]) 
+            
+            dists = np.array(dists)
+            
+            # DEBUG VIZ
+            # unnorm = UnNormalize(mean=tuple(c.norm_mean),
+            #                       std=tuple(c.norm_std))
+            # import matplotlib.pyplot as plt
+            # fig, ax = plt.subplots(1,1, figsize=(10, 10))
+            # ax.scatter(pred_dmap[:,0], pred_dmap[:,1],label='Predicted coordinates')
+            # ax.scatter(gt_dmap[:,0], gt_dmap[:,1],c='red',marker='1',label='Ground truth coordinates')
+    
+            tp = np.count_nonzero(dists<=thres)
+        else:
+            tp = 0 # set tp to zero for null annotations
+        
+        localisation_dict['tp'] += tp
+        localisation_dict['fp'] += pred_dmap.shape[0]-tp
+        localisation_dict['fn'] += gt_dmap.shape[0]-tp
+            
+    # dmap metrics (average across images)
+    dm_mae = np.mean(np.vstack(dm_mae))
+    dm_mse = np.mean(np.vstack(dm_mse))
+    dm_ssim = np.mean(np.vstack(dm_ssim))
+    dm_psnr = np.mean(np.vstack(dm_psnr))
+    
+    ## Counts
+    
+    # R2 
+    n = len(y_n)
+    y_hat_n = np.array(y_hat_n)
+    y_n = np.array(y_n)
+    
+    y_bar = y_n.mean() 
+    ss_res = np.sum((y_n-y_hat_n)**2)
+    ss_tot = np.sum((y_n-y_bar)**2) 
+    r2 = round(1 - (ss_res / ss_tot),4)
+    
+    # RMSE
+    rmse = round(sum(((y_n-y_hat_n)/n)**2)**0.5,4)
+    
+    # MAE
+    mae = round(sum(np.abs(y_n-y_hat_n))/n,4)
+    
+    # MAPE
+    mape = round(sum(np.abs(y_n-y_hat_n)/np.maximum(np.ones(len(y_n)),y_n))/n,4)
+    
+   # GAME
+    game = np.mean(np.vstack(game))
+    
+   # GAMPE
+    gampe = np.mean(np.vstack(gampe))   
+    
+    # localisation metrics: PR, RC, F1
+    tp = localisation_dict['tp']
+    fp = localisation_dict['fp']
+    fn = localisation_dict['fn']
+    
+    pr = tp/(tp+fp)
+    rc = tp/(tp+fn)
+    fscore = tp/(tp+0.5*(fp+fn))
+    
+    metric_dict = {
+        # Counts
+        '{}_r2'.format(mode):r2,
+        '{}_rmse'.format(mode):rmse,
+        '{}_mae'.format(mode):mae,
+        '{}_mape'.format(mode):mape,
+        # density maps
+        '{}_dm_mae'.format(mode):dm_mae,
+        '{}_dm_mse'.format(mode):dm_mse,
+        '{}_dm_psnr'.format(mode):dm_psnr,
+        '{}_dm_ssim'.format(mode):dm_ssim,
+        
+        # localised counting performance
+        '{}_game'.format(mode):game,
+        '{}_gampe'.format(mode):gampe,
+        
+       # '{}_dm_kl'.format(mode):dm_kl,
+        
+        # localisation
+        
+        '{}_fscore'.format(mode):fscore,
+        '{}_precision'.format(mode):pr,
+        '{}_recall'.format(mode):rc
+        
+        }
+    
+    t2 = time.perf_counter()
+    print("Dmap evaluation finished. Wall time: {}".format(round(t2-t1,2)))
+    
+    return  metric_dict # localisation_dict
+    
 def dlr_acd_whole_image_eval(mdl,loader):
     
     metric_dict = {'mae':None,
@@ -52,7 +259,6 @@ def dlr_acd_whole_image_eval(mdl,loader):
     
     return metric_dict
     
-
 # TODO extra args: plot = True, save=True,hist=True
 # TODO: don't shift computation over to cpu after sampling from model
 @torch.no_grad()
@@ -162,7 +368,7 @@ def dmap_metrics(mdl, loader,n=10,mode='',thres=c.sigma*2,null_filter=False):
         'fn':0
         }
     
-    y = []; y_n = []; y_coords = []
+    y_n = []; y_coords = []
     y_hat_n = [];  y_hat_n_dists = []; y_hat_coords = []
     dm_mae = []; dm_mse = []; dm_psnr = []; dm_ssim = [] #;dm_kl = []
     game = []; gampe = []
@@ -201,9 +407,9 @@ def dmap_metrics(mdl, loader,n=10,mode='',thres=c.sigma*2,null_filter=False):
             if not mdl.dlr_acd:
                 #features = mdl.feat_extractor(images)
                 #outputs = mdl.classification_head(features)
-                print('predicting with classification head')
-                outputs = mdl.classification_head(images)  
-                _, preds = torch.max(outputs, 1)  
+                if null_filter:
+                    outputs = mdl.classification_head(images)  
+                    _, preds = torch.max(outputs, 1)  
                 
             # TODO - classification head for DLR ACD (if null filtering needed)
             # else: 
@@ -215,8 +421,7 @@ def dmap_metrics(mdl, loader,n=10,mode='',thres=c.sigma*2,null_filter=False):
             # replace predicted densities with null predictions if not +ve pred from feature extractor
             if null_filter:
                 if not mdl.dlr_acd:
-                    print('replacing predicted densities with empty predictions from feature extractor')
-                    x[(preds == 1).bool(),:,:,:] = torch.zeros(1,608,800).to(c.device)
+                    x[(preds == 1).bool(),:,:,:] = torch.zeros(1,256,256).to(c.device)
             
             x_list.append(x)
         
@@ -243,8 +448,9 @@ def dmap_metrics(mdl, loader,n=10,mode='',thres=c.sigma*2,null_filter=False):
             if mdl.dlr_acd:
                 pm = point_maps[idx].squeeze().cpu().detach().numpy()
                 gt_coords = np.argwhere(pm != 0)
-            else:
-                anno = annotations[idx].cpu().detach().numpy()
+                
+            # else:
+            #     anno = annotations[idx].cpu().detach().numpy()
             
             if mdl.dlr_acd:
                 ground_truth_point_map = point_maps[idx].cpu().detach().numpy()
@@ -253,8 +459,12 @@ def dmap_metrics(mdl, loader,n=10,mode='',thres=c.sigma*2,null_filter=False):
                 ground_truth_point_map = base_map
                 gt_count = ground_truth_point_map.sum().round()
                 gt_coords = annotations[idx]
-                gt_coords = torch.stack([gt_coords[:,2]*mdl.density_map_h,gt_coords[:,1]*mdl.density_map_w]).cpu().detach().numpy()
-            
+                
+                if gt_coords.nelement() != 0:
+                    gt_coords = torch.stack([gt_coords[:,2]*mdl.density_map_h,gt_coords[:,1]*mdl.density_map_w]).cpu().detach().numpy()
+                else:
+                    gt_coords = None
+                
             # subtract constrant for uniform noise
             constant = ((mdl.noise)/2)*ground_truth_dmap.shape[0]*ground_truth_dmap.shape[1] 
             sum_count -= constant
@@ -269,8 +479,9 @@ def dmap_metrics(mdl, loader,n=10,mode='',thres=c.sigma*2,null_filter=False):
             else:
                 #y.append(labels[idx].cpu().detach().numpy())
                 y_n.append(len(labels[idx]))
-                
-            y_coords.append(gt_coords)
+            
+            if gt_coords is not None:
+                y_coords.append(gt_coords)
             y_hat_n.append(sum_count)
             y_hat_n_dists.append(dist_counts)
             y_hat_coords.append(coordinates) 

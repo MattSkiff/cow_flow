@@ -24,7 +24,7 @@ counts = False # must be off for pretraining feature extractor (#TODO)
 train_model = True # (if false, will only prep dataset,dataloaders)
 validation = True # whether to run validation data per meta epoch
 eval_n = 1
-data_prop = 1 # proportion of the full dataset to use (ignored in DLR ACD,MNIST)
+data_prop = 0.1 # proportion of the full dataset to use (ignored in DLR ACD,MNIST)
 test_train_split = 70 # percentage of data to allocate to train set
 
 ## Density Map Options ------
@@ -34,7 +34,7 @@ scale = 1 # 4, 2 = downscale dmaps four/two fold, 1 = unchanged
 ## Feature Extractor Options ------
 pretrained = True
 feat_extractor = "vgg16_bn" # alexnet, vgg16_bn,resnet18, none # TODO mnist_resnet, efficient net
-feat_extractor_epochs = 10
+feat_extractor_epochs = 1
 train_feat_extractor = False # whether to finetune or load finetuned model # redundent
 load_feat_extractor_str = '' # '' to train from scratch, loads FE  # final_eval_test_weka-13_BS2_LR_I[0.002]_NC5_E1_FE_resnet18_DIM608_JO_PT_PY_1_1x1_WD_0.001_FSZ_16_14_12_2021_21_49_14
 # nb: pretraining FE saves regardless of save flag
@@ -141,15 +141,16 @@ if a.args.dlr_acd:
     density_map_h,density_map_w = 256,256
 elif not a.args.mnist and not counts and downsampling:
     density_map_w = 256//scale #img_size[0]
-    if feat_extractor == 'resnet18':
-        density_map_h = 256//scale #img_size[1]
-    elif feat_extractor == 'alexnet':
-         density_map_h = 544//scale #img_size[1]
-         density_map_w = 768//scale
-    elif feat_extractor == 'vgg16_bn':
-        density_map_h = 576//scale #img_size[1]
-    elif feat_extractor == 'none':
-        density_map_h = 600//scale
+    density_map_h = 256//scale
+    # if feat_extractor == 'resnet18':
+    #     density_map_h = 256//scale #img_size[1]
+    # elif feat_extractor == 'alexnet':
+    #      density_map_h = 544//scale #img_size[1]
+    #      density_map_w = 768//scale
+    # elif feat_extractor == 'vgg16_bn':
+    #     density_map_h = 576//scale #img_size[1]
+    # elif feat_extractor == 'none':
+    #     density_map_h = 600//scale
 elif not a.args.mnist and not counts and not downsampling:
     density_map_w = 256//scale
     density_map_h = 256//scale

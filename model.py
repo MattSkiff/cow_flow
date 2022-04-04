@@ -12,13 +12,8 @@ from torchvision.models import alexnet, resnet18, vgg16_bn, efficientnet_b3   # 
 from torchvision.models.resnet import ResNet, BasicBlock
 import torch.nn.functional as F
 import numpy as np
-
-import os # save model
 import collections
-import shutil
-import dill # solve error when trying to pickle lambda function in FrEIA
-
-from utils import init_weights, ft_dims_select
+import utils as u #init_weights, ft_dims_select
 
 import train # train_feat_extractor
 # importing all fixes cyclical import 
@@ -30,45 +25,6 @@ import FrEIA.modules as Fm
 import config as c # hyper params
 import arguments as a
 import gvars as g
-
-# TODO - shift below 5 util functions to utils
-def save_cstate(cdir,modelname,config_file):
-    ''' saves a snapshot of the config file before running and saving model '''
-    if not os.path.exists(g.C_DIR):
-        os.makedirs(g.C_DIR)
-        
-    base, extension = os.path.splitext(config_file)
-    
-    if c.verbose:
-        'Config file copied to {}'.format(g.C_DIR)
-    
-    new_name = os.path.join(cdir, base+"_"+modelname+".txt")
-    
-    shutil.copy(config_file, new_name)
-
-def save_model(mdl,filename,loc=g.MODEL_DIR):
-    if not os.path.exists(loc):
-        os.makedirs(loc)
-    torch.save(mdl, os.path.join(loc,filename), pickle_module=dill)
-    print("model {} saved to {}".format(filename,loc))
-    save_cstate(cdir=g.C_DIR,modelname="",config_file="config.py")
-    
-def load_model(filename,loc=g.MODEL_DIR):
-    path = os.path.join(loc, filename)
-    mdl = torch.load(path, pickle_module=dill)
-    
-    print("model {} loaded from {}".format(filename,loc))
-    return mdl
-    
-def save_weights(mdl,filename,loc=g.WEIGHT_DIR):
-    if not os.path.exists(loc):
-        os.makedirs(loc)
-    torch.save(mdl.state_dict(),os.path.join(loc,filename), pickle_module=dill)
-        
-def load_weights(mdl, filename,loc=g.WEIGHT_DIR):
-    path = os.path.join(loc, filename)
-    mdl.load_state_dict(torch.load(path,pickle_module=dill)) 
-    return mdl
 
 # https://zablo.net/blog/post/using-resnet-for-mnist-in-pytorch-tutorial/
 # TODO
@@ -117,7 +73,7 @@ class ResNetPyramid(ResNet):
             # TODO
             num_ftrs = self.fc.in_features
             self.fc = nn.Linear(num_ftrs, 2)  
-            finetuned_fe = load_model(c.load_feat_extractor_str,loc=g.FEAT_MOD_DIR)
+            finetuned_fe = u.load_model(c.load_feat_extractor_str,loc=g.FEAT_MOD_DIR)
             self.load_state_dict(finetuned_fe.state_dict())
             #del finetuned_fe
             
@@ -159,7 +115,7 @@ def random_orthog(n):
 def select_feat_extractor(feat_extractor,train_loader=None,valid_loader=None):
     
     if c.load_feat_extractor_str and not c.pyramid:
-        feat_extractor = load_model(filename=c.load_feat_extractor_str,loc=g.FEAT_MOD_DIR)
+        feat_extractor = u.load_model(filename=c.load_feat_extractor_str,loc=g.FEAT_MOD_DIR)
     
     if not c.pyramid:
         if c.feat_extractor == "alexnet":
@@ -212,7 +168,7 @@ def sub_conv2d(dims_in,dims_out,n_filters):
         del network_dict['batchnorm2']
     
     net = nn.Sequential(network_dict)
-    net.apply(init_weights)
+    net.apply(u.init_weights)
     
     # zero init last subnet weights as per glow, cINNs paper
     net.conv3.weight = torch.nn.init.zeros_(net.conv3.weight)
@@ -423,7 +379,7 @@ def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,m
         condition = [Ff.ConditionNode(condition_dim,name = 'condition')]
     else:
         # TODO: avoid hardcoding feature spatial dimensions in
-        ft_dims = ft_dims_select()
+        ft_dims = u.ft_dims_select()
         
         condition = [Ff.ConditionNode(condition_dim,ft_dims[0],ft_dims[1],name = 'condition')]
     
@@ -519,7 +475,7 @@ class CowFlow(nn.Module):
         self.joint_optim = c.joint_optim
         self.pretrained = c.pretrained
         self.finetuned = c.train_feat_extractor
-        self.scheduler = c.scheduler
+        self.scheduler = a.args.scheduler
         self.pyramid = c.pyramid
         self.fixed1x1conv = c.fixed1x1conv
         self.scale = c.scale
@@ -530,6 +486,7 @@ class CowFlow(nn.Module):
         self.noise = a.args.noise
         self.seed = c.seed
         self.optim = a.args.optim
+        self.dmap_scaling = a.args.dmap_scaling
 
     def forward(self,images,labels,rev=False): # label = dmaps or counts
         # no multi-scale architecture (yet) as per differnet paper
