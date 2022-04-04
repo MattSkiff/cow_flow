@@ -36,7 +36,7 @@ pretrained = True
 feat_extractor = "resnet18" # alexnet, vgg16_bn,resnet18, none # TODO mnist_resnet, efficient net
 feat_extractor_epochs = 1
 train_feat_extractor = False # whether to finetune or load finetuned model # redundent
-load_feat_extractor_str = 'final_eval_test_weka-13_BS2_LR_I[0.002]_NC5_E1_FE_resnet18_DIM608_JO_PT_PY_1_1x1_WD_0.001_FSZ_16_14_12_2021_21_49_14' # '' to train from scratch, loads FE  # 
+load_feat_extractor_str = 'final_eval_test_weka-13_BS2_LR_I[0.002]_NC5_E1_FE_resnet18_DIM608_JO_PT_PY_1_1x1_WD_0.001_FSZ_16_14_12_2021_21_49_14' # 'final_eval_test_weka-13_BS2_LR_I[0.002]_NC5_E1_FE_resnet18_DIM608_JO_PT_PY_1_1x1_WD_0.001_FSZ_16_14_12_2021_21_49_14' to train from scratch, loads FE  # 
 # nb: pretraining FE saves regardless of save flag
 
 ## Architecture Options ------
