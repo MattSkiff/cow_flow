@@ -2,7 +2,7 @@
 from torchvision.transforms import Compose
 from torch.cuda import empty_cache
 from torch.utils.data import DataLoader # Dataset                                                                                                                                                                    
-from torch.utils.data.sampler import SubsetRandomSampler, WeightedRandomSampler # RandomSampling
+from torch.utils.data.sampler import SubsetRandomSampler # RandomSampling
 
 # from torchvision import transforms
 import config as c
@@ -17,9 +17,7 @@ from mnist import train_mnist
 from ipywidgets import FloatProgress # fix iprogress error in tqdm
 
 #from utils import load_datasets, make_dataloaders
-from data_loader import CowObjectsDataset, CustToTensor, AerialNormalize, DmapAddUniformNoise, CustCrop, CustResize, train_val_split, CropRotateFlipScaling
-
-from utils import plot_preds, plot_peaks
+from data_loader import CowObjectsDataset, CustToTensor, AerialNormalize, DmapAddUniformNoise, train_val_split, CropRotateFlipScaling
 
 empty_cache() # free up memory for cuda
 
@@ -37,8 +35,6 @@ if a.args.cows:
                 CustToTensor(),
                 AerialNormalize(),
                 CropRotateFlipScaling(),
-                #CustResize(),
-                #CustCrop(),
                 DmapAddUniformNoise(),
             ])
                         
