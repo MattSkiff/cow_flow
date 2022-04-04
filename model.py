@@ -605,7 +605,7 @@ class MNISTFlow(nn.Module):
         self.fixed1x1conv = c.fixed1x1conv
         self.joint_optim = c.joint_optim
         self.pretrained = c.pretrained
-        self.scheduler = c.scheduler
+        self.scheduler = a.args.scheduler
 
     def forward(self,images,labels,rev=False):
         
