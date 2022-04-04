@@ -15,8 +15,7 @@ parser.add_argument("-cows", "--cows", help="Run the architecture on the aerial 
 parser.add_argument('-mnist',help='Run the architecture on the DLR ACD dataset.', action="store_true",default=False)
 
 parser.add_argument('-anno','--annotations_only',help='whether to only use image patches that have annotations',action="store_true",default=False)
-parser.add_argument('-weighted','--weighted_sampler',help='whether to weight minibatch samples such that sampling distribution is 50/50 null/annotated', action="store_true",default=True)
-parser.add_argument('-balance',help='whether to have a 1:1 mixture of empty:annotated images',action='store_true',default=False)
+parser.add_argument('-weighted','--weighted_sampler',help='whether to weight minibatch samples such that sampling distribution is 50/50 null/annotated', action="store_true",default=False)
 parser.add_argument('-dmap_type',help='Use density or segmentation masks (gauss or max filters)',default='gauss')
 parser.add_argument('-dmap_scaling',help='Scale up density map to ensure gaussianed density is not too close to zero per pixel',type=int,default=1)
 parser.add_argument('-img_sz','--image_size',help='Size of the random crops taken from the original data patches [Cows 800x600, DLR 320x320]',type=int,default=256)

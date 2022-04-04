@@ -1114,8 +1114,7 @@ class CustResize(object):
 
 # Need to create lists of test and train indices
 # Dataset is highly imbalanced, want test set to mirror train set imbalance 
-def train_val_split(dataset,train_percent,oversample=False,
-                    balanced = False,annotations_only = False,seed = -1):
+def train_val_split(dataset,train_percent,oversample=False,annotations_only = False,seed = -1):
     
     ''' 
      Args:
@@ -1133,7 +1132,7 @@ def train_val_split(dataset,train_percent,oversample=False,
      
      '''
     
-    assert not (balanced and oversample)
+    assert not (annotations_only and oversample)
     assert type(seed) == int
     
     if seed != -1:
@@ -1161,17 +1160,10 @@ def train_val_split(dataset,train_percent,oversample=False,
     # designed to be used with balanced sampler
     if oversample:
         a_indices = np.tile(np.array(a_indices),int(np.round(len(e_indices)/len(a_indices))))
-            
-    if c.debug:
-        print(len(a_indices))
-        print(len(e_indices))
     
     # modify lists to be random
     np.random.shuffle(a_indices)
     np.random.shuffle(e_indices)
-    
-    if balanced:
-        e_indices = e_indices[:len(a_indices)]
     
     split_e = round(train_percent * len(e_indices) / 100)
     split_a = round(train_percent * len(a_indices) / 100)
@@ -1188,12 +1180,6 @@ def train_val_split(dataset,train_percent,oversample=False,
     a_weights = ((np.ones(len(a_indices))/weight_a).tolist())
     e_weights = ((np.ones(len(e_indices))/weight_e).tolist())
     
-    # print("Length Annotated and Eempty Weights")
-    # print(len(a_weights))
-    # print(len(e_weights))
-    # print(a_weights[0])
-    # print(e_weights[0])
-    
     # only split if not annotations ony
     # TODO: DRY (and ugly)
     if not annotations_only:
@@ -1204,7 +1190,6 @@ def train_val_split(dataset,train_percent,oversample=False,
         
     t_indices.extend(a_indices[:split_a])
     v_indices.extend(a_indices[split_a:])
-    
     t_weights.extend(a_weights[:split_a])
     v_weights.extend(a_weights[split_a:])
         
