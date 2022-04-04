@@ -8,9 +8,9 @@ import numpy as np
 import random
 from datetime import datetime 
 import cv2
-import re # lukas
 from prettytable import PrettyTable
-
+import dill # solve error when trying to pickle lambda function in FrEIA
+import shutil
 import config as c
 import gvars as g
 import arguments as a
@@ -19,9 +19,61 @@ import arguments as a
 from skimage.feature import peak_local_max # 
 #from skimage import data, img_as_float
 
-if any('SPYDER' in name for name in os.environ):
-    import matplotlib
-    #matplotlib.use('TkAgg') # get around agg non-GUI backend error
+# if any('SPYDER' in name for name in os.environ):
+#     import matplotlib
+#     #matplotlib.use('TkAgg') # get around agg non-GUI backend error
+
+# TODO - shift below 5 util functions to utils
+def save_cstate(cdir,modelname,config_file):
+    ''' saves a snapshot of the config file before running and saving model '''
+    if not os.path.exists(g.C_DIR):
+        os.makedirs(g.C_DIR)
+        
+    base, extension = os.path.splitext(config_file)
+    
+    if c.verbose:
+        'Config file copied to {}'.format(g.C_DIR)
+    
+    new_name = os.path.join(cdir, base+"_"+modelname+".txt")
+    
+    shutil.copy(config_file, new_name)
+
+def save_model(mdl,filename,loc=g.MODEL_DIR):
+    if not os.path.exists(loc):
+        os.makedirs(loc)
+    torch.save(mdl, os.path.join(loc,filename), pickle_module=dill)
+    print("model {} saved to {}".format(filename,loc))
+    save_cstate(cdir=g.C_DIR,modelname="",config_file="config.py")
+    
+def load_model(filename,loc=g.MODEL_DIR):
+    path = os.path.join(loc, filename)
+    mdl = torch.load(path, pickle_module=dill)
+    
+    print("model {} loaded from {}".format(filename,loc))
+    return mdl
+    
+def save_weights(mdl,filename,loc=g.WEIGHT_DIR):
+    if not os.path.exists(loc):
+        os.makedirs(loc)
+    torch.save(mdl.state_dict(),os.path.join(loc,filename), pickle_module=dill)
+        
+def load_weights(mdl, filename,loc=g.WEIGHT_DIR):
+    path = os.path.join(loc, filename)
+    mdl.load_state_dict(torch.load(path,pickle_module=dill)) 
+    return mdl
+
+def is_baseline(mdl):
+    
+    if str(type(mdl))=="<class 'baselines.UNet'>":
+        return True
+    if str(type(mdl))=="<class 'baselines.CSRNet'>":
+        return True
+    if str(type(mdl))=="<class 'baselines.LCFCN'>":
+        return True
+    if str(type(mdl))=="<class 'baselines.FCRN'>":
+        return True
+        
+    return False
 
 def ft_dims_select(mdl=None):
     
@@ -37,9 +89,9 @@ def ft_dims_select(mdl=None):
         elif fe in ['resnet18','ResNetPyramid'] or fe == 'Sequential':
             ft_dims = (a.args.image_size // 2**5,a.args.image_size // 2**5) # 19, 25
         elif fe == 'vgg16_bn' or fe == 'VGG':
-            ft_dims = (18,25)
+            ft_dims = (8,8) #(18,25)
         elif fe == 'alexnet' or fe == 'AlexNet':
-            ft_dims = (17,24)
+            ft_dims = (8,8) #(17,24)
         elif fe == 'none' or fe == 'NothingNet':
             ft_dims = (600,800)
             
@@ -92,6 +144,91 @@ class UnNormalize(object):
             t.mul_(s).add_(m)
             # The normalize code -> t.sub_(m).div_(s)
         return tensor      
+
+@torch.no_grad()
+def plot_preds_multi(UNet_path,CSRNet_path,FCRN_path,NF_path,mode,loader,sample_n=5): 
+    UNet = load_model(UNet_path)
+    CSRNet = load_model(CSRNet_path)
+    FCRN = load_model(FCRN_path)
+    NF = load_model(NF_path)
+    
+    assert mode in ['train','val']
+    
+    count_arr = []
+    
+    lb_idx = random.randint(0,loader.batch_size-1)
+
+    for i, data in enumerate(tqdm(loader, disable=c.hide_tqdm_bar)):
+            
+            fig, ax = plt.subplots(1,6)
+            plt.subplots_adjust(left=0.1, right=0.9, top=0.9, bottom=0.1)
+            fig.set_size_inches(35*1,7*1)
+            fig.set_dpi(100)
+            fig.suptitle('Baseline Comparisons {}'.format(mode),y=1.0,fontsize=16) # :.2f
+            [axi.set_axis_off() for axi in ax.ravel()] # turn off subplot axes
+            
+            images,dmaps,labels,binary_labels,annotations = data
+            j = 0
+            
+            for mdl in [UNet,CSRNet,FCRN]:
+                
+                mdl.to(c.device)
+                preds = mdl(images)
+                preds = preds[lb_idx].permute(1,2,0).cpu().numpy()
+                # todo - retrain models with noise attr and uncomment below
+                constant=0#constant = ((mdl.noise)/2)*dmaps[lb_idx].shape[0]*dmaps[lb_idx].shape[1]
+                count_arr.append((preds.sum()/1000)-constant)
+                ax[j].title.set_text('Density Map Prediction {}'.format(str(type(mdl))))
+                ax[j].imshow(preds)
+                
+                j = j + 1
+                
+                x_list = []
+            
+            mdl = NF; mdl.to(c.device)
+            
+            # NF prediction
+            for i in range(sample_n):
+                                    
+                in_channels = c.channels*4**5 # n_ds=5
+                ft_dims = ft_dims_select(mdl)
+                                
+                dummy_z = (randn(images.size()[0], in_channels,ft_dims[0],ft_dims[1])).to(c.device)
+                dummy_z = dummy_z.float().to(c.device)
+                x, log_det_jac = mdl(images,dummy_z,rev=True)
+                x_list.append(x)
+                        
+                x_agg = torch.stack(x_list,dim=1)
+                x = x_agg.mean(dim=1) # take average of samples from models for mean reconstruction
+                    
+            # replace predicted densities with null predictions if not +ve pred from feature extractor
+            # subtract constant for uniform noise
+            outputs = mdl.classification_head(images)  
+            _, preds = torch.max(outputs, 1)  
+            x[(preds == 1).bool(),:,:,:] = torch.zeros(1,mdl.density_map_h,mdl.density_map_w).to(c.device)
+                     
+            dmap_rev_np = x[lb_idx].squeeze().cpu().detach().numpy()
+            
+            ax[j].title.set_text('Density Map Prediction {}'.format(str(type(mdl))))
+            ax[j].imshow(dmap_rev_np)
+            
+            constant = ((mdl.noise)/2)*dmaps[lb_idx].shape[0]*dmaps[lb_idx].shape[1]
+            count_arr.append(dmap_rev_np.sum()-constant)
+                
+            break
+    
+    unnorm = UnNormalize(mean=tuple(c.norm_mean),
+                         std=tuple(c.norm_std))
+    im = unnorm(images[lb_idx])
+    im = im.permute(1,2,0).cpu().numpy()
+    
+    ax[4].title.set_text('Conditioning Aerial Image')
+    ax[4].imshow((im * 255).astype(np.uint8))
+    ax[5].title.set_text('Ground Truth Density Map')
+    ax[5].imshow(dmaps[lb_idx].cpu().numpy())
+    
+    return {'UNet':count_arr[0],'FCRN':count_arr[1],'CSRNet':count_arr[2],'NF':count_arr[3]}
+    # TODO - show pred counts
 
 @torch.no_grad()
 def plot_preds_baselines(mdl, loader,mode="",mdl_type=''):
@@ -211,7 +348,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
                 images,labels = data
             elif mdl.dlr_acd:
                 images,dmaps,counts,point_maps = data
-            elif loader.dataset.count: # model.dataset.count
+            elif loader.dataset.count: # mdl.dataset.count
                 images,dmaps,labels,counts = data
             elif loader.dataset.classification:
                 images,dmaps,labels,binary_labels,annotations = data
@@ -325,7 +462,6 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
                 constant = ((mdl.noise)/2)*dmaps[lb_idx].shape[0]*dmaps[lb_idx].shape[1]
                 if not mdl.dlr_acd:
                     # subtract constrant for uniform noise
-                    constant = ((mdl.noise)/2)*dmaps[lb_idx].shape[0]*dmaps[lb_idx].shape[1]
                     print('replacing predicted densities with empty predictions from feature extractor')
                     outputs = mdl.classification_head(images)  
                     _, preds = torch.max(outputs, 1)  
@@ -803,10 +939,10 @@ def get_likelihood(mdl, loader, plot = True,save=False,digit=None,ood=False):
     return out # x.size() #
 
 # https://stackoverflow.com/questions/49201236/check-the-total-number-of-parameters-in-a-pytorch-model
-def count_parameters(model):
+def count_parameters(mdl):
     table = PrettyTable(["Modules", "Parameters"])
     total_params = 0
-    for name, parameter in model.named_parameters():
+    for name, parameter in mdl.named_parameters():
         if not parameter.requires_grad: continue
         param = parameter.numel()
         table.add_row([name, param])

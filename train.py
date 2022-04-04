@@ -10,8 +10,8 @@ import copy
 import os
 from datetime import datetime 
 
-from eval import eval_mnist, dmap_metrics, dmap_pr_curve
-from utils import get_loss, plot_preds, counts_preds_vs_actual, t2np, torch_r2, make_model_name, make_hparam_dict
+from eval import eval_mnist, dmap_metrics, dmap_pr_curve, eval_baselines
+from utils import get_loss, plot_preds, counts_preds_vs_actual, t2np, torch_r2, make_model_name, make_hparam_dict, load_model, save_model
 import model # importing entire file fixes 'cyclical import' issues
 #from model import CowFlow, MNISTFlow, select_feat_extractor, save_model #, save_weights
 
@@ -73,7 +73,7 @@ def train_baselines(model_name,train_loader,val_loader):
                 images,dmaps,labels, _, _ = data # _ = annotations
                 images = images.float().to(c.device)
                 results = mdl(images)
-                iter_loss = loss(results.squeeze(),dmaps.squeeze()*1000)
+                iter_loss = loss(results.squeeze(),dmaps.squeeze()*a.args.dmap_scaling)
                 t_loss = t2np(iter_loss)
                 iter_loss.backward()
                 train_loss.append(t_loss)
@@ -90,7 +90,7 @@ def train_baselines(model_name,train_loader,val_loader):
                     images,dmaps,labels, _, _ = data # _ = annotations
                     images = images.float().to(c.device)
                     results = mdl(images)
-                    iter_loss = loss(results.squeeze(),dmaps.squeeze()*1000)
+                    iter_loss = loss(results.squeeze(),dmaps.squeeze()*a.args.dmap_scaling)
                     v_loss = t2np(iter_loss)
                     val_loss.append(v_loss)
                 
@@ -101,7 +101,7 @@ def train_baselines(model_name,train_loader,val_loader):
             if mean_val_loss < best_loss and c.save_model:
                 best_loss = mean_val_loss
                 # At this point also save a snapshot of the current model
-                model.save_model(mdl,"best"+"_"+modelname) # want to overwrite - else too many copies stored # +str(l)
+                save_model(mdl,"best"+"_"+modelname) # want to overwrite - else too many copies stored # +str(l)
                 
             t_e2 = time.perf_counter()
             print("\nTrain | Sub Epoch Time (s): {:f}, Epoch train loss: {:.4f},Epoch val loss: {:.4f}".format(t_e2-t_e1,mean_train_loss,mean_val_loss))
@@ -110,6 +110,9 @@ def train_baselines(model_name,train_loader,val_loader):
             writer.add_scalar('loss/epoch_train',mean_train_loss, l)
             writer.add_scalar('loss/epoch_val',mean_val_loss, l)
     
+        val_metric_dict = eval_baselines(mdl,val_loader,mode='val',thres=c.sigma*2)
+        model_metric_dict.update(val_metric_dict)
+    
     writer.add_hparams(
               hparam_dict = model_hparam_dict,
               metric_dict = model_metric_dict,
@@ -117,8 +120,17 @@ def train_baselines(model_name,train_loader,val_loader):
               run_name = "epoch_{}".format(meta_epoch)
               )
     
+    mdl.hparam_dict = model_hparam_dict
+    mdl.metric_dict = model_metric_dict
+    
+    filename = "./models/"+"final"+modelname+".txt"
+    
+    # could switch to using json and print params on model reload
+    with open(filename, 'w') as f:
+        print(model_hparam_dict, file=f)
+    
     mdl.to('cpu')
-    model.save_model(mdl,modelname)
+    save_model(mdl,modelname)
     mdl.to(c.device)
     
     return mdl    
@@ -255,7 +267,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                         # output of model - two elements: y (z), jacobian
                           
                         if not a.args.mnist and not c.counts:
-                            input_data = (images,dmaps) # inputs features,dmaps
+                            input_data = (images,dmaps*a.args.dmap_scaling) # inputs features,dmaps
                         elif not a.args.mnist:
                             input_data = (images,counts) 
                         else:
@@ -384,7 +396,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                         if mean_val_loss < best_loss and c.save_model:
                             best_loss = mean_val_loss
                             # At this point also save a snapshot of the current model
-                            model.save_model(mdl,"best"+"_"+modelname) # want to overwrite - else too many copies stored # +str(l)
+                            save_model(mdl,"best"+"_"+modelname) # want to overwrite - else too many copies stored # +str(l)
                             
                         j += 1
                 
@@ -399,7 +411,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                 
                 if c.save_model and c.checkpoints:
                     mdl.to('cpu')
-                    model.save_model(mdl,"checkpoint_"+str(l)+"_"+modelname)
+                    save_model(mdl,"checkpoint_"+str(l)+"_"+modelname)
                     #save_weights(model,"checkpoint_"+str(l)+"_"+modelname) # currently have no use for saving weights
                     mdl.to(c.device)
                 
@@ -506,7 +518,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                     print(model_hparam_dict, file=f)
                 
                 mdl.to('cpu')
-                model.save_model(mdl,"final_"+modelname)
+                save_model(mdl,"final_"+modelname)
                 #model.save_weights(model, modelname) # currently have no use for saving weights
                 mdl.to(c.device)
             
@@ -634,7 +646,7 @@ def train_classification_head(mdl,full_trainloader,full_valloader,criterion = nn
         print("Finetuning finished.")
         
     mdl.classification_head.load_state_dict(best_model_wts)
-    model.save_model(mdl.classification_head,filename=filename,loc=g.FEAT_MOD_DIR)
+    save_model(mdl.classification_head,filename=filename,loc=g.FEAT_MOD_DIR)
     
     return mdl.classification_head
         
@@ -741,6 +753,6 @@ def train_feat_extractor(feat_extractor,trainloader,valloader,criterion = nn.Cro
         print("Finetuning finished.")
         
     feat_extractor.load_state_dict(best_model_wts)
-    model.save_model(feat_extractor,filename=filename,loc=g.FEAT_MOD_DIR)
+    save_model(feat_extractor,filename=filename,loc=g.FEAT_MOD_DIR)
     
     return feat_extractor

@@ -81,7 +81,7 @@ class FCRN_A(nn.Module):
     Regression Networks'
     """
 
-    def __init__(self, N: int=1, input_filters: int=3, **kwargs):
+    def __init__(self,modelname, N: int=1, input_filters: int=3, **kwargs):
         """
         Create FCRN-A model with:
             * fixed kernel size = (3, 3)
@@ -92,6 +92,28 @@ class FCRN_A(nn.Module):
             N: no. of convolutional layers per block (see conv_block)
             input_filters: no. of input channels
         """
+       
+        # these attr's are needed to make the model object independant of the config file
+        self.modelname = modelname
+        self.unconditional = False
+        self.count = False
+        self.subnet_type = None
+        self.mnist = False
+        self.gap = c.gap
+        self.n_coupling_blocks = 0
+        self.joint_optim = False
+        self.pretrained = False
+        self.finetuned = False
+        self.scheduler = a.args.scheduler
+        self.scale = c.scale
+        self.density_map_h = c.density_map_h
+        self.density_map_w = c.density_map_w
+        self.downsampling = c.downsampling
+        self.scale = c.scale
+        self.noise = a.args.noise
+        self.seed = c.seed
+        self.dmap_scaling = a.args.dmap_scaling
+       
         super(FCRN_A, self).__init__()
         self.model = nn.Sequential(
             # downsampling
@@ -154,7 +176,7 @@ class UNet(nn.Module):
         self.subnet_type = None
         self.mnist = False
         self.gap = c.gap
-        self.n_coupling_blocks = c.n_coupling_blocks
+        self.n_coupling_blocks = 0
         self.joint_optim = False
         self.pretrained = False
         self.finetuned = False
@@ -166,6 +188,7 @@ class UNet(nn.Module):
         self.scale = c.scale
         self.noise = a.args.noise
         self.seed = c.seed
+        self.dmap_scaling = a.args.dmap_scaling
         
         super(UNet, self).__init__()
         # first block channels size
@@ -225,7 +248,7 @@ class CSRNet(nn.Module):
         self.subnet_type = None
         self.mnist = False
         self.gap = c.gap
-        self.n_coupling_blocks = c.n_coupling_blocks
+        self.n_coupling_blocks = 0
         self.joint_optim = False
         self.pretrained = False
         self.finetuned = False
@@ -237,6 +260,7 @@ class CSRNet(nn.Module):
         self.scale = c.scale
         self.noise = a.args.noise
         self.seed = c.seed
+        self.dmap_scaling = a.args.dmap_scaling
         
         self.seen = 0
         self.frontend_feat = [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512]

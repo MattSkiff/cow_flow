@@ -4,7 +4,7 @@ import socket
 # command line params
 parser = argparse.ArgumentParser(description='Create dataloaders and train a conditional NF.')
 
-parser.add_argument('-mod',"--model_name",help="Specify model to train (NF, CSRNet, UNet, FCRN).",default='UNet')
+parser.add_argument('-mod',"--model_name",help="Specify model to train (NF, CSRNet, UNet, FCRN).",default='NF')
 parser.add_argument("-fe_only", "--feat_extract_only", help="Trains the feature extractor component only.", action="store_true",default=False)
 parser.add_argument("-uc", "--unconditional", help="Trains the model without labels.", action="store_true")
 parser.add_argument("-gn", "--gpu_number", help="Selects which GPU to train on.", type=int, default=0)
@@ -18,6 +18,7 @@ parser.add_argument('-anno','--annotations_only',help='whether to only use image
 parser.add_argument('-weighted','--weighted_sampler',help='whether to weight minibatch samples such that sampling distribution is 50/50 null/annotated', action="store_true",default=True)
 parser.add_argument('-balance',help='whether to have a 1:1 mixture of empty:annotated images',action='store_true',default=False)
 parser.add_argument('-dmap_type',help='Use density or segmentation masks (gauss or max filters)',default='gauss')
+parser.add_argument('-dmap_scaling',help='Scale up density map to ensure gaussianed density is not too close to zero per pixel',type=int,default=1)
 parser.add_argument('-img_sz','--image_size',help='Size of the random crops taken from the original data patches [Cows 800x600, DLR 320x320]',type=int,default=256)
 
 parser.add_argument('-test','--test_run',help='use only a small fraction of data to check everything works',action='store_true')
