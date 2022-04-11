@@ -73,6 +73,8 @@ def train_baselines(model_name,train_loader,val_loader):
             
             for i, data in enumerate(tqdm(train_loader, disable=c.hide_tqdm_bar)):
                 
+                optimizer.zero_grad()
+                
                 images,dmaps,labels, binary_labels, annotations,point_maps = data
                 images = images.float().to(c.device)
                 results = mdl(images)
