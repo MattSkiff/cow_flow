@@ -37,7 +37,7 @@ parser.add_argument("-step_size",help="step size of stepLR scheduler",type=int,d
 parser.add_argument("-step_gamma",help="gamma of stepLR scheduler",type=float,default=0)
 
 parser.add_argument("-lr","--learning_rate",type=float,default=1e-3)
-parser.add_argument("-bs","--batch_size",type=int,default=8)
+parser.add_argument("-bs","--batch_size",type=int,default=1)
 parser.add_argument('-optim',help='choose optimizer',type=str,default='adam')
 parser.add_argument('-adam_b1',help='choose adam beta1',type=float,default=0.9)
 parser.add_argument('-adam_b2',help='choose adam beta2',type=float,default=0.999)
@@ -69,6 +69,11 @@ if args.sgd_mom != 0 and args.optim != 'sgd':
     ValueError
   
 assert args.model_name in ['NF','UNet','CSRNet','FCRN','LCFCN']
+
+if args.model_name == 'LCFCN':
+    assert args.batch_size == 1 # https://github.com/ElementAI/LCFCN/issues/9
+    # LCFCN only supports batch size of 1
+
 assert not (args.weighted_sampler and args.annotations_only)
 assert args.dmap_type in ['gauss','max']
 assert args.scheduler in ['exponential','step','none']

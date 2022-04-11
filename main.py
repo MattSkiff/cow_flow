@@ -44,7 +44,7 @@ if a.args.cows:
     
     # check dataloader if running interactively
     if any('SPYDER' in name for name in os.environ):
-        transformed_dataset.show_annotations(5895)
+        transformed_dataset.show_annotations(5895) #
     
     # create test train split
     t_indices, t_weights, v_indices, v_weights  = train_val_split(dataset = transformed_dataset,

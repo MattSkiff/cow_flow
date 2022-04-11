@@ -16,12 +16,15 @@ from utils import ft_dims_select, np_split,is_baseline
 import config as c
 import gvars as g
 
+from lcfcn import lcfcn_loss
+
 from torchvision.models import resnet18 
 
 MAX_DISTANCE = 100
 MIN_D = int(c.sigma*2)
 STEP = 1
 
+@torch.no_grad()
 def eval_baselines(mdl,loader,mode,thres=c.sigma*2):
     
     assert not mdl.count
@@ -46,14 +49,25 @@ def eval_baselines(mdl,loader,mode,thres=c.sigma*2):
     
     for i, data in enumerate(tqdm(loader, disable=False)):
         
-        images,dmaps,labels, _ , annotations = data # binary labels
+        images,dmaps,labels, binary_labels , annotations, point_maps = data
         images = images.float().to(c.device)
+        
         x = mdl(images)
-
+        
+        if str(type(mdl)) == "<class 'baselines.LCFCN'>":
+            x = x.sigmoid().cpu().numpy() # logits -> probs
+            blobs = lcfcn_loss.get_blobs(probs=x)
+            blob_counts = (np.unique(blobs)!=0).sum()
+            pred_points = lcfcn_loss.blobs2points(blobs).squeeze()
+            
         for idx in range(images.size()[0]):               
+            
+            if str(type(mdl)) != "<class 'baselines.LCFCN'>":
+                dmap_np = x[idx].squeeze().cpu().detach().numpy()
+            else:
+                dmap_np = x[idx].squeeze()
                 
-            dmap_np = x[idx].squeeze().cpu().detach().numpy()
-            dmap_np = dmap_np / 1000 #mdl.dmap_scaling # TODO
+            dmap_np = dmap_np/mdl.dmap_scaling
             sum_count = dmap_np.sum() # sum across channel, spatial dims for counts
             
             # We 'DONT' evaluate using the GT dmap
@@ -84,7 +98,10 @@ def eval_baselines(mdl,loader,mode,thres=c.sigma*2):
             sum_count -= constant
             gt_count -= constant
             
-            coordinates = peak_local_max(dmap_np,min_distance=MIN_D,num_peaks=max(1,int(sum_count)))
+            if str(type(mdl)) == "<class 'baselines.LCFCN'>":
+                coordinates = np.argwhere(pred_points != 0)
+            else:
+                coordinates = peak_local_max(dmap_np,min_distance=MIN_D,num_peaks=max(1,int(sum_count)))
 
             #y.append(labels[idx].cpu().detach().numpy())
             y_n.append(len(labels[idx]))
@@ -92,7 +109,11 @@ def eval_baselines(mdl,loader,mode,thres=c.sigma*2):
             if gt_coords is not None:
                 y_coords.append(gt_coords)
                 
-            y_hat_n.append(sum_count)
+            if str(type(mdl)) != "<class 'baselines.LCFCN'>":
+                y_hat_n.append(sum_count)
+            else:
+                y_hat_n.append(blob_counts)
+            
             y_hat_coords.append(coordinates) 
             
             # dmap metrics (we do use the kernalised dmap for this)
@@ -378,9 +399,9 @@ def dmap_metrics(mdl, loader,n=10,mode='',thres=c.sigma*2,null_filter=False):
     for i, data in enumerate(tqdm(loader, disable=False)):
         
         if not mdl.dlr_acd and not loader.dataset.classification:
-            images,dmaps,labels,annotations = data
+            images,dmaps,labels,annotations, point_maps  = data
         elif not mdl.dlr_acd:
-            images,dmaps,labels, _ , annotations = data # binary labels
+            images,dmaps,labels, _ , annotations, point_maps  = data # binary labels
         else:
             images,dmaps,counts,point_maps = data
 
@@ -643,9 +664,9 @@ def dmap_pr_curve(mdl, loader,n = 10,mode = ''):
     for i, data in enumerate(tqdm(loader, disable=False)):
         
         if not mdl.dlr_acd and not loader.dataset.classification:
-            images,dmaps,labels,annotations = data
+            images,dmaps,labels,annotations, point_maps  = data
         elif not mdl.dlr_acd:
-            images,dmaps,labels, _ , annotations = data # binary labels
+            images,dmaps,labels, _ , annotations, point_maps  = data # binary labels
         else:
             images,dmaps,counts,point_maps = data
             

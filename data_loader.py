@@ -447,6 +447,7 @@ class CowObjectsDataset(Dataset):
         
         self.images = []
         self.annotations_list = []
+        self.point_maps = []
         self.density_list = []
         self.labels_list = []
         self.count_list = []
@@ -517,6 +518,7 @@ class CowObjectsDataset(Dataset):
                 density_map = store['arr_0'][0]
                 labels = store['arr_0'][1]
                 annotations = store['arr_0'][2]
+                point_map = store['arr_0'][3]
                     
             else:
             
@@ -524,6 +526,7 @@ class CowObjectsDataset(Dataset):
                         
                     annotations = np.array([])
                     density_map = np.zeros((c.img_size[1], c.img_size[0]), dtype=np.float32)
+                    point_map= np.zeros((c.img_size[1], c.img_size[0]), dtype=np.float32)
                     
                 else:        
                     annotations = pd.read_csv(txt_path,names=header_list,delim_whitespace=True)
@@ -550,7 +553,8 @@ class CowObjectsDataset(Dataset):
                         
                         # TODO - this is possibly massively inefficient
                         density_map = np.zeros((c.img_size[1], c.img_size[0]), dtype=np.float32)
-                       
+                        point_map= np.zeros((c.img_size[1], c.img_size[0]), dtype=np.float32)
+                            
                         # add points onto basemap
                         for point in annotations:
                             # error introduced here as float position annotation centre converted to int
@@ -560,7 +564,9 @@ class CowObjectsDataset(Dataset):
                                 print(point)
                                 
                             # subtract 1 to account for 0 indexing
-                            base_map[int(round(point[2]*c.img_size[1])-1),int(round(point[1]*c.img_size[0])-1)] += 1
+                            # NOTE: this overrides duplicate annotation points (4 out of 22k)
+                            base_map[int(round(point[2]*c.img_size[1])-1),int(round(point[1]*c.img_size[0])-1)] = 1 # +=1
+                            point_map[int(round(point[2]*c.img_size[1])-1),int(round(point[1]*c.img_size[0])-1)] = 1 # +=1
                             
                             if a.args.dmap_type == 'max':
                                 density_map += scipy.ndimage.filters.maximum_filter(base_map,size = (7,7))
@@ -580,7 +586,7 @@ class CowObjectsDataset(Dataset):
                     if not os.path.exists(g.DMAP_DIR):
                         os.makedirs(g.DMAP_DIR)
                     
-                    store = [density_map,labels,annotations]
+                    store = [density_map,labels,annotations,point_map]
                     savez_compressed(dmap_path[:-5]+dmap_type,store)
             
             sample = {'image': image}
@@ -592,6 +598,7 @@ class CowObjectsDataset(Dataset):
                 #     density_map = cv2.resize(tgt,(int(tgt.shape[1]/8),int(tgt.shape[0]/8)),interpolation = cv2.INTER_CUBIC)*64
 
                 sample['density'] = density_map; sample['labels'] = labels
+                sample['point_map'] = point_map
                 
             if self.count:
                 sample['counts'] = torch.as_tensor(count).float().to(c.device)
@@ -615,9 +622,9 @@ class CowObjectsDataset(Dataset):
             if ram and c.load_stored_dmaps:
                 desc = "Loading images, annotations, dmaps and labels into RAM"
             elif ram and c.store_dmaps:
-                desc = "Storing dmaps, annotations and labels to file"
+                desc = "Storing dmaps, pmaps, annotations and labels to file"
             elif ram:
-                desc = "Computing dmaps, annotations and labels and storing into RAM"
+                desc = "Computing dmaps, pmaps, annotations and labels and storing into RAM"
             
             for idx in tqdm(range(len(self.train_im_paths)),desc=desc):
                 
@@ -627,6 +634,7 @@ class CowObjectsDataset(Dataset):
                                   
                 if self.density and not self.count:  
                     self.density_list.append(sample['density'])
+                    self.point_maps.append(sample['point_map'])
                     self.labels_list.append(sample['labels'])
                 if self.count:
                     self.count_list.append(sample['counts'])
@@ -660,6 +668,7 @@ class CowObjectsDataset(Dataset):
             
             if self.density and not self.count:  
                 sample['density'] = self.density_list[idx]
+                sample['point_map'] = self.point_maps[idx]
                 sample['labels'] = self.labels_list[idx]
             if self.count:
                 sample['counts'] = self.count_list[idx]
@@ -865,6 +874,7 @@ class CowObjectsDataset(Dataset):
 
         images = list()
         density = list()
+        point_map = list()
         labels = list()
         annotations = list()
         binary_labels = list()
@@ -878,6 +888,9 @@ class CowObjectsDataset(Dataset):
               
             if 'density' in b.keys():
                 density.append(b['density'])
+                
+            if 'point_map' in b.keys():
+                point_map.append(b['point_map'])
             
             if 'labels' in b.keys():
                 labels.append(b['labels'])
@@ -895,6 +908,9 @@ class CowObjectsDataset(Dataset):
         
         if 'density' in b.keys():
             density = torch.stack(density,dim = 0)
+            
+        if 'point_map' in b.keys():
+            point_map = torch.stack(point_map,dim = 0)
           
         if 'labels' in b.keys():
             labels = labels
@@ -917,6 +933,8 @@ class CowObjectsDataset(Dataset):
             out = out + (binary_labels,)
             
         out = out + (annotations,)
+        
+        out = out + (point_map,)
     
         return out
 
@@ -953,6 +971,7 @@ class CustToTensor(object):
         
         if 'density' in sample.keys():
             sample['density'] = torch.from_numpy(sample['density']).to(c.device)
+            sample['point_map'] = torch.from_numpy(sample['point_map']).to(c.device)
         if 'annotations' in sample.keys():
             sample['annotations'] = torch.from_numpy(sample['annotations']).to(c.device)
         if 'labels' in sample.keys():
@@ -1011,37 +1030,41 @@ class CropRotateFlipScaling(object):
         
         if not a.args.model_name == 'CSRNet':
             sample['density'] = resize(sample['density'].unsqueeze(0).unsqueeze(0))
+            sample['point_map'] = resize(sample['point_map'].unsqueeze(0).unsqueeze(0))
         else:
             resize = T.Resize(size=(32,32))
             sample['density'] = resize(sample['density'].unsqueeze(0).unsqueeze(0))
+            sample['point_map'] = resize(sample['point_map'].unsqueeze(0).unsqueeze(0))
             
-        
         i, j, h, w = T.RandomCrop.get_params(sample['image'], output_size=(256, 256))
         sample['image'] = TF.crop(sample['image'], i, j, h, w)
         
         if not a.args.model_name == 'CSRNet':
             sample['density'] = TF.crop(sample['density'], i, j, h, w)
+            sample['point_map'] = TF.crop(sample['point_map'], i, j, h, w)
 
         if random.randint(0,1):
             sample['image'] = torch.flip(sample['image'],(3,))
             sample['density'] = torch.flip(sample['density'],(3,))
-            #sample['point_maps'] = torch.flip(sample['point_maps'],(3,))
+            sample['point_map'] = torch.flip(sample['point_map'],(3,))
             
         if random.randint(0,1):
             sample['image'] = torch.flip(sample['image'],(2,))
             sample['density'] = torch.flip(sample['density'],(2,))
-           #sample['point_maps'] = torch.flip(sample['point_maps'],(2,))
+            sample['point_map'] = torch.flip(sample['point_map'],(2,))
             
         rangle = float(random.randint(0,3)*90)
         sample['image'] = TF.rotate(sample['image'],angle=rangle)
         sample['density'] = TF.rotate(sample['density'],angle=rangle)
-        #sample['point_maps'] = TF.rotate(sample['point_maps'],angle=rangle)
+        sample['point_map'] = TF.rotate(sample['point_map'],angle=rangle)
         
         sample['image'] = sample['image'].squeeze()
         sample['density'] = sample['density'].squeeze().squeeze()
+        sample['point_map'] = sample['point_map'].squeeze().squeeze()
         
         return sample    
 
+# unused currently
 class CustCrop(object):
     """Crop images to match vgg feature sizes."""
 
@@ -1075,7 +1098,8 @@ class CustCrop(object):
             #     sample['image'] =  image
         
         return sample
-    
+
+# unused currently
 class CustResize(object):
     """Resize density, according to config scale parameter."""
 
