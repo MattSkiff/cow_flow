@@ -658,8 +658,6 @@ class CowObjectsDataset(Dataset):
             
             sample['image'] = self.images[idx]
             
-            if not self.density:
-                sample['annotations'] = self.annotations_list[idx]
             if self.density and not self.count:  
                 sample['density'] = self.density_list[idx]
                 sample['labels'] = self.labels_list[idx]
@@ -909,12 +907,6 @@ class CowObjectsDataset(Dataset):
             
         if self.classification:
             binary_labels = torch.stack(binary_labels,dim = 0)
-        
-        if debug:
-            print(type(density))
-            print(type(labels))
-            print(type(images))
-            print(density)
         
         out = images,density,labels
         

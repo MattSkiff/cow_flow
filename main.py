@@ -14,8 +14,6 @@ from train import train, train_baselines, train_feat_extractor
 from dlr_acd import train_dlr_acd
 from mnist import train_mnist
 
-from ipywidgets import FloatProgress # fix iprogress error in tqdm
-
 #from utils import load_datasets, make_dataloaders
 from data_loader import CowObjectsDataset, CustToTensor, AerialNormalize, DmapAddUniformNoise, train_val_split, CropRotateFlipScaling
 
@@ -31,12 +29,12 @@ if a.args.cows:
     # torchivsion inputs are 3x227x227, mnist_resnet 1x227...
     # 0.1307, 0.3081 = mean, std dev mnist
     
-    dmaps_pre = Compose([
-                CustToTensor(),
-                AerialNormalize(),
-                CropRotateFlipScaling(),
-                DmapAddUniformNoise(),
-            ])
+    transforms = [CustToTensor(),AerialNormalize(),CropRotateFlipScaling(),DmapAddUniformNoise(),]
+    
+    if not a.args.normalise:
+        del transforms[1]
+        
+    dmaps_pre = Compose(transforms)
                         
     # instantiate class
     transformed_dataset = CowObjectsDataset(root_dir=c.proj_dir,transform = dmaps_pre,
@@ -53,7 +51,7 @@ if a.args.cows:
                                                       train_percent = c.test_train_split,
                                                       annotations_only = a.args.annotations_only,
                                                       seed = c.seed,
-                                                      oversample=a.args.weighted)
+                                                      oversample=a.args.weighted_sampler)
     
     f_t_indices, f_t_weights, f_v_indices, f_v_weights  = train_val_split(dataset = transformed_dataset,
                                                       train_percent = c.test_train_split,
@@ -88,7 +86,7 @@ if a.args.cows:
         feat_extractor = model.select_feat_extractor(c.feat_extractor,train_loader,val_loader)
         train_feat_extractor(feat_extractor,train_loader,val_loader)
     else:
-        if a.args.model_name in ['CSRNet', 'UNet', 'FCRN']:
+        if a.args.model_name != 'NF':
             mdl = train_baselines(a.args.model_name,train_loader,val_loader)
         else:
             mdl = train(train_loader,val_loader,full_train_loader,full_val_loader)

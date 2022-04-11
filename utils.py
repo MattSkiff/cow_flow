@@ -4,11 +4,16 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 import os
 import torch
+import torchvision.transforms.functional as TF
 import numpy as np
 import random
 from datetime import datetime 
 import cv2
 from prettytable import PrettyTable
+from pathlib import Path
+from PIL import Image
+import rasterio
+from rasterio.plot import reshape_as_raster
 import dill # solve error when trying to pickle lambda function in FrEIA
 import shutil
 import config as c
@@ -231,6 +236,92 @@ def plot_preds_multi(UNet_path,CSRNet_path,FCRN_path,NF_path,mode,loader,sample_
     # TODO - show pred counts
 
 @torch.no_grad()
+def predict_image(mdl_path,nf=False,geo=True,nf_n=10,patch_size=320,mdl_type='',
+                  image_path='/home/mks29/6-6-2018_Ortho_ColorBalance.tif'):
+    
+    assert mdl_type in ['FCRN','UNet','NF','LCFCN','CSRNet']
+    
+    mdl = load_model(mdl_path).to(c.device)
+    
+    # split image into 256x256 chunks
+    im = cv2.imread(image_path)
+    
+    im_patches = split_image(im, patch_size = patch_size,save = False, overlap = 0)
+    
+    for i in tqdm(range(len(im_patches)),desc="Predicting patches"):
+        
+        # normalise image patches
+        patch = torch.from_numpy(im_patches[i]).float().to(c.device)
+        patch = patch.permute(2,0,1)
+        patch = TF.normalize(patch,mean = c.norm_mean,std= c.norm_std)
+        
+        if nf:
+            
+            x_list = []
+        
+            for j in range(nf_n):     
+                
+                in_channels = c.channels*4**5 # n_ds=5
+                ft_dims = ft_dims_select(mdl)
+                                
+                dummy_z = (randn(1, in_channels,ft_dims[0],ft_dims[1])).to(c.device)
+                dummy_z = dummy_z.float()
+                x, log_det_jac = mdl(patch.unsqueeze(0),dummy_z,rev=True)
+                x_list.append(x)
+                        
+            x_agg = torch.stack(x_list,dim=1)
+            x = x_agg.mean(dim=1) # take average of samples from models for mean reconstruction
+                    
+            # replace predicted densities with null predictions if not +ve pred from feature extractor
+            # subtract constant for uniform noise
+            
+            # outputs = mdl.classification_head(patch.unsqueeze(0))
+            # _, preds = torch.max(outputs, 1)  
+            # x[(preds == 1).bool(),:,:] = torch.zeros(1,mdl.density_map_h,mdl.density_map_w).to(c.device)
+            
+            # constant = ((mdl.noise)/2)*patch_size*patch_size
+            im_patches[i] = x.squeeze(0).permute(1,2,0).cpu().numpy()
+            im_patches[i] = im_patches[i] * 1000
+            
+        else:
+            im_patches[i] = mdl(patch.unsqueeze(0)).squeeze(0).permute(1,2,0).cpu().numpy() #.astype(np.uint8)
+    
+    shape = im.shape
+    
+    del im
+    
+    path='/home/mks29/' ; frmt = 'tif' ; name = Path(image_path).stem
+    
+    predicted = stich_image(shape, im_patches, name=name,patch_size=patch_size,
+                            save=True,path=path,frmt=frmt,geo=geo,mdl_type=mdl_type)
+    
+    if geo:
+        
+        src = rasterio.open(image_path)
+
+        predicted = reshape_as_raster(predicted)
+        
+        # Register GDAL format drivers and configuration options with a
+        # context manager.
+        with rasterio.Env():
+
+            # Write an array as a raster band to a new 8-bit file. For
+            # the new file's profile, we start with the profile of the source
+            profile = src.profile
+            # And then change the band count to 1, set the
+            # dtype to uint8, and specify LZW compression.
+            profile.update(
+                width=predicted.shape[2],
+                height=predicted.shape[1],
+                dtype=rasterio.float32,
+                count=1,
+                compress='lzw')
+    
+        with rasterio.open(path+mdl_type+name+"."+frmt, 'w', **profile) as dst:
+            dst.write(predicted.astype(rasterio.float32))
+            print('{}{}{}"."{} saved to file.'.format(path,mdl_type,name,frmt))
+
+@torch.no_grad()
 def plot_preds_baselines(mdl, loader,mode="",mdl_type=''):
     
         assert mode in ['train','val']
@@ -271,7 +362,7 @@ def plot_preds_baselines(mdl, loader,mode="",mdl_type=''):
 @torch.no_grad()
 def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
                hist=False,sampling="randn",plot_n=None,writer=None,writer_epoch=None,
-               writer_mode=None,include_empty=False,sample_n=10):
+               writer_mode=None,include_empty=False,sample_n=10,null_filter=True):
     
     assert type(loader) == torch.utils.data.dataloader.DataLoader
     
@@ -457,9 +548,9 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
             x = x_agg.mean(dim=1) # take average of samples from models for mean reconstruction
                 
             # replace predicted densities with null predictions if not +ve pred from feature extractor
-            if not mdl.mnist and not mdl.count:
+            constant = ((mdl.noise)/2)*dmaps[lb_idx].shape[0]*dmaps[lb_idx].shape[1]
+            if not mdl.mnist and not mdl.count and null_filter==True:
                 # subtract constrant for uniform noise
-                constant = ((mdl.noise)/2)*dmaps[lb_idx].shape[0]*dmaps[lb_idx].shape[1]
                 if not mdl.dlr_acd:
                     # subtract constrant for uniform noise
                     print('replacing predicted densities with empty predictions from feature extractor')
@@ -740,10 +831,7 @@ def plot_peaks(mdl, loader,n=10):
             
             return
         
-    return 
-  
-def plot_image(image_path,mdl):
-    pass      
+    return     
 
 def torch_r2(mdl,loader):
     """calcs r2 (on torch only)"""
@@ -954,7 +1042,7 @@ def count_parameters(mdl):
 
 # https://github.com/Devyanshu/image-split-with-overlap/blob/master/split_image_with_overlap.py
 # minor edits to function, remove non-square opt, grey scale
-def split_image(img,patch_size,save=True,overlap=50,name=None,path=None,frmt=None):
+def split_image(img,patch_size,save=True,overlap=0,name=None,path=None,frmt=None):
     
     if save:
         assert name and path and frmt
@@ -973,20 +1061,6 @@ def split_image(img,patch_size,save=True,overlap=50,name=None,path=None,frmt=Non
     split_width = patch_size
     split_height = patch_size
     
-    def start_points(size, split_size, overlap=overlap):
-        points = [0]
-        stride = int(split_size * (1-overlap))
-        counter = 1
-        while True:
-            pt = stride * counter
-            if pt + split_size >= size:
-                points.append(size - split_size)
-                break
-            else:
-                points.append(pt)
-            counter += 1
-        return points
-    
     X_points = start_points(img_w, split_width, overlap)
     Y_points = start_points(img_h, split_height, overlap)
     
@@ -1003,15 +1077,71 @@ def split_image(img,patch_size,save=True,overlap=50,name=None,path=None,frmt=Non
                 patch_name = '{}_{}.{}'.format(name, count, frmt)
                 cv2.imwrite(path+patch_name, split)
                 
-                #print('{} saved'.format(patch_name))
-                
             count += 1
     
     return splits
 
-def predict_image():
+def stich_image(img_size,image_patches,name,patch_size=None,save=True,overlap=0,path=None,frmt=None,geo=False,mdl_type=''):
+    ''' img_size = tuple of image size'''
     
-    return None
+    assert patch_size is not None
+    
+    if save:
+        assert name and path and frmt
+        
+    assert 0 <= overlap < 1
+    
+    # insert single channel dim for greyscale
+    if len(img_size) == 2:
+        img_h, img_w = img_size
+    else:
+        img_h, img_w, _ = img_size
+        
+    predicted = np.zeros(shape=((img_size)[:2]+(1,)),dtype=np.uint8)
+    
+    split_width = patch_size
+    split_height = patch_size
+    
+    X_points = start_points(img_w, split_width, overlap)
+    Y_points = start_points(img_h, split_height, overlap)
+    
+    count = 0
+    
+    for i in tqdm(Y_points,desc='Filling in rows of image'):
+        for j in X_points: 
+            predicted[i:i+split_height, j:j+split_width] = image_patches[count] # .astype(np.uint8)
+            count += 1
+    
+    if save and not geo:
+        print('Saving image...')
+        img_name = 'pred_{}_{}.{}'.format(mdl_type,name,frmt)
+        im = Image.fromarray(predicted) 
+        im.save(path+img_name)
+        print("Done.")
+        #cv2.imwrite(path+img_name,predicted.astype(np.uint8))
+       
+    if geo:
+        out = predicted
+    else:
+        out = None
+        
+    del predicted
+    
+    return out
+
+def start_points(size, split_size, overlap=0):
+    points = [0]
+    stride = int(split_size * (1-overlap))
+    counter = 1
+    while True:
+        pt = stride * counter
+        if pt + split_size >= size:
+            points.append(size - split_size)
+            break
+        else:
+            points.append(pt)
+        counter += 1
+    return points
 
 # def stich_image(img_dir=None,img_prefix=None,raw_img_path=None,patch_width=None):
     
@@ -1032,20 +1162,9 @@ def predict_image():
 #     counter = 0
 #     for patch_name in patch_name_ls:
 #         patch = cv2.imread(os.path.join(img_dir,img_prefix,patch_name))
-        
 
-          
-              
-              
-
-
-     #if re.match(pattern=img_name,string=img):
-
-    
-    
+     #if re.match(pattern=img_name,string=img): 
     return None
-    
-    
 
 # For MNIST
 # from: https://discuss.pytorch.org/t/how-to-add-noise-to-mnist-dataset-when-using-pytorch/59745
@@ -1135,8 +1254,6 @@ def make_model_name(train_loader):
      if c.test_train_split != 70 and not a.args.mnist:
          parts.extend(["SPLIT",str(c.test_train_split)])
          
-     if a.args.balance and not a.args.mnist:
-         parts.append('BL')
             
      parts.append(str(now.strftime("%d_%m_%Y_%H_%M_%S")))
      

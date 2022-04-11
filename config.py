@@ -15,9 +15,9 @@ gpu = True
 seed = 101
 
 ## Dataset Options ------
-load_stored_dmaps = True # speeds up precomputation (with RAM = True)
+load_stored_dmaps = False # speeds up precomputation (with RAM = True)
 store_dmaps = False # this will save dmap objects (numpy arrays) to file
-ram = True # load aerial imagery and precompute dmaps and load both into ram before training
+ram = False # load aerial imagery and precompute dmaps and load both into ram before training
 counts = False # must be off for pretraining feature extractor (#TODO)
 
 ## Training Options ------
@@ -34,15 +34,15 @@ scale = 1 # 4, 2 = downscale dmaps four/two fold, 1 = unchanged
 ## Feature Extractor Options ------
 pretrained = True
 feat_extractor = "resnet18" # alexnet, vgg16_bn,resnet18, none # TODO mnist_resnet, efficient net
-feat_extractor_epochs = 1
+feat_extractor_epochs = 100
 train_feat_extractor = False # whether to finetune or load finetuned model # redundent
-load_feat_extractor_str = 'final_eval_test_weka-13_BS2_LR_I[0.002]_NC5_E1_FE_resnet18_DIM608_JO_PT_PY_1_1x1_WD_0.001_FSZ_16_14_12_2021_21_49_14' # 'final_eval_test_weka-13_BS2_LR_I[0.002]_NC5_E1_FE_resnet18_DIM608_JO_PT_PY_1_1x1_WD_0.001_FSZ_16_14_12_2021_21_49_14' to train from scratch, loads FE  # 
+load_feat_extractor_str = 'resnet18_FTE_5_16_11_2021_13_47_53_PT_True_BS_100' # '' to train from scratch, loads FE  # 
 # nb: pretraining FE saves regardless of save flag
 
 ## Architecture Options ------
 fixed1x1conv = False 
-freq_1x1 = 1 # 1 for always | how many x coupling blocks to have a 1x1 conv permutation layer
-pyramid = False # only implemented for resnet18
+freq_1x1 = 2 # 1 for always | how many x coupling blocks to have a 1x1 conv permutation layer
+pyramid = True # only implemented for resnet18
 n_splits = 4 # number of splits
 gap = False # global average pooling
 downsampling = True # whether to downsample (5 ds layers) dmaps by converting spatial dims to channel dims
