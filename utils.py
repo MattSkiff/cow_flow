@@ -329,7 +329,7 @@ def plot_preds_baselines(mdl, loader,mode="",mdl_type=''):
         for i, data in enumerate(tqdm(loader, disable=c.hide_tqdm_bar)):
                 
                 mdl.to(c.device)
-                images,dmaps,labels,binary_labels,annotations, _ = data
+                images,dmaps,labels,binary_labels,annotations, point_maps = data
                 preds = mdl(images)
                 
                 if str(type(mdl)) != "<class 'baselines.LCFCN'>":
@@ -1207,7 +1207,7 @@ def make_model_name(train_loader):
              #"DIM"+str(c.density_map_h),
              "OPTIM"+str(a.args.optim)]
      
-     if a.args.model_name not in ['UNet','FCRN']:
+     if a.args.model_name not in ['UNet','FCRN','LCFCN','CSRNet']:
          parts.append("FE_"+str(c.feat_extractor))
             
      if a.args.model_name == 'NF':

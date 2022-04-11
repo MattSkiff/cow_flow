@@ -242,11 +242,11 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                         if a.args.dlr_acd:
                             images,dmaps,counts,point_maps = data
                         elif not a.args.mnist and not c.counts and not train_loader.dataset.classification:
-                            images,dmaps,labels, _ = data # _ annotations
+                            images,dmaps,labels,annotations, point_maps = data 
                         elif not a.args.mnist and not c.counts:
-                            images,dmaps,labels, _, _ = data # _ = annotations
+                            images,dmaps,labels,annotations,binary_labels,point_maps  = data 
                         elif not a.args.mnist:
-                            images,dmaps,labels,counts = data
+                            images,dmaps,labels,counts, point_maps = data
                         else:
                             images,labels = data
                         
@@ -368,9 +368,9 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                                 if a.args.dlr_acd:
                                     images,dmaps,counts,point_maps = data
                                 elif not a.args.mnist and not c.counts and not train_loader.dataset.classification:
-                                    images,dmaps,labels, _ = data # _ annotations
+                                    images,dmaps,labels, annotations,point_maps = data 
                                 elif not a.args.mnist and not c.counts:
-                                    images,dmaps,labels, _, _ = data # _ = annotations
+                                    images,dmaps,labels,annotations,binary_labels,point_maps  = data 
                                 elif not a.args.mnist:
                                     images,dmaps,labels,counts = data
                                 else:
