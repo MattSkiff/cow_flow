@@ -12,6 +12,7 @@ from datetime import datetime
 
 from eval import eval_mnist, dmap_metrics, dmap_pr_curve, eval_baselines
 from utils import get_loss, plot_preds, counts_preds_vs_actual, t2np, torch_r2, make_model_name, make_hparam_dict, load_model, save_model
+from lcfcn import lcfcn_loss
 import model # importing entire file fixes 'cyclical import' issues
 #from model import CowFlow, MNISTFlow, select_feat_extractor, save_model #, save_weights
 
@@ -45,6 +46,8 @@ def train_baselines(model_name,train_loader,val_loader):
         mdl = b.UNet(modelname=modelname)
     elif a.args.model_name == "CSRNet":
         mdl = b.CSRNet(modelname=modelname)
+    elif a.args.model_name == "LCFCN":
+        mdl = b.LCFCN(modelname=modelname)
         #raise ValueError#mdl = b.UNet(modelname=modelname)
         
     if a.args.optim == 'adam':   
@@ -70,10 +73,16 @@ def train_baselines(model_name,train_loader,val_loader):
             
             for i, data in enumerate(tqdm(train_loader, disable=c.hide_tqdm_bar)):
                 
-                images,dmaps,labels, _, _ = data # _ = annotations
+                images,dmaps,labels, binary_labels, annotations = data
                 images = images.float().to(c.device)
                 results = mdl(images)
-                iter_loss = loss(results.squeeze(),dmaps.squeeze()*a.args.dmap_scaling)
+                
+                if a.args.model_name == 'LCFCN':
+                    iter_loss = lcfcn_loss.compute_loss(points=annotations, probs=results.sigmoid())
+                else:
+                    iter_loss = loss(results.squeeze(),dmaps.squeeze()*a.args.dmap_scaling)
+                    
+                    
                 t_loss = t2np(iter_loss)
                 iter_loss.backward()
                 train_loss.append(t_loss)
@@ -166,7 +175,9 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                 mdl = model.MNISTFlow(modelname=modelname,feat_extractor = feat_extractor)    
             else:
                 mdl = model.CowFlow(modelname=modelname,feat_extractor = feat_extractor)
-                    
+            
+            c_head_trained = False    
+            
             if c.joint_optim:
                 # TODO
                 if a.args.optim == 'adam':   
@@ -403,6 +414,11 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                 #### Meta epoch code (metrics) ------
                 plot_preds(mdl,train_loader)
                 
+                # train classification head to filter out null patches
+                if not a.args.dlr_acd and not mdl.mnist and not c_head_trained:
+                    c_head_trained = True
+                    mdl.classification_head = train_classification_head(mdl,head_train_loader,head_val_loader)
+                
                 if mdl.mnist:
                     val_acc, train_acc = eval_mnist(mdl,val_loader,train_loader)
                     print("\n")
@@ -423,7 +439,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                     if c.viz:
                         plot_preds(mdl,train_loader,writer=writer,writer_epoch=meta_epoch,writer_mode='train')
                         
-                    train_metric_dict = dmap_metrics(mdl, train_loader,n=1,mode='train')
+                    train_metric_dict = dmap_metrics(mdl, train_loader,n=c.eval_n,mode='train')
                     model_metric_dict.update(train_metric_dict)
                     
                     if c.viz and mdl.dlr_acd:
@@ -433,7 +449,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                         if c.viz:
                             plot_preds(mdl,val_loader,writer=writer,writer_epoch=meta_epoch,writer_mode='val')
                             
-                        val_metric_dict = dmap_metrics(mdl, val_loader,n=1,mode='val')
+                        val_metric_dict = dmap_metrics(mdl, val_loader,n=c.eval_n,mode='val')
                         model_metric_dict.update(val_metric_dict)
 
                 # MNIST Model metrics
@@ -464,10 +480,6 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                         
                         if c.verbose:
                             print("Val R2: ",val_R2)
-                
-                # train classification head to filter out null patches
-                if not a.args.dlr_acd and not mdl.mnist:
-                    mdl.classification_head = train_classification_head(mdl,head_train_loader,head_val_loader)
                 
                 # add param tensorboard scalars
                 if writer != None:

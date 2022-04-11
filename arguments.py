@@ -4,7 +4,7 @@ import socket
 # command line params
 parser = argparse.ArgumentParser(description='Create dataloaders and train a conditional NF.')
 
-parser.add_argument('-mod',"--model_name",help="Specify model to train (NF, CSRNet, UNet, FCRN).",default='NF')
+parser.add_argument('-mod',"--model_name",help="Specify model to train (NF, CSRNet, UNet, FCRN, LCFCN).",default='LCFCN')
 parser.add_argument("-fe_only", "--feat_extract_only", help="Trains the feature extractor component only.", action="store_true",default=False)
 parser.add_argument("-uc", "--unconditional", help="Trains the model without labels.", action="store_true")
 parser.add_argument("-gn", "--gpu_number", help="Selects which GPU to train on.", type=int, default=0)
@@ -15,7 +15,8 @@ parser.add_argument("-cows", "--cows", help="Run the architecture on the aerial 
 parser.add_argument('-mnist',help='Run the architecture on the DLR ACD dataset.', action="store_true",default=False)
 
 parser.add_argument('-anno','--annotations_only',help='whether to only use image patches that have annotations',action="store_true",default=False)
-parser.add_argument('-weighted','--weighted_sampler',help='whether to weight minibatch samples such that sampling distribution is 50/50 null/annotated', action="store_true",default=False)
+parser.add_argument('-weighted','--weighted_sampler',help='whether to weight minibatch samples such that sampling distribution is 50/50 null/annotated', action="store_true",default=True)
+parser.add_argument('-normalise',help='normalise aerial imagery supplied to model with img net mean & std dev',action='store_true',default=True)
 parser.add_argument('-dmap_type',help='Use density or segmentation masks (gauss or max filters)',default='gauss')
 parser.add_argument('-dmap_scaling',help='Scale up density map to ensure gaussianed density is not too close to zero per pixel',type=int,default=1)
 parser.add_argument('-img_sz','--image_size',help='Size of the random crops taken from the original data patches [Cows 800x600, DLR 320x320]',type=int,default=256)
@@ -67,7 +68,7 @@ if (args.adam_b1 != 0 or args.adam_b2 != 0 or args.adam_e != 0) and args.optim !
 if args.sgd_mom != 0 and args.optim != 'sgd':
     ValueError
   
-assert args.model_name in ['NF','UNet','CSRNet','FCRN']
+assert args.model_name in ['NF','UNet','CSRNet','FCRN','LCFCN']
 assert not (args.weighted_sampler and args.annotations_only)
 assert args.dmap_type in ['gauss','max']
 assert args.scheduler in ['exponential','step','none']

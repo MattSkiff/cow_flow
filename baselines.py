@@ -313,10 +313,31 @@ def make_layers(cfg, in_channels = 3,batch_norm=False,dilation = False):
 # https://github.com/alzayats/DeepFish/blob/master/src/models/lcfcn.py
 
 class LCFCN(nn.Module):
-    def __init__(self):
+    def __init__(self,modelname):
         super().__init__()
         self.n_classes = 2
-
+        
+        # these attr's are needed to make the model object independant of the config file
+        self.modelname = modelname
+        self.unconditional = False
+        self.count = False
+        self.subnet_type = None
+        self.mnist = False
+        self.gap = c.gap
+        self.n_coupling_blocks = 0
+        self.joint_optim = False
+        self.pretrained = False
+        self.finetuned = False
+        self.scheduler = a.args.scheduler
+        self.scale = c.scale
+        self.density_map_h = c.density_map_h
+        self.density_map_w = c.density_map_w
+        self.downsampling = c.downsampling
+        self.scale = c.scale
+        self.noise = a.args.noise
+        self.seed = c.seed
+        self.dmap_scaling = a.args.dmap_scaling
+        
         # Load the pretrained weights, remove avg pool
         # layer and get the output stride of 8
         resnet50_32s = torchvision.models.resnet50(pretrained=True)
