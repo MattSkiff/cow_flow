@@ -20,13 +20,9 @@ import config as c
 import gvars as g
 import arguments as a
 
-#from scipy import ndimage as ndi
-from skimage.feature import peak_local_max # 
-#from skimage import data, img_as_float
+from lcfcn import lcfcn_loss
 
-# if any('SPYDER' in name for name in os.environ):
-#     import matplotlib
-#     #matplotlib.use('TkAgg') # get around agg non-GUI backend error
+from skimage.feature import peak_local_max # 
 
 # TODO - shift below 5 util functions to utils
 def save_cstate(cdir,modelname,config_file):
@@ -172,7 +168,7 @@ def plot_preds_multi(UNet_path,CSRNet_path,FCRN_path,NF_path,mode,loader,sample_
             fig.suptitle('Baseline Comparisons {}'.format(mode),y=1.0,fontsize=16) # :.2f
             [axi.set_axis_off() for axi in ax.ravel()] # turn off subplot axes
             
-            images,dmaps,labels,binary_labels,annotations = data
+            images,dmaps,labels,binary_labels,annotations,point_maps  = data
             j = 0
             
             for mdl in [UNet,CSRNet,FCRN]:
@@ -320,6 +316,7 @@ def predict_image(mdl_path,nf=False,geo=True,nf_n=10,patch_size=320,mdl_type='',
         with rasterio.open(path+mdl_type+name+"."+frmt, 'w', **profile) as dst:
             dst.write(predicted.astype(rasterio.float32))
             print('{}{}{}"."{} saved to file.'.format(path,mdl_type,name,frmt))
+    
 
 @torch.no_grad()
 def plot_preds_baselines(mdl, loader,mode="",mdl_type=''):
@@ -332,8 +329,13 @@ def plot_preds_baselines(mdl, loader,mode="",mdl_type=''):
         for i, data in enumerate(tqdm(loader, disable=c.hide_tqdm_bar)):
                 
                 mdl.to(c.device)
-                images,dmaps,labels,binary_labels,annotations = data
+                images,dmaps,labels,binary_labels,annotations, _ = data
                 preds = mdl(images)
+                
+                if str(type(mdl)) != "<class 'baselines.LCFCN'>":
+                    probs = preds.sigmoid().cpu().numpy()
+                    preds = probs.squeeze()
+                
                 unnorm = UnNormalize(mean=tuple(c.norm_mean),
                                      std=tuple(c.norm_std))
                 
@@ -440,9 +442,9 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
             elif mdl.dlr_acd:
                 images,dmaps,counts,point_maps = data
             elif loader.dataset.count: # mdl.dataset.count
-                images,dmaps,labels,counts = data
+                images,dmaps,labels,counts, point_maps = data
             elif loader.dataset.classification:
-                images,dmaps,labels,binary_labels,annotations = data
+                images,dmaps,labels,binary_labels,annotations, point_maps = data
             else:
                 images,dmaps,labels,_ = data
             
@@ -719,9 +721,9 @@ def plot_peaks(mdl, loader,n=10):
         if mdl.dlr_acd:
             images,dmaps,counts,point_maps = data
         elif loader.dataset.classification:
-            images,dmaps,labels,binary_labels,annotations = data
+            images,dmaps,labels,binary_labels,annotations,point_maps = data
         else: 
-            images,dmaps,labels,annotations = data
+            images,dmaps,labels,annotations,point_maps = data
              
         images = images.float().to(c.device)
          
@@ -847,7 +849,7 @@ def torch_r2(mdl,loader):
     with torch.no_grad():
         for i, data in enumerate(tqdm(loader, disable=c.hide_tqdm_bar,desc="Calculating R2")):
             
-            images,dmaps,labels,counts = data
+            images,dmaps,labels,counts,point_maps  = data
             
             if not mdl.gap:  
                 num = 0
@@ -899,7 +901,7 @@ def counts_preds_vs_actual(mdl,loader,plot=False,ignore_zeros=False):
         
     for i, data in enumerate(tqdm(loader, disable=c.hide_tqdm_bar,desc=desc)):
         
-        images,dmaps,labels,counts = data
+        images,dmaps,labels,counts,point_maps  = data
 
         
         if not mdl.gap:  
@@ -957,7 +959,7 @@ def get_likelihood(mdl, loader, plot = True,save=False,digit=None,ood=False):
         if c.mnist:
             images,labels = data
         else:
-            images,dmaps,labels = data
+            images,dmaps,labels,point_maps  = data
             
         if labels[0] != digit and c.mnist and digit is not None:
             continue

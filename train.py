@@ -12,7 +12,7 @@ from datetime import datetime
 
 from eval import eval_mnist, dmap_metrics, dmap_pr_curve, eval_baselines
 from utils import get_loss, plot_preds, counts_preds_vs_actual, t2np, torch_r2, make_model_name, make_hparam_dict, load_model, save_model
-from lcfcn import lcfcn_loss
+from lcfcn  import lcfcn_loss # lcfcn
 import model # importing entire file fixes 'cyclical import' issues
 #from model import CowFlow, MNISTFlow, select_feat_extractor, save_model #, save_weights
 
@@ -73,15 +73,14 @@ def train_baselines(model_name,train_loader,val_loader):
             
             for i, data in enumerate(tqdm(train_loader, disable=c.hide_tqdm_bar)):
                 
-                images,dmaps,labels, binary_labels, annotations = data
+                images,dmaps,labels, binary_labels, annotations,point_maps = data
                 images = images.float().to(c.device)
                 results = mdl(images)
                 
                 if a.args.model_name == 'LCFCN':
-                    iter_loss = lcfcn_loss.compute_loss(points=annotations, probs=results.sigmoid())
+                    iter_loss = lcfcn_loss.compute_loss(points=point_maps, probs=results.sigmoid())
                 else:
                     iter_loss = loss(results.squeeze(),dmaps.squeeze()*a.args.dmap_scaling)
-                    
                     
                 t_loss = t2np(iter_loss)
                 iter_loss.backward()
@@ -96,10 +95,15 @@ def train_baselines(model_name,train_loader,val_loader):
                 
                 for i, data in enumerate(tqdm(val_loader, disable=c.hide_tqdm_bar)):
                     
-                    images,dmaps,labels, _, _ = data # _ = annotations
+                    images,dmaps,labels, binary_labels, annotations,point_maps = data 
                     images = images.float().to(c.device)
                     results = mdl(images)
-                    iter_loss = loss(results.squeeze(),dmaps.squeeze()*a.args.dmap_scaling)
+                    
+                    if a.args.model_name == 'LCFCN':
+                        iter_loss = lcfcn_loss.compute_loss(points=point_maps, probs=results.sigmoid())
+                    else:
+                        iter_loss = loss(results.squeeze(),dmaps.squeeze()*a.args.dmap_scaling)
+                        
                     v_loss = t2np(iter_loss)
                     val_loss.append(v_loss)
                 
