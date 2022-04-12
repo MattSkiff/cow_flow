@@ -1221,34 +1221,40 @@ def make_model_name(train_loader):
          parts.append("FE_"+str(c.feat_extractor))    
      
      if a.args.model_name == 'NF':
-         parts.append("NC"+str(c.n_coupling_blocks))
+         parts.append('NC'+str(c.n_coupling_blocks))
+
+     if a.args.weighted_sampler:
+         parts.append('weight')
+     else:
+         parts.append('anno')
+        
+     parts.append(str(a.args.scheduler))
      
-     #"LRS",str(c.scheduler), # only one LR scheduler currently
      if a.args.dlr_acd:
          parts.append('DLRACD')
      
      if a.args.mnist:
          parts.append('MNIST')
      
-     if c.joint_optim:
+     if a.args.model_name == 'NF' and c.joint_optim:
          parts.append('JO')
          
-     if c.pretrained:
+     if a.args.model_name == 'NF' and c.pretrained:
          parts.append('PT')
          
-     if c.pyramid:
+     if a.args.model_name == 'NF' and c.pyramid:
          parts.append('PY_{}'.format(a.args.n_pyramid_blocks))
          
      if c.counts and not a.args.mnist:
          parts.append('CT')
      
-     if c.fixed1x1conv:
+     if a.args.model_name == 'NF' and c.fixed1x1conv:
          parts.append('1x1')
          
      if c.scale != 1:
          parts.append('SC_{}'.format(c.scale))
          
-     if c.dropout_p != 0:
+     if a.args.model_name == 'NF' and c.dropout_p != 0:
          parts.append('DP_{}'.format(c.dropout_p))
          
      if a.args.weight_decay != 1e-5:
@@ -1260,7 +1266,7 @@ def make_model_name(train_loader):
      if c.sigma != 4 and not a.args.mnist:
          parts.extend(["FSG",str(c.sigma)])
          
-     if c.clamp_alpha != 1.9 and not a.args.mnist:
+     if a.args.model_name == 'NF' and c.clamp_alpha != 1.9 and not a.args.mnist:
          parts.extend(["CLA",str(c.clamp_alpha)])
          
      if c.test_train_split != 70 and not a.args.mnist:

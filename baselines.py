@@ -278,6 +278,7 @@ class CSRNet(nn.Module):
         x = self.backend(x)
         x = self.output_layer(x)
         return x
+    
     def _initialize_weights(self):
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -288,7 +289,6 @@ class CSRNet(nn.Module):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
             
-                
 def make_layers(cfg, in_channels = 3,batch_norm=False,dilation = False):
     if dilation:
         d_rate = 2
