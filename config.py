@@ -22,13 +22,13 @@ counts = False # must be off for pretraining feature extractor (#TODO)
 
 ## Training Options ------
 train_model = True # (if false, will only prep dataset,dataloaders, store dmaps)
-validation = True # whether to run validation data per meta epoch
+validation = False # whether to run validation data per meta epoch
 eval_n = 10
-data_prop = 1 # proportion of the full dataset to use (ignored in DLR ACD,MNIST)
+data_prop = 0.1 # proportion of the full dataset to use (ignored in DLR ACD,MNIST)
 test_train_split = 70 # percentage of data to allocate to train set
 
 ## Density Map Options ------
-sigma = 2.0 # "   -----    "  ignored for DLR ACD which uses gsd correspondence
+sigma = 4.0 # "   -----    "  ignored for DLR ACD which uses gsd correspondence
 scale = 1 # 4, 2 = downscale dmaps four/two fold, 1 = unchanged
 
 ## Feature Extractor Options ------
