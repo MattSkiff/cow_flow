@@ -989,7 +989,7 @@ class AerialNormalize(object):
             
         sample['image'] = TF.normalize(sample['image'], 
                                        mean = c.norm_mean,
-                                       std= c.norm_std)
+                                       std = c.norm_std)
  
         return sample
 
@@ -1012,12 +1012,9 @@ class DmapAddUniformNoise(object):
         
         return sample       
 
-class ResizeRotateFlip(object):
-    """Resize, then Randomly rotate, flip and scale aerial image and density map."""
-
+class Resize(object):
+    
     def __call__(self, sample):
-         
-
         # Left - Right, Up - Down flipping
         # 1/4 chance of no flip, 1/4 chance of no rotation, 1/16 chance of no flip or rotate
         # want identical transforms to density and image
@@ -1030,7 +1027,7 @@ class ResizeRotateFlip(object):
         # i, j, h, w = T.RandomCrop.get_params(sample['image'], output_size=(rint,rint2))
         # sample['image'] = TF.crop(sample['image'].unsqueeze(0), i, j, h, w)
         # sample['density'] = TF.crop(sample['density'].unsqueeze(0).unsqueeze(0), i, j, h, w)
-        # sample['point_map'] = TF.crop(sample['point_map'].unsqueeze(0).unsqueeze(0), i, j, h, w)  
+        # sample['point_map'] = TF.crop(sample['point_map'].unsqueeze(0).unsqueeze(0), i, j, h, w) 
         
         sample['image'] = resize(sample['image'].unsqueeze(0))
         
@@ -1038,11 +1035,29 @@ class ResizeRotateFlip(object):
         if not a.args.model_name == 'CSRNet':
             sample['density'] = resize(sample['density'].unsqueeze(0).unsqueeze(0))*(c.raw_img_size[0]*c.raw_img_size[1])/(a.args.image_size**2)
             sample['point_map'] = resize(sample['point_map'].unsqueeze(0).unsqueeze(0))
-        else:
-            resize = T.Resize(size=(a.args.image_size//8,a.args.image_size//8))
-            sample['density'] = resize(sample['density'].unsqueeze(0).unsqueeze(0))*(c.raw_img_size[0]*c.raw_img_size[1])/(a.args.image_size**2)*8
-            sample['point_map'] = resize(sample['point_map'].unsqueeze(0).unsqueeze(0))
+            
+        sample['image'] = sample['image'].squeeze()
+        sample['density'] = sample['density'].squeeze().squeeze()
+        sample['point_map'] = sample['point_map'].squeeze().squeeze()
+        
+        return sample
 
+class RotateFlip(object):
+    """Resize, then Randomly rotate, flip and scale aerial image and density map."""
+
+    def __call__(self, sample):
+        
+        if a.args.model_name == 'CSRNet':
+            resize = T.Resize(size=(c.density_map_h//8,c.density_map_w//8))
+            sample['image'] = sample['image'].unsqueeze(0)
+            sample['density'] = resize(sample['density'].unsqueeze(0).unsqueeze(0))*64 #*(c.raw_img_size[0]*c.raw_img_size[1])/(a.args.image_size**2)*64
+            sample['point_map'] = resize(sample['point_map'].unsqueeze(0).unsqueeze(0))
+        
+        if a.args.model_name != 'CSRNet':
+            sample['image'] = sample['image'].unsqueeze(0)
+            sample['density'] = sample['density'].unsqueeze(0).unsqueeze(0)
+            sample['point_map'] = sample['point_map'].unsqueeze(0).unsqueeze(0)
+        
         if random.randint(0,1):
             sample['image'] = torch.flip(sample['image'],(3,))
             sample['density'] = torch.flip(sample['density'],(3,))
@@ -1052,11 +1067,12 @@ class ResizeRotateFlip(object):
             sample['image'] = torch.flip(sample['image'],(2,))
             sample['density'] = torch.flip(sample['density'],(2,))
             sample['point_map'] = torch.flip(sample['point_map'],(2,))
-            
-        rangle = float(random.randint(0,3)*90)
-        sample['image'] = TF.rotate(sample['image'],angle=rangle)
-        sample['density'] = TF.rotate(sample['density'],angle=rangle)
-        sample['point_map'] = TF.rotate(sample['point_map'],angle=rangle)
+        
+        if a.args.resize:
+            rangle = float(random.randint(0,3)*90)
+            sample['image'] = TF.rotate(sample['image'],angle=rangle)
+            sample['density'] = TF.rotate(sample['density'],angle=rangle)
+            sample['point_map'] = TF.rotate(sample['point_map'],angle=rangle)
         
         sample['image'] = sample['image'].squeeze()
         sample['density'] = sample['density'].squeeze().squeeze()
@@ -1064,42 +1080,47 @@ class ResizeRotateFlip(object):
         
         return sample    
 
-# unused currently
-class CustCrop(object):
-    """Crop images to match vgg feature sizes."""
+# unused currently - padding was causing artifacting
+# class CustCrop(object):
+#     """Crop images to match vgg feature sizes."""
 
-    def __call__(self, sample):
+#     def __call__(self, sample):
               
-        if 'density' in sample.keys():
-            density = sample['density']
+#         if 'density' in sample.keys():
+#             density = sample['density']
             
-            pd = 0
+#             pd = 0
             
-            if c.feat_extractor == 'resnet18' and c.downsampling:
-                pd = 8
-            elif c.feat_extractor == 'alexnet' and c.downsampling:
-                density = density[:544,:768]
-#            elif c.feat_extractor == 'vgg16_bn':
-#                density = density[:544,:768]
+#             if c.feat_extractor == 'resnet18' and c.downsampling:
+#                 pd = 8
+#             elif c.feat_extractor == 'alexnet' and c.downsampling:
+#                 density = density[:544,:768]
+# #            elif c.feat_extractor == 'vgg16_bn':
+# #                density = density[:544,:768]
             
-            # (padding_left,padding_right, padding, padding, padding_top,padding_bottom)
-            # density = F.pad(input=density, pad=(0,0,pd,0), mode='constant', value=0)
-            sample['density'] = density
+#             # (padding_left,padding_right, padding, padding, padding_top,padding_bottom)
+#             if not a.args.resize:
+#                 density = TF.pad(img=density,fill=0,padding=[0,0,pd,0],padding_mode='constant')
             
-            if c.debug:
-                pass
-                #print("image padded by {}".format(pd))
+#             if c.debug:
+#                 print("image padded by {}".format(pd))
             
-            'remove padding and scale instead (CustResize) to prevent artifacts occuring from model'
-            # if c.pyramid:
-            #     # adding padding so high level features match dmap dims after downsampling (37,38)
-            #     image = sample['image']
-            #     image = F.pad(input=image, pad=(0,0,pd,0), mode='constant', value=0)
-            #     sample['image'] =  image
+#             'remove padding and scale instead (CustResize) to prevent artifacts occuring from model'
+#             if c.pyramid and not a.args.resize:
+#                 # adding padding so high level features match dmap dims after downsampling (37,38)
+#                 image = sample['image']
+#                 image = TF.pad(img=image,fill=0, padding=[0,0,pd,0],padding_mode='constant')
+#                 sample['image'] =  image
+            
+#             if not a.args.resize:
+#                 sample['density'] = density
+                
+#             print(sample['density'].size())
+#             print(sample['image'].size())
         
-        return sample
+#         return sample
 
-# unused currently
+
 class CustResize(object):
     """Resize density, according to config scale parameter."""
 
@@ -1107,6 +1128,7 @@ class CustResize(object):
               
         if 'density' in sample.keys():
             density = sample['density']
+            point_map = sample['point_map']
             #sz = list(density.size())
             sz = [c.density_map_h,c.density_map_w]
             
@@ -1114,6 +1136,14 @@ class CustResize(object):
             density = density.unsqueeze(0).unsqueeze(0)
             density = TF.resize(density,(sz[0]//c.scale,sz[1]//c.scale))
             density = density.squeeze().squeeze()
+            
+            if not a.args.resize:
+                pd = 8
+                point_map = TF.pad(img=point_map,fill=0,padding=[0,0,0,8],padding_mode='constant')
+            
+            # point_map = point_map.unsqueeze(0).unsqueeze(0)
+            # point_map = TF.resize(point_map,(sz[0]//c.scale,sz[1]//c.scale))
+            # point_map = point_map.squeeze().squeeze()
             
             if c.pyramid:
                 # adding padding so high level features match dmap dims after downsampling (37,38)
@@ -1125,6 +1155,7 @@ class CustResize(object):
                 print("image scaled down factor by {}".format(c.scale))
             
             sample['density'] = density
+            sample['point_map'] = point_map
         
         return sample
 
