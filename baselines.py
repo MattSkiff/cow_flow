@@ -107,8 +107,8 @@ class FCRN_A(nn.Module):
         self.finetuned = False
         self.scheduler = a.args.scheduler
         self.scale = c.scale
-        self.density_map_h = a.args.image_size
-        self.density_map_w = a.args.image_size
+        self.density_map_h = c.density_map_h
+        self.density_map_w = c.density_map_w
         self.downsampling = c.downsampling
         self.scale = c.scale
         self.noise = a.args.noise
@@ -180,8 +180,8 @@ class UNet(nn.Module):
         self.finetuned = False
         self.scheduler = a.args.scheduler
         self.scale = c.scale
-        self.density_map_h = a.args.image_size
-        self.density_map_w = a.args.image_size
+        self.density_map_h = c.density_map_h
+        self.density_map_w = c.density_map_w
         self.downsampling = c.downsampling
         self.scale = c.scale
         self.noise = a.args.noise
@@ -253,8 +253,8 @@ class CSRNet(nn.Module):
         self.finetuned = False
         self.scheduler = a.args.scheduler
         self.scale = c.scale
-        self.density_map_h = a.args.image_size
-        self.density_map_w = a.args.image_size
+        self.density_map_h = c.density_map_h
+        self.density_map_w = c.density_map_w
         self.downsampling = c.downsampling
         self.scale = c.scale
         self.noise = a.args.noise
@@ -330,8 +330,8 @@ class LCFCN(nn.Module):
         self.finetuned = False
         self.scheduler = a.args.scheduler
         self.scale = c.scale
-        self.density_map_h = a.args.image_size
-        self.density_map_w = a.args.image_size
+        self.density_map_h = c.density_map_h
+        self.density_map_w = c.density_map_w
         self.downsampling = c.downsampling
         self.scale = c.scale
         self.noise = a.args.noise

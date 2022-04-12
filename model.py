@@ -479,8 +479,8 @@ class CowFlow(nn.Module):
         self.pyramid = c.pyramid
         self.fixed1x1conv = c.fixed1x1conv
         self.scale = c.scale
-        self.density_map_h = a.args.image_size
-        self.density_map_w = a.args.image_size
+        self.density_map_h = c.density_map_h
+        self.density_map_w = c.density_map_w
         self.downsampling = c.downsampling
         self.scale = c.scale
         self.noise = a.args.noise

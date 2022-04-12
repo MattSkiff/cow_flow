@@ -88,13 +88,14 @@ def ft_dims_select(mdl=None):
         if a.args.dlr_acd:
             ft_dims = (mdl.density_map_h // 2**5,mdl.density_map_w // 2**5) # 10, 10
         elif fe in ['resnet18','ResNetPyramid'] or fe == 'Sequential':
-            ft_dims = (mdl.density_map_h // 2**5,mdl.density_map_w // 2**5) # 19, 25
+            ft_dims = (19, 25) # (mdl.density_map_h // 2**5,mdl.density_map_w // 2**5)
         elif fe == 'vgg16_bn' or fe == 'VGG':
             ft_dims = (8,8) #(18,25)
         elif fe == 'alexnet' or fe == 'AlexNet':
             ft_dims = (8,8) #(17,24)
         elif fe == 'none' or fe == 'NothingNet':
             ft_dims = (600,800)
+            
             
     else:
         ft_dims = (mdl.density_map_h//2,mdl.density_map_w//2)

@@ -123,7 +123,7 @@ def eval_baselines(mdl,loader,mode,thres=c.sigma*2):
             dm_mae.append(sum(abs(dmap_np-ground_truth_dmap)))
             dm_mse.append(sum(np.square(dmap_np-ground_truth_dmap)))
             # TODO - mismatched data type warning here
-            dm_psnr.append(peak_signal_noise_ratio(ground_truth_dmap,dmap_np))
+            dm_psnr.append(peak_signal_noise_ratio(ground_truth_dmap,dmap_np,data_range=ground_truth_dmap.max()-ground_truth_dmap.min()))
             dm_ssim.append(structural_similarity(ground_truth_dmap,dmap_np))
             #dm_kl.append(entropy(pk=ground_truth_dmap,qk=dmap_rev_np)) # both dists normalised to one automatically
                         
@@ -520,7 +520,7 @@ def dmap_metrics(mdl, loader,n=10,mode='',thres=c.sigma*2,null_filter=False):
             dm_mae.append(sum(abs(dmap_rev_np-ground_truth_dmap)))
             dm_mse.append(sum(np.square(dmap_rev_np-ground_truth_dmap)))
             # TODO - mismatched data type warning here
-            dm_psnr.append(peak_signal_noise_ratio(ground_truth_dmap,dmap_rev_np))
+            dm_psnr.append(peak_signal_noise_ratio(ground_truth_dmap,dmap_rev_np,data_range=ground_truth_dmap.max()-ground_truth_dmap.min()))
             dm_ssim.append(structural_similarity(ground_truth_dmap,dmap_rev_np))
             #dm_kl.append(entropy(pk=ground_truth_dmap,qk=dmap_rev_np)) # both dists normalised to one automatically
                         

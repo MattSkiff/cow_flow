@@ -12,19 +12,19 @@ else:
     proj_dir = "/home/mks29/clones/cow_flow/data"
 
 gpu = True
-seed = 101
+seed = 75
 
 ## Dataset Options ------
-load_stored_dmaps = False # speeds up precomputation (with RAM = True)
+load_stored_dmaps = True # speeds up precomputation (with RAM = True)
 store_dmaps = False # this will save dmap objects (numpy arrays) to file
-ram = False # load aerial imagery and precompute dmaps and load both into ram before training
+ram = True # load aerial imagery and precompute dmaps and load both into ram before training
 counts = False # must be off for pretraining feature extractor (#TODO)
 
 ## Training Options ------
 train_model = True # (if false, will only prep dataset,dataloaders, store dmaps)
-validation = False # whether to run validation data per meta epoch
+validation = True # whether to run validation data per meta epoch
 eval_n = 10
-data_prop = 0.1 # proportion of the full dataset to use (ignored in DLR ACD,MNIST)
+data_prop = 1 # proportion of the full dataset to use (ignored in DLR ACD,MNIST)
 test_train_split = 70 # percentage of data to allocate to train set
 
 ## Density Map Options ------
@@ -177,6 +177,10 @@ if gpu:
 
 if a.args.gpu_number != 0:
     assert gpu
+
+if not a.args.resize:
+    img_size = (800,600)
+    density_map_w,density_map_h = (800,608)
 
 # Checks ------ 
 
