@@ -28,7 +28,7 @@ data_prop = 1 # proportion of the full dataset to use (ignored in DLR ACD,MNIST)
 test_train_split = 70 # percentage of data to allocate to train set
 
 ## Density Map Options ------
-sigma = 4.0 # "   -----    "  ignored for DLR ACD which uses gsd correspondence
+sigma = 2.0 # "   -----    "  ignored for DLR ACD which uses gsd correspondence
 scale = 1 # 4, 2 = downscale dmaps four/two fold, 1 = unchanged
 
 ## Feature Extractor Options ------

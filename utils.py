@@ -336,15 +336,15 @@ def plot_preds_baselines(mdl, loader,mode="",mdl_type=''):
                 preds = mdl(images)
                 
                 if str(type(mdl)) == "<class 'baselines.LCFCN'>":
-                    probs = preds.sigmoid().cpu().numpy()
-                    preds = probs.squeeze()
+                    preds = preds.sigmoid().squeeze(0).permute(1,2,0).cpu().numpy()
+                else:
+                    preds = preds[lb_idx].permute(1,2,0).cpu().numpy()
                 
                 unnorm = UnNormalize(mean=tuple(c.norm_mean),
                                      std=tuple(c.norm_std))
                 
                 im = unnorm(images[lb_idx])
                 im = im.permute(1,2,0).cpu().numpy()
-                preds = preds[lb_idx].permute(1,2,0).cpu().numpy()
 
                 fig, ax = plt.subplots(1,3)
                 plt.subplots_adjust(left=0.1, right=0.9, top=0.9, bottom=0.1)
