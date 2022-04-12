@@ -1036,10 +1036,8 @@ class CropRotateFlipScaling(object):
         
         i, j, h, w = T.RandomCrop.get_params(sample['image'], output_size=(rint,rint))
         sample['image'] = TF.crop(sample['image'].unsqueeze(0), i, j, h, w)
-        
-        if not a.args.model_name == 'CSRNet':
-            sample['density'] = TF.crop(sample['density'].unsqueeze(0).unsqueeze(0), i, j, h, w)
-            sample['point_map'] = TF.crop(sample['point_map'].unsqueeze(0).unsqueeze(0), i, j, h, w)  
+        sample['density'] = TF.crop(sample['density'].unsqueeze(0).unsqueeze(0), i, j, h, w)
+        sample['point_map'] = TF.crop(sample['point_map'].unsqueeze(0).unsqueeze(0), i, j, h, w)  
         
         sample['image'] = resize(sample['image'])
         
@@ -1048,8 +1046,8 @@ class CropRotateFlipScaling(object):
             sample['point_map'] = resize(sample['point_map'])
         else:
             resize = T.Resize(size=(32,32))
-            sample['density'] = resize(sample['density'].unsqueeze(0).unsqueeze(0))
-            sample['point_map'] = resize(sample['point_map'].unsqueeze(0).unsqueeze(0))
+            sample['density'] = resize(sample['density'])
+            sample['point_map'] = resize(sample['point_map'])
 
         if random.randint(0,1):
             sample['image'] = torch.flip(sample['image'],(3,))
