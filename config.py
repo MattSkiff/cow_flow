@@ -24,7 +24,7 @@ counts = False # must be off for pretraining feature extractor (#TODO)
 train_model = True # (if false, will only prep dataset,dataloaders, store dmaps)
 validation = True # whether to run validation data per meta epoch
 eval_n = 10
-data_prop = 0.1 # proportion of the full dataset to use (ignored in DLR ACD,MNIST)
+data_prop = 1 # proportion of the full dataset to use (ignored in DLR ACD,MNIST)
 test_train_split = 70 # percentage of data to allocate to train set
 
 ## Density Map Options ------
@@ -140,10 +140,10 @@ img_dims = [3] + list(img_size) # RGB + x-y
 # TODO: rename this parameter
 # this effects the padding applied to the density maps
 if a.args.dlr_acd:
-    density_map_h,density_map_w = 256,256
+    density_map_h,density_map_w = a.args.image_size,a.args.image_size
 elif not a.args.mnist and not counts and downsampling:
-    density_map_w = 256//scale #img_size[0]
-    density_map_h = 256//scale
+    density_map_w = a.args.image_size//scale #img_size[0]
+    density_map_h = a.args.image_size//scale
     # if feat_extractor == 'resnet18':
     #     density_map_h = 256//scale #img_size[1]
     # elif feat_extractor == 'alexnet':
@@ -154,8 +154,8 @@ elif not a.args.mnist and not counts and downsampling:
     # elif feat_extractor == 'none':
     #     density_map_h = 600//scale
 elif not a.args.mnist and not counts and not downsampling:
-    density_map_w = 256//scale
-    density_map_h = 256//scale
+    density_map_w = a.args.image_size//scale
+    density_map_h = a.args.image_size//scale
 elif not a.args.mnist:
     # size of count expanded to map spatial feature dimensions
     density_map_h = 19 * 2 # need at least 2 channels, expand x2, then downsample (haar)

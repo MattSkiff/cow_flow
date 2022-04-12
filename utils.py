@@ -86,9 +86,9 @@ def ft_dims_select(mdl=None):
     if c.downsampling:
         
         if a.args.dlr_acd:
-            ft_dims = (a.args.image_size // 2**5,a.args.image_size // 2**5) # 10, 10
+            ft_dims = (mdl.density_map_h // 2**5,mdl.density_map_w // 2**5) # 10, 10
         elif fe in ['resnet18','ResNetPyramid'] or fe == 'Sequential':
-            ft_dims = (a.args.image_size // 2**5,a.args.image_size // 2**5) # 19, 25
+            ft_dims = (mdl.density_map_h // 2**5,mdl.density_map_w // 2**5) # 19, 25
         elif fe == 'vgg16_bn' or fe == 'VGG':
             ft_dims = (8,8) #(18,25)
         elif fe == 'alexnet' or fe == 'AlexNet':
@@ -97,7 +97,7 @@ def ft_dims_select(mdl=None):
             ft_dims = (600,800)
             
     else:
-        ft_dims = (c.density_map_h//2,c.density_map_w//2)
+        ft_dims = (mdl.density_map_h//2,mdl.density_map_w//2)
         
     return ft_dims
 
@@ -232,17 +232,18 @@ def plot_preds_multi(UNet_path,CSRNet_path,FCRN_path,NF_path,mode,loader,sample_
     # TODO - show pred counts
 
 @torch.no_grad()
-def predict_image(mdl_path,nf=False,geo=True,nf_n=10,patch_size=320,mdl_type='',
-                  image_path='/home/mks29/6-6-2018_Ortho_ColorBalance.tif'):
+def predict_image(mdl_path,nf=False,geo=True,nf_n=10,mdl_type='',
+                  image_path='/home/mks29/6-6-2018_Ortho_ColorBalance.tif',dlr=False):
     
     assert mdl_type in ['FCRN','UNet','NF','LCFCN','CSRNet']
+    print('Patch sizes hardcoded to 800x600 (cow dataset)')
     
     mdl = load_model(mdl_path).to(c.device)
     
     # split image into 256x256 chunks
     im = cv2.imread(image_path)
     
-    im_patches = split_image(im, patch_size = patch_size,save = False, overlap = 0)
+    im_patches = split_image(im,save = False, overlap = 0,dlr=dlr)
     
     for i in tqdm(range(len(im_patches)),desc="Predicting patches"):
         
@@ -262,7 +263,9 @@ def predict_image(mdl_path,nf=False,geo=True,nf_n=10,patch_size=320,mdl_type='',
                                 
                 dummy_z = (randn(1, in_channels,ft_dims[0],ft_dims[1])).to(c.device)
                 dummy_z = dummy_z.float()
+                # TODO - DOWNSAMPLE HERE - 256 for both DLR and COWS
                 x, log_det_jac = mdl(patch.unsqueeze(0),dummy_z,rev=True)
+                # TODO - UPSAMPLE HERE
                 x_list.append(x)
                         
             x_agg = torch.stack(x_list,dim=1)
@@ -277,7 +280,7 @@ def predict_image(mdl_path,nf=False,geo=True,nf_n=10,patch_size=320,mdl_type='',
             
             # constant = ((mdl.noise)/2)*patch_size*patch_size
             im_patches[i] = x.squeeze(0).permute(1,2,0).cpu().numpy()
-            im_patches[i] = im_patches[i] * 1000
+            im_patches[i] = im_patches[i] * mdl.dmap_scaling
             
         else:
             im_patches[i] = mdl(patch.unsqueeze(0)).squeeze(0).permute(1,2,0).cpu().numpy() #.astype(np.uint8)
@@ -288,8 +291,8 @@ def predict_image(mdl_path,nf=False,geo=True,nf_n=10,patch_size=320,mdl_type='',
     
     path='/home/mks29/' ; frmt = 'tif' ; name = Path(image_path).stem
     
-    predicted = stich_image(shape, im_patches, name=name,patch_size=patch_size,
-                            save=True,path=path,frmt=frmt,geo=geo,mdl_type=mdl_type)
+    predicted = stich_image(shape, im_patches, name=name,save=True,path=path,
+                            frmt=frmt,geo=geo,mdl_type=mdl_type,dlr=dlr)
     
     if geo:
         
@@ -332,7 +335,7 @@ def plot_preds_baselines(mdl, loader,mode="",mdl_type=''):
                 images,dmaps,labels,binary_labels,annotations, point_maps = data
                 preds = mdl(images)
                 
-                if str(type(mdl)) != "<class 'baselines.LCFCN'>":
+                if str(type(mdl)) == "<class 'baselines.LCFCN'>":
                     probs = preds.sigmoid().cpu().numpy()
                     preds = probs.squeeze()
                 
@@ -1044,7 +1047,7 @@ def count_parameters(mdl):
 
 # https://github.com/Devyanshu/image-split-with-overlap/blob/master/split_image_with_overlap.py
 # minor edits to function, remove non-square opt, grey scale
-def split_image(img,patch_size,save=True,overlap=0,name=None,path=None,frmt=None):
+def split_image(img,patch_size,save=True,overlap=0,name=None,path=None,frmt=None,dlr=False):
     
     if save:
         assert name and path and frmt
@@ -1060,8 +1063,12 @@ def split_image(img,patch_size,save=True,overlap=0,name=None,path=None,frmt=None
     else:
         img_h, img_w, _ = img.shape
     
-    split_width = patch_size
-    split_height = patch_size
+    if dlr:
+        split_width = 320
+        split_height = 320  
+    else:
+        split_width = 800
+        split_height = 600
     
     X_points = start_points(img_w, split_width, overlap)
     Y_points = start_points(img_h, split_height, overlap)
@@ -1083,10 +1090,8 @@ def split_image(img,patch_size,save=True,overlap=0,name=None,path=None,frmt=None
     
     return splits
 
-def stich_image(img_size,image_patches,name,patch_size=None,save=True,overlap=0,path=None,frmt=None,geo=False,mdl_type=''):
+def stich_image(img_size,image_patches,name,save=True,overlap=0,path=None,frmt=None,geo=False,mdl_type='',dlr=False):
     ''' img_size = tuple of image size'''
-    
-    assert patch_size is not None
     
     if save:
         assert name and path and frmt
@@ -1101,8 +1106,12 @@ def stich_image(img_size,image_patches,name,patch_size=None,save=True,overlap=0,
         
     predicted = np.zeros(shape=((img_size)[:2]+(1,)),dtype=np.uint8)
     
-    split_width = patch_size
-    split_height = patch_size
+    if dlr:
+        split_width = 320
+        split_height = 320
+    else:
+        split_width = 800
+        split_height = 600
     
     X_points = start_points(img_w, split_width, overlap)
     Y_points = start_points(img_h, split_height, overlap)
@@ -1208,8 +1217,8 @@ def make_model_name(train_loader):
              "OPTIM"+str(a.args.optim)]
      
      if a.args.model_name not in ['UNet','FCRN','LCFCN','CSRNet']:
-         parts.append("FE_"+str(c.feat_extractor))
-            
+         parts.append("FE_"+str(c.feat_extractor))    
+     
      if a.args.model_name == 'NF':
          parts.append("NC"+str(c.n_coupling_blocks))
      

@@ -15,6 +15,7 @@ import matplotlib.pyplot as plt
 from utils import ft_dims_select, np_split,is_baseline
 import config as c
 import gvars as g
+import arguments as a
 
 from lcfcn import lcfcn_loss
 
@@ -80,7 +81,7 @@ def eval_baselines(mdl,loader,mode,thres=c.sigma*2):
             
             # TODO
             #base_map = np.zeros((mdl.density_map_w, mdl.density_map_h), dtype=np.float32)
-            base_map = np.zeros((256,256), dtype=np.float32)
+            base_map = np.zeros((mdl.density_map_h,mdl.density_map_w), dtype=np.float32)
             
             # TODO- retrieve points from point annotated masks
             # anno = annotations[idx].cpu().detach().numpy()
@@ -89,7 +90,7 @@ def eval_baselines(mdl,loader,mode,thres=c.sigma*2):
             gt_coords = annotations[idx]
             
             if gt_coords.nelement() != 0:
-                gt_coords = torch.stack([gt_coords[:,2]*256,gt_coords[:,1]*256]).cpu().detach().numpy()
+                gt_coords = torch.stack([gt_coords[:,2]*mdl.density_map_h,gt_coords[:,1]*mdl.density_map_w]).cpu().detach().numpy()
             else:
                 gt_coords = None
             
@@ -129,14 +130,14 @@ def eval_baselines(mdl,loader,mode,thres=c.sigma*2):
             
             # this splits the density maps into cells for counting per cell
             # mdl.density_map_w//4**l, mdl.density_map_h//4**l
-            gt_dmap_split_counts = np_split(ground_truth_point_map,nrows=256//4**l,ncols=256//4**l).sum(axis=(1,2))
+            gt_dmap_split_counts = np_split(ground_truth_point_map,nrows=mdl.density_map_h//4**l,ncols=mdl.density_map_w//4**l).sum(axis=(1,2))
             
             # mdl.density_map_w//4**l, mdl.density_map_h//4**l
             
             if str(type(mdl)) != "<class 'baselines.CSRNet'>":
-                pred_dmap_split_counts = np_split(dmap_np,nrows=256//4**l,ncols=256//4**l).sum(axis=(1,2))
+                pred_dmap_split_counts = np_split(dmap_np,nrows=mdl.density_map_h//4**l,ncols=mdl.density_map_w//4**l).sum(axis=(1,2))
             else:
-                pred_dmap_split_counts = np_split(dmap_np,nrows=32//4**l,ncols=32//4**l).sum(axis=(1,2))
+                pred_dmap_split_counts = np_split(dmap_np,nrows=(mdl.density_map_h//8)//4**l,ncols=(mdl.density_map_w//8)//4**l).sum(axis=(1,2))
 
             game.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)))
             gampe.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)/np.maximum(np.ones(len(gt_dmap_split_counts)),gt_dmap_split_counts)))     
@@ -446,7 +447,7 @@ def dmap_metrics(mdl, loader,n=10,mode='',thres=c.sigma*2,null_filter=False):
             # replace predicted densities with null predictions if not +ve pred from feature extractor
             if null_filter:
                 if not mdl.dlr_acd:
-                    x[(preds == 1).bool(),:,:,:] = torch.zeros(1,256,256).to(c.device)
+                    x[(preds == 1).bool(),:,:,:] = torch.zeros(1,mdl.density_map_h,mdl.density_map_w).to(c.device)
             
             x_list.append(x)
         
