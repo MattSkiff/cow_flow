@@ -379,15 +379,14 @@ class DLRACDCropRotateFlipScaling(object):
         # 1/4 chance of no flip, 1/4 chance of no rotation, 1/16 chance of no flip or rotate
         resize = T.Resize(size=(256,256))
         
-        sample['patch'] = resize(sample['patch'].unsqueeze(0))
-        sample['patch_density'] = resize(sample['patch_density'].unsqueeze(0).unsqueeze(0))
-        sample['point_maps'] = resize(sample['point_maps'].unsqueeze(0).unsqueeze(0))
-        
-        
         i, j, h, w = T.RandomCrop.get_params(sample['patch'], output_size=(256, 256))
-        sample['patch'] = TF.crop(sample['patch'], i, j, h, w)
-        sample['patch_density'] = TF.crop(sample['patch_density'], i, j, h, w)
-        sample['point_maps'] = TF.crop(sample['point_maps'], i, j, h, w)
+        sample['patch'] = TF.crop(sample['patch'].unsqueeze(0), i, j, h, w)
+        sample['patch_density'] = TF.crop(sample['patch_density'].unsqueeze(0).unsqueeze(0), i, j, h, w)
+        sample['point_maps'] = TF.crop(sample['point_maps'].unsqueeze(0).unsqueeze(0), i, j, h, w)
+        
+        sample['patch'] = resize(sample['patch'])
+        sample['patch_density'] = resize(sample['patch_density'])
+        sample['point_maps'] = resize(sample['point_maps'])
         
         if random.randint(0,1):
             sample['patch'] = torch.flip(sample['patch'],(3,))
@@ -525,8 +524,8 @@ class CowObjectsDataset(Dataset):
                 if count == 0:
                         
                     annotations = np.array([])
-                    density_map = np.zeros((c.img_size[1], c.img_size[0]), dtype=np.float32)
-                    point_map= np.zeros((c.img_size[1], c.img_size[0]), dtype=np.float32)
+                    density_map = np.zeros((c.raw_img_size[1], c.raw_img_size[0]), dtype=np.float32)
+                    point_map= np.zeros((c.raw_img_size[1], c.raw_img_size[0]), dtype=np.float32)
                     
                 else:        
                     annotations = pd.read_csv(txt_path,names=header_list,delim_whitespace=True)
@@ -552,21 +551,21 @@ class CowObjectsDataset(Dataset):
                         # set density map image size equal to data image size
                         
                         # TODO - this is possibly massively inefficient
-                        density_map = np.zeros((c.img_size[1], c.img_size[0]), dtype=np.float32)
-                        point_map= np.zeros((c.img_size[1], c.img_size[0]), dtype=np.float32)
+                        density_map = np.zeros((c.raw_img_size[1], c.raw_img_size[0]), dtype=np.float32)
+                        point_map= np.zeros((c.raw_img_size[1], c.raw_img_size[0]), dtype=np.float32)
                             
                         # add points onto basemap
                         for point in annotations:
                             # error introduced here as float position annotation centre converted to int
-                            base_map = np.zeros((c.img_size[1], c.img_size[0]), dtype=np.float32)
+                            base_map = np.zeros((c.raw_img_size[1], c.raw_img_size[0]), dtype=np.float32)
                             
                             if c.debug_dataloader:
                                 print(point)
                                 
                             # subtract 1 to account for 0 indexing
                             # NOTE: this overrides duplicate annotation points (4 out of 22k)
-                            base_map[int(round(point[2]*c.img_size[1])-1),int(round(point[1]*c.img_size[0])-1)] = 1 # +=1
-                            point_map[int(round(point[2]*c.img_size[1])-1),int(round(point[1]*c.img_size[0])-1)] = 1 # +=1
+                            base_map[int(round(point[2]*c.raw_img_size[1])-1),int(round(point[1]*c.raw_img_size[0])-1)] = 1 # +=1
+                            point_map[int(round(point[2]*c.raw_img_size[1])-1),int(round(point[1]*c.raw_img_size[0])-1)] = 1 # +=1
                             
                             if a.args.dmap_type == 'max':
                                 density_map += scipy.ndimage.filters.maximum_filter(base_map,size = (7,7))
@@ -1017,7 +1016,11 @@ class CropRotateFlipScaling(object):
     """Randomly rotate, flip and scale aerial image and density map."""
 
     def __call__(self, sample):
-              
+         
+        sample['image'] = sample['image'].squeeze()
+        sample['density'] = sample['density'].squeeze().squeeze()
+        sample['point_map'] = sample['point_map'].squeeze().squeeze()
+        
         # Left - Right, Up - Down flipping
         # 1/4 chance of no flip, 1/4 chance of no rotation, 1/16 chance of no flip or rotate
         # want identical transforms to density and image
@@ -1026,22 +1029,27 @@ class CropRotateFlipScaling(object):
         
         # TODO - fix this by swapping crop and resize (currently no random crop, just flips)
         
-        sample['image'] = resize(sample['image'].unsqueeze(0))
+        # follow inception net style random resize crop scaling - between 8% to 100% 
+        # https://discuss.pytorch.org/t/is-transforms-randomresizedcrop-used-for-data-augmentation/16716
+        
+        rint = random.randint(int(0.08*256),int(1*256))
+        
+        i, j, h, w = T.RandomCrop.get_params(sample['image'], output_size=(rint,rint))
+        sample['image'] = TF.crop(sample['image'].unsqueeze(0), i, j, h, w)
         
         if not a.args.model_name == 'CSRNet':
-            sample['density'] = resize(sample['density'].unsqueeze(0).unsqueeze(0))
-            sample['point_map'] = resize(sample['point_map'].unsqueeze(0).unsqueeze(0))
+            sample['density'] = TF.crop(sample['density'].unsqueeze(0).unsqueeze(0), i, j, h, w)
+            sample['point_map'] = TF.crop(sample['point_map'].unsqueeze(0).unsqueeze(0), i, j, h, w)  
+        
+        sample['image'] = resize(sample['image'])
+        
+        if not a.args.model_name == 'CSRNet':
+            sample['density'] = resize(sample['density'])
+            sample['point_map'] = resize(sample['point_map'])
         else:
             resize = T.Resize(size=(32,32))
             sample['density'] = resize(sample['density'].unsqueeze(0).unsqueeze(0))
             sample['point_map'] = resize(sample['point_map'].unsqueeze(0).unsqueeze(0))
-            
-        i, j, h, w = T.RandomCrop.get_params(sample['image'], output_size=(256, 256))
-        sample['image'] = TF.crop(sample['image'], i, j, h, w)
-        
-        if not a.args.model_name == 'CSRNet':
-            sample['density'] = TF.crop(sample['density'], i, j, h, w)
-            sample['point_map'] = TF.crop(sample['point_map'], i, j, h, w)
 
         if random.randint(0,1):
             sample['image'] = torch.flip(sample['image'],(3,))
