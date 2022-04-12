@@ -377,16 +377,16 @@ class DLRACDCropRotateFlipScaling(object):
               
         # Left - Right, Up - Down flipping
         # 1/4 chance of no flip, 1/4 chance of no rotation, 1/16 chance of no flip or rotate
-        resize = T.Resize(size=(256,256))
+        # resize = T.Resize(size=(a.args.image_size,a.args.image_size))
         
-        i, j, h, w = T.RandomCrop.get_params(sample['patch'], output_size=(256, 256))
-        sample['patch'] = TF.crop(sample['patch'].unsqueeze(0), i, j, h, w)
-        sample['patch_density'] = TF.crop(sample['patch_density'].unsqueeze(0).unsqueeze(0), i, j, h, w)
-        sample['point_maps'] = TF.crop(sample['point_maps'].unsqueeze(0).unsqueeze(0), i, j, h, w)
+        # i, j, h, w = T.RandomCrop.get_params(sample['patch'], output_size=(a.args.image_size, a.args.image_size))
+        # sample['patch'] = TF.crop(sample['patch'].unsqueeze(0), i, j, h, w)
+        # sample['patch_density'] = TF.crop(sample['patch_density'].unsqueeze(0).unsqueeze(0), i, j, h, w)
+        # sample['point_maps'] = TF.crop(sample['point_maps'].unsqueeze(0).unsqueeze(0), i, j, h, w)
         
-        sample['patch'] = resize(sample['patch'])
-        sample['patch_density'] = resize(sample['patch_density'])
-        sample['point_maps'] = resize(sample['point_maps'])
+        # sample['patch'] = resize(sample['patch'])
+        # sample['patch_density'] = resize(sample['patch_density'])
+        # sample['point_maps'] = resize(sample['point_maps'])
         
         if random.randint(0,1):
             sample['patch'] = torch.flip(sample['patch'],(3,))
@@ -1010,44 +1010,40 @@ class DmapAddUniformNoise(object):
             if c.debug:
                 print("uniform noise ({},{}) added to dmap".format(self.r1, self.r2))
         
-        return sample
+        return sample       
 
-class CropRotateFlipScaling(object):
-    """Randomly rotate, flip and scale aerial image and density map."""
+class ResizeRotateFlip(object):
+    """Resize, then Randomly rotate, flip and scale aerial image and density map."""
 
     def __call__(self, sample):
          
-        sample['image'] = sample['image'].squeeze()
-        sample['density'] = sample['density'].squeeze().squeeze()
-        sample['point_map'] = sample['point_map'].squeeze().squeeze()
+        sample['image'] = sample['image']#.squeeze()
+        sample['density'] = sample['density']#.squeeze().squeeze()
+        sample['point_map'] = sample['point_map']#.squeeze().squeeze()
         
         # Left - Right, Up - Down flipping
         # 1/4 chance of no flip, 1/4 chance of no rotation, 1/16 chance of no flip or rotate
         # want identical transforms to density and image
         # https://discuss.pytorch.org/t/torchvision-transfors-how-to-perform-identical-transform-on-both-image-and-target/10606/7
-        resize = T.Resize(size=(256,256))
+        resize = T.Resize(size=(a.args.image_size,a.args.image_size))
         
-        # TODO - fix this by swapping crop and resize (currently no random crop, just flips)
+        # rint = random.randint(int(a.args.min_scaling*a.args.image_size),int(1*a.args.image_size))
+        # rint2 = random.randint(int(a.args.min_scaling*a.args.image_size),int(1*a.args.image_size))
         
-        # follow inception net style random resize crop scaling - between 8% to 100% 
-        # https://discuss.pytorch.org/t/is-transforms-randomresizedcrop-used-for-data-augmentation/16716
+        # i, j, h, w = T.RandomCrop.get_params(sample['image'], output_size=(rint,rint2))
+        # sample['image'] = TF.crop(sample['image'].unsqueeze(0), i, j, h, w)
+        # sample['density'] = TF.crop(sample['density'].unsqueeze(0).unsqueeze(0), i, j, h, w)
+        # sample['point_map'] = TF.crop(sample['point_map'].unsqueeze(0).unsqueeze(0), i, j, h, w)  
         
-        rint = random.randint(int(0.08*256),int(1*256))
-        
-        i, j, h, w = T.RandomCrop.get_params(sample['image'], output_size=(rint,rint))
-        sample['image'] = TF.crop(sample['image'].unsqueeze(0), i, j, h, w)
-        sample['density'] = TF.crop(sample['density'].unsqueeze(0).unsqueeze(0), i, j, h, w)
-        sample['point_map'] = TF.crop(sample['point_map'].unsqueeze(0).unsqueeze(0), i, j, h, w)  
-        
-        sample['image'] = resize(sample['image'])
+        sample['image'] = resize(sample['image'].unsqueeze(0))
         
         if not a.args.model_name == 'CSRNet':
-            sample['density'] = resize(sample['density'])
-            sample['point_map'] = resize(sample['point_map'])
+            sample['density'] = resize(sample['density'].unsqueeze(0).unsqueeze(0))
+            sample['point_map'] = resize(sample['point_map'].unsqueeze(0).unsqueeze(0))
         else:
-            resize = T.Resize(size=(32,32))
-            sample['density'] = resize(sample['density'])
-            sample['point_map'] = resize(sample['point_map'])
+            resize = T.Resize(size=(a.args.image_size//8,a.args.image_size//8))
+            sample['density'] = resize(sample['density'].unsqueeze(0).unsqueeze(0))
+            sample['point_map'] = resize(sample['point_map'].unsqueeze(0).unsqueeze(0))
 
         if random.randint(0,1):
             sample['image'] = torch.flip(sample['image'],(3,))

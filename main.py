@@ -15,7 +15,7 @@ from dlr_acd import train_dlr_acd
 from mnist import train_mnist
 
 #from utils import load_datasets, make_dataloaders
-from data_loader import CowObjectsDataset, CustToTensor, AerialNormalize, DmapAddUniformNoise, train_val_split, CropRotateFlipScaling
+from data_loader import CowObjectsDataset, CustToTensor, AerialNormalize, DmapAddUniformNoise, train_val_split, ResizeRotateFlip
 
 empty_cache() # free up memory for cuda
 
@@ -29,7 +29,7 @@ if a.args.cows:
     # torchivsion inputs are 3x227x227, mnist_resnet 1x227...
     # 0.1307, 0.3081 = mean, std dev mnist
     
-    transforms = [CustToTensor(),AerialNormalize(),CropRotateFlipScaling(),DmapAddUniformNoise(),]
+    transforms = [CustToTensor(),AerialNormalize(),ResizeRotateFlip(),DmapAddUniformNoise(),]
     
     if not a.args.normalise:
         del transforms[1]
