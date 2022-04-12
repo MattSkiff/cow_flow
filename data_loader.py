@@ -524,8 +524,8 @@ class CowObjectsDataset(Dataset):
                 if count == 0:
                         
                     annotations = np.array([])
-                    density_map = np.zeros((c.raw_img_size[1], c.raw_img_size[0]), dtype=np.float32)
-                    point_map= np.zeros((c.raw_img_size[1], c.raw_img_size[0]), dtype=np.float32)
+                    density_map = np.zeros((c.raw_img_size[1], c.raw_img_size[0]), dtype=np.float32) # c.raw_img_size
+                    point_map= np.zeros((c.raw_img_size[1], c.raw_img_size[0]), dtype=np.float32) # c.raw_img_size
                     
                 else:        
                     annotations = pd.read_csv(txt_path,names=header_list,delim_whitespace=True)
@@ -551,8 +551,8 @@ class CowObjectsDataset(Dataset):
                         # set density map image size equal to data image size
                         
                         # TODO - this is possibly massively inefficient
-                        density_map = np.zeros((c.raw_img_size[1], c.raw_img_size[0]), dtype=np.float32)
-                        point_map= np.zeros((c.raw_img_size[1], c.raw_img_size[0]), dtype=np.float32)
+                        density_map = np.zeros((c.raw_img_size[1], c.raw_img_size[0]), dtype=np.float32) # c.raw_img_size
+                        point_map= np.zeros((c.raw_img_size[1], c.raw_img_size[0]), dtype=np.float32) # c.raw_img_size
                             
                         # add points onto basemap
                         for point in annotations:
@@ -1017,10 +1017,7 @@ class ResizeRotateFlip(object):
 
     def __call__(self, sample):
          
-        sample['image'] = sample['image']#.squeeze()
-        sample['density'] = sample['density']#.squeeze().squeeze()
-        sample['point_map'] = sample['point_map']#.squeeze().squeeze()
-        
+
         # Left - Right, Up - Down flipping
         # 1/4 chance of no flip, 1/4 chance of no rotation, 1/16 chance of no flip or rotate
         # want identical transforms to density and image
@@ -1037,12 +1034,13 @@ class ResizeRotateFlip(object):
         
         sample['image'] = resize(sample['image'].unsqueeze(0))
         
+        # scale density up by downscaling amount, so counting still works
         if not a.args.model_name == 'CSRNet':
-            sample['density'] = resize(sample['density'].unsqueeze(0).unsqueeze(0))
+            sample['density'] = resize(sample['density'].unsqueeze(0).unsqueeze(0))*(c.raw_img_size[0]*c.raw_img_size[1])/(a.args.image_size**2)
             sample['point_map'] = resize(sample['point_map'].unsqueeze(0).unsqueeze(0))
         else:
             resize = T.Resize(size=(a.args.image_size//8,a.args.image_size//8))
-            sample['density'] = resize(sample['density'].unsqueeze(0).unsqueeze(0))
+            sample['density'] = resize(sample['density'].unsqueeze(0).unsqueeze(0))*(c.raw_img_size[0]*c.raw_img_size[1])/(a.args.image_size**2)*8
             sample['point_map'] = resize(sample['point_map'].unsqueeze(0).unsqueeze(0))
 
         if random.randint(0,1):
