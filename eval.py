@@ -132,7 +132,11 @@ def eval_baselines(mdl,loader,mode,thres=c.sigma*2):
             gt_dmap_split_counts = np_split(ground_truth_point_map,nrows=256//4**l,ncols=256//4**l).sum(axis=(1,2))
             
             # mdl.density_map_w//4**l, mdl.density_map_h//4**l
-            pred_dmap_split_counts = np_split(dmap_np,nrows=256//4**l,ncols=256//4**l).sum(axis=(1,2))
+            
+            if str(type(mdl)) != "<class 'baselines.CSRNet'>":
+                pred_dmap_split_counts = np_split(dmap_np,nrows=256//4**l,ncols=256//4**l).sum(axis=(1,2))
+            else:
+                pred_dmap_split_counts = np_split(dmap_np,nrows=32//4**l,ncols=32//4**l).sum(axis=(1,2))
 
             game.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)))
             gampe.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)/np.maximum(np.ones(len(gt_dmap_split_counts)),gt_dmap_split_counts)))     
