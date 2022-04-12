@@ -177,8 +177,8 @@ def plot_preds_multi(UNet_path,CSRNet_path,FCRN_path,NF_path,mode,loader,sample_
                 preds = mdl(images)
                 preds = preds[lb_idx].permute(1,2,0).cpu().numpy()
                 # todo - retrain models with noise attr and uncomment below
-                constant=0#constant = ((mdl.noise)/2)*dmaps[lb_idx].shape[0]*dmaps[lb_idx].shape[1]
-                count_arr.append((preds.sum()/1000)-constant)
+                constant = ((mdl.noise)/2)*dmaps[lb_idx].shape[0]*dmaps[lb_idx].shape[1]
+                count_arr.append((preds.sum()/mdl.dmap_scaling)-constant)
                 ax[j].title.set_text('Density Map Prediction {}'.format(str(type(mdl))))
                 ax[j].imshow(preds)
                 
@@ -554,6 +554,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
                 
             # replace predicted densities with null predictions if not +ve pred from feature extractor
             constant = ((mdl.noise)/2)*dmaps[lb_idx].shape[0]*dmaps[lb_idx].shape[1]
+            loader_noise = ((a.args.noise)/2)*dmaps[lb_idx].shape[0]*dmaps[lb_idx].shape[1]
             if not mdl.mnist and not mdl.count and null_filter==True:
                 # subtract constrant for uniform noise
                 if not mdl.dlr_acd:
@@ -600,7 +601,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
                 # TODO!
                 if mdl.mnist or mdl.subnet_type == 'conv':
                     sum_pred = dmap_rev_np.sum()-constant #[lb_idx]
-                    true_dmap_count = dmaps[lb_idx].sum()-constant
+                    true_dmap_count = dmaps[lb_idx].sum()-loader_noise
                     if not mdl.dlr_acd:
                         label_count = len(annotations[lb_idx])
                     else:
@@ -770,8 +771,6 @@ def plot_peaks(mdl, loader,n=10):
                 label_count = counts[idx]
             else:
                 label_count = len(annotations[idx])
-                
-            constant = ((mdl.noise)/2)*ground_truth_dmap.shape[0]*ground_truth_dmap.shape[1]
             
             dmap_rev_np = x[idx].squeeze().cpu().detach().numpy()
             #dmap_uncertainty = x_std[idx].squeeze().cpu().detach().numpy()
@@ -785,10 +784,12 @@ def plot_peaks(mdl, loader,n=10):
             dmap_uncertainty = dmap_rev_np-ground_truth_dmap #x_std_norm[idx].squeeze().cpu().detach().numpy()
             
             # subtract constrant for uniform noise
-            constant = ((mdl.noise)/2)*ground_truth_dmap.shape[0]*ground_truth_dmap.shape[1] # TODO mdl.noise
+            constant = ((mdl.noise)/2)*ground_truth_dmap.shape[0]*ground_truth_dmap.shape[1]
+            loader_noise = ((a.args.noise)/2)*ground_truth_dmap.shape[0]*ground_truth_dmap.shape[1]
+            
             sum_count -= constant
-            dist_counts -= constant
-            gt_count -= constant
+            dist_counts -= constant 
+            gt_count -= loader_noise
             
             if mdl.dlr_acd:
                 # https://stackoverflow.com/questions/60782965/extract-x-y-coordinates-of-each-pixel-from-an-image-in-python

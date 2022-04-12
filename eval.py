@@ -96,8 +96,10 @@ def eval_baselines(mdl,loader,mode,thres=c.sigma*2):
             
             # subtract constrant for uniform noise
             constant = ((mdl.noise)/2)*ground_truth_dmap.shape[0]*ground_truth_dmap.shape[1] 
+            loader_noise = ((loader.noise)/2)*ground_truth_dmap.shape[0]*ground_truth_dmap.shape[1] 
+            
             sum_count -= constant
-            gt_count -= constant
+            gt_count -= loader_noise
             
             if str(type(mdl)) == "<class 'baselines.LCFCN'>":
                 coordinates = np.argwhere(pred_points != 0)
@@ -493,9 +495,11 @@ def dmap_metrics(mdl, loader,n=10,mode='',thres=c.sigma*2,null_filter=False):
                 
             # subtract constrant for uniform noise
             constant = ((mdl.noise)/2)*ground_truth_dmap.shape[0]*ground_truth_dmap.shape[1] 
+            loader_noise = ((loader.noise)/2)*ground_truth_dmap.shape[0]*ground_truth_dmap.shape[1] 
+            
             sum_count -= constant
             dist_counts -= constant
-            gt_count -= constant
+            gt_count -= loader_noise
             
             coordinates = peak_local_max(dmap_rev_np,min_distance=MIN_D,num_peaks=max(1,int(sum_count)))
             
@@ -718,8 +722,10 @@ def dmap_pr_curve(mdl, loader,n = 10,mode = ''):
                     
 
             # subtract constrant for uniform noise
-            constant = ((mdl.noise)/2)*ground_truth_dmap.shape[0]*ground_truth_dmap.shape[1] # TODO mdl.noise
-            gt_count -= constant
+            constant = ((mdl.noise)/2)*ground_truth_dmap.shape[0]*ground_truth_dmap.shape[1] 
+            loader_noise = ((loader.noise)/2)*ground_truth_dmap.shape[0]*ground_truth_dmap.shape[1] 
+            
+            gt_count -= loader_noise
             sum_count -= constant
             
             y_hat_coords['div2'].append(peak_local_max(dmap_rev_np,min_distance=int(c.sigma//2),num_peaks=max(1,int(sum_count))))
