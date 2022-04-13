@@ -617,6 +617,7 @@ class CowObjectsDataset(Dataset):
                 
                 if a.args.model_name == 'CSRNet':
                     g.DMAP_DIR = g.DMAP_DIR+'/CSRNet/'
+                    density_map = density_map*64
                 
                 # store dmaps/labels/annotations
                 if c.store_dmaps:

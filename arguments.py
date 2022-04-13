@@ -17,7 +17,7 @@ parser.add_argument('-mnist',help='Run the architecture on the DLR ACD dataset.'
 parser.add_argument('-anno','--annotations_only',help='whether to only use image patches that have annotations',action="store_true",default=True)
 parser.add_argument('-weighted','--weighted_sampler',help='whether to weight minibatch samples such that sampling distribution is 50/50 null/annotated', action="store_true",default=False)
 parser.add_argument('-normalise',help='normalise aerial imagery supplied to model with img net mean & std dev',action='store_true',default=True)
-parser.add_argument('-resize',help='Whether to resize image to the specified img size',action="store_true",default=False)
+parser.add_argument('-resize',help='Whether to resize image to the specified img size',action="store_true",default=True)
 parser.add_argument('-dmap_type',help='Use density or segmentation masks (gauss or max filters)',default='gauss')
 parser.add_argument('-dmap_scaling',help='Scale up density map to ensure gaussianed density is not too close to zero per pixel',type=int,default=1)
 #parser.add_argument('-min_scaling',help='Minimum scaling bound (0-1) for random resized crop transform',type=float,default=1)
