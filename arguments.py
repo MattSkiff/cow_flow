@@ -4,7 +4,7 @@ import socket
 # command line params
 parser = argparse.ArgumentParser(description='Create dataloaders and train a conditional NF.')
 
-parser.add_argument('-mod',"--model_name",help="Specify model to train (NF, CSRNet, UNet, FCRN, LCFCN).",default='FCRN')
+parser.add_argument('-mod',"--model_name",help="Specify model to train (NF, CSRNet, UNet, FCRN, LCFCN).",default='NF')
 parser.add_argument("-fe_only", "--feat_extract_only", help="Trains the feature extractor component only.", action="store_true",default=False)
 parser.add_argument("-uc", "--unconditional", help="Trains the model without labels.", action="store_true")
 parser.add_argument("-gn", "--gpu_number", help="Selects which GPU to train on.", type=int, default=0)

@@ -80,10 +80,6 @@ def train_baselines(model_name,train_loader,val_loader):
                 results = mdl(images)
                 
                 if a.args.model_name == 'LCFCN':
-                    
-                    print(point_maps.size())
-                    print(results.size())
-                    
                     iter_loss = lcfcn_loss.compute_loss(points=point_maps, probs=results.sigmoid())
                 else:
                     iter_loss = loss(results.squeeze(),dmaps.squeeze()*a.args.dmap_scaling)

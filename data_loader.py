@@ -486,7 +486,12 @@ class CowObjectsDataset(Dataset):
         self.train_im_paths = train_im_paths
         
         def compute_labels(idx):
-                         
+             
+            if a.args.model_name == 'CSRNet':
+                CSRNet_scaling = 8
+            else:
+                CSRNet_scaling = 1
+            
             if a.args.dmap_type == 'max':
                 dmap_type = '_max'
             else:
@@ -507,7 +512,11 @@ class CowObjectsDataset(Dataset):
             with open(txt_path) as annotations:
                 count = len(annotations.readlines())
             
+              
             dmap_path = g.DMAP_DIR+self.im_names[idx]
+            
+            if a.args.model_name == 'CSRNet':
+                dmap_path = g.DMAP_DIR+'/CSRNet/'+self.im_names[idx]
             
             if c.load_stored_dmaps:
                 if not os.path.exists(dmap_path):
@@ -524,8 +533,16 @@ class CowObjectsDataset(Dataset):
                 if count == 0:
                         
                     annotations = np.array([])
-                    density_map = np.zeros((c.raw_img_size[1], c.raw_img_size[0]), dtype=np.float32) # c.raw_img_size
-                    point_map= np.zeros((c.raw_img_size[1], c.raw_img_size[0]), dtype=np.float32) # c.raw_img_size
+                    
+                    if a.args.resize and a.args.model_name == 'CSRNet':
+                        density_map = np.zeros((256//CSRNet_scaling,256//CSRNet_scaling), dtype=np.float32) # c.raw_img_size
+                    else:
+                        density_map = np.zeros((c.raw_img_size[1], c.raw_img_size[0]), dtype=np.float32) # c.raw_img_size
+                    
+                    if not a.args.resize:
+                        point_map= np.zeros((c.raw_img_size[1]//CSRNet_scaling, c.raw_img_size[0]//CSRNet_scaling), dtype=np.float32) # c.raw_img_size
+                    else:
+                        point_map= np.zeros((256//CSRNet_scaling,256//CSRNet_scaling), dtype=np.float32) # c.raw_img_size
                     
                 else:        
                     annotations = pd.read_csv(txt_path,names=header_list,delim_whitespace=True)
@@ -551,25 +568,43 @@ class CowObjectsDataset(Dataset):
                         # set density map image size equal to data image size
                         
                         # TODO - this is possibly massively inefficient
-                        density_map = np.zeros((c.raw_img_size[1], c.raw_img_size[0]), dtype=np.float32) # c.raw_img_size
-                        point_map= np.zeros((c.raw_img_size[1], c.raw_img_size[0]), dtype=np.float32) # c.raw_img_size
+                        
+                        if a.args.resize and a.args.model_name == 'CSRNet':
+                            density_map = np.zeros((256//CSRNet_scaling,256//CSRNet_scaling), dtype=np.float32) # c.raw_img_size
+                        else:
+                            density_map = np.zeros((c.raw_img_size[1]//CSRNet_scaling, c.raw_img_size[0]//CSRNet_scaling), dtype=np.float32) # c.raw_img_size  
+                            
+                        if not a.args.resize:
+                            point_map= np.zeros((c.raw_img_size[1]//CSRNet_scaling, c.raw_img_size[0]//CSRNet_scaling), dtype=np.float32) # c.raw_img_size
+                        else:
+                            point_map= np.zeros((256,256), dtype=np.float32) # c.raw_img_size
                             
                         # add points onto basemap
                         for point in annotations:
                             # error introduced here as float position annotation centre converted to int
-                            base_map = np.zeros((c.raw_img_size[1], c.raw_img_size[0]), dtype=np.float32)
+                            if a.args.resize and a.args.model_name == 'CSRNet':
+                                base_map = np.zeros((256//CSRNet_scaling,256//CSRNet_scaling), dtype=np.float32) # c.raw_img_size
+                            else:
+                                base_map = np.zeros((c.raw_img_size[1]//CSRNet_scaling, c.raw_img_size[0]//CSRNet_scaling), dtype=np.float32)
                             
                             if c.debug_dataloader:
                                 print(point)
                                 
                             # subtract 1 to account for 0 indexing
                             # NOTE: this overrides duplicate annotation points (4 out of 22k)
-                            base_map[int(round(point[2]*c.raw_img_size[1])-1),int(round(point[1]*c.raw_img_size[0])-1)] = 1 # +=1
-                            point_map[int(round(point[2]*c.raw_img_size[1])-1),int(round(point[1]*c.raw_img_size[0])-1)] = 1 # +=1
+                            if a.args.resize and a.args.model_name == 'CSRNet':
+                                base_map[int(round(point[2]*256//CSRNet_scaling)),int(round(point[1]*256//CSRNet_scaling))] = 1 # +=1
+                            else:
+                                base_map[int(round(point[2]*c.raw_img_size[1]//CSRNet_scaling)),int(round(point[1]*c.raw_img_size[0]//CSRNet_scaling))] = 1 # +=1
+                            
+                            if not a.args.resize:
+                                point_map[int(round(point[2]*c.raw_img_size[1]//CSRNet_scaling)),int(round(point[1]*c.raw_img_size[0]//CSRNet_scaling))] = 1 # +=1
+                            else:
+                                point_map[int(round(point[2]*256//CSRNet_scaling)),int(round(point[1]*256//CSRNet_scaling))] = 1 # +=1
                             
                             if a.args.dmap_type == 'max':
                                 density_map += scipy.ndimage.filters.maximum_filter(base_map,size = (7,7))
-                            else:                                
+                            else:
                                 density_map += scipy.ndimage.filters.gaussian_filter(base_map, sigma = c.sigma, mode='constant')
                             
                             labels.append(point[0])
@@ -579,6 +614,9 @@ class CowObjectsDataset(Dataset):
                                 print("density map sum ",density_map.sum())    
                                 
                 labels = np.array(labels) # list into default collate function produces empty tensors
+                
+                if a.args.model_name == 'CSRNet':
+                    g.DMAP_DIR = g.DMAP_DIR+'/CSRNet/'
                 
                 # store dmaps/labels/annotations
                 if c.store_dmaps:
@@ -859,8 +897,13 @@ class CowObjectsDataset(Dataset):
                 
         if show:
             plt.show()
+            
+        print('Image size: {}'.format(im.shape))
+        print('Density map size: {}'.format(dmap.shape))
+        print('Density map sum: {}'.format(dmap.sum()))
+        print('Label count: {}'.format(len(self[sample_no]['labels'])))
     
-        return im, dmap
+        return 
             
     # because batches have varying numbers of bounding boxes, need to define custom collate func
     # https://discuss.pytorch.org/t/dataloader-gives-stack-expects-each-tensor-to-be-equal-size-due-to-different-image-has-different-objects-number/91941/5
@@ -1013,12 +1056,9 @@ class DmapAddUniformNoise(object):
         return sample       
 
 class Resize(object):
-    
+    """ Resize image according to img sz arg (def:256) (not scale param) """
     def __call__(self, sample):
-        # Left - Right, Up - Down flipping
-        # 1/4 chance of no flip, 1/4 chance of no rotation, 1/16 chance of no flip or rotate
-        # want identical transforms to density and image
-        # https://discuss.pytorch.org/t/torchvision-transfors-how-to-perform-identical-transform-on-both-image-and-target/10606/7
+        
         resize = T.Resize(size=(a.args.image_size,a.args.image_size))
         
         # rint = random.randint(int(a.args.min_scaling*a.args.image_size),int(1*a.args.image_size))
@@ -1033,7 +1073,7 @@ class Resize(object):
         
         # scale density up by downscaling amount, so counting still works
         if not a.args.model_name == 'CSRNet':
-            sample['density'] = resize(sample['density'].unsqueeze(0).unsqueeze(0))*(c.raw_img_size[0]*c.raw_img_size[1])/(a.args.image_size**2)
+            sample['density'] = resize(sample['density'].unsqueeze(0).unsqueeze(0))*((c.raw_img_size[0]*c.raw_img_size[1])/(a.args.image_size**2))
             sample['point_map'] = resize(sample['point_map'].unsqueeze(0).unsqueeze(0))
             
         sample['image'] = sample['image'].squeeze()
@@ -1045,15 +1085,21 @@ class Resize(object):
 class RotateFlip(object):
     """Resize, then Randomly rotate, flip and scale aerial image and density map."""
 
+     # Left - Right, Up - Down flipping
+     # 1/4 chance of no flip, 1/4 chance of no rotation, 1/16 chance of no flip or rotate
+     # want identical transforms to density and image
+     # https://discuss.pytorch.org/t/torchvision-transfors-how-to-perform-identical-transform-on-both-image-and-target/10606/7
     def __call__(self, sample):
         
+        # Creating density maps for CSRNet during storing dmaps phase, instead of resizing here
         if a.args.model_name == 'CSRNet':
-            resize = T.Resize(size=(c.density_map_h//8,c.density_map_w//8))
-            sample['image'] = sample['image'].unsqueeze(0)
-            sample['density'] = resize(sample['density'].unsqueeze(0).unsqueeze(0))*64 #*(c.raw_img_size[0]*c.raw_img_size[1])/(a.args.image_size**2)*64
-            sample['point_map'] = resize(sample['point_map'].unsqueeze(0).unsqueeze(0))
+            pass
+            # resize = T.Resize(size=(c.density_map_h//8,c.density_map_w//8))
+            # sample['image'] = sample['image'].unsqueeze(0)
+            # sample['density'] = resize(sample['density'].unsqueeze(0).unsqueeze(0))*64 #*(c.raw_img_size[0]*c.raw_img_size[1])/(a.args.image_size**2)*64
+            # sample['point_map'] = resize(sample['point_map'].unsqueeze(0).unsqueeze(0))
         
-        if a.args.model_name != 'CSRNet':
+        if True:#a.args.model_name != 'CSRNet':
             sample['image'] = sample['image'].unsqueeze(0)
             sample['density'] = sample['density'].unsqueeze(0).unsqueeze(0)
             sample['point_map'] = sample['point_map'].unsqueeze(0).unsqueeze(0)
@@ -1122,10 +1168,13 @@ class RotateFlip(object):
 
 
 class CustResize(object):
-    """Resize density, according to config scale parameter."""
+    """Resize density, according to config scale parameter (not img_size arg)."""
 
     def __call__(self, sample):
-              
+    
+        if a.args.model_name == 'CSRNet':
+            return sample
+            
         if 'density' in sample.keys():
             density = sample['density']
             point_map = sample['point_map']
@@ -1322,7 +1371,6 @@ if demo:
     else:
         dataloader = DataLoader(transformed_dataset, batch_size=4,
                                 shuffle=True, num_workers=0,collate_fn=cow_dataset.custom_collate_fn)
-    
     
     j = 0
     
