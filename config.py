@@ -12,12 +12,12 @@ else:
     proj_dir = "/home/mks29/clones/cow_flow/data"
 
 gpu = True
-seed = 75
+seed = 101 # important to keep this constant between model and servers for evaluaton
 
 ## Dataset Options ------
-load_stored_dmaps = True # speeds up precomputation (with RAM = True)
+load_stored_dmaps = False # speeds up precomputation (with RAM = True)
 store_dmaps = False # this will save dmap objects (numpy arrays) to file
-ram = True # load aerial imagery and precompute dmaps and load both into ram before training
+ram = False # load aerial imagery and precompute dmaps and load both into ram before training
 counts = False # must be off for pretraining feature extractor (#TODO)
 
 ## Training Options ------
@@ -28,7 +28,11 @@ data_prop = 1 # proportion of the full dataset to use (ignored in DLR ACD,MNIST)
 test_train_split = 70 # percentage of data to allocate to train set
 
 ## Density Map Options ------
-sigma = 4.0 # "   -----    "  ignored for DLR ACD which uses gsd correspondence
+sigma = 8.0 # "   -----    "  ignored for DLR ACD which uses gsd correspondence
+
+if a.args.model_name == "CSRNet":
+    sigma = sigma/8
+    
 scale = 1 # 4, 2 = downscale dmaps four/two fold, 1 = unchanged
 
 ## Feature Extractor Options ------
@@ -178,7 +182,7 @@ if gpu:
 if a.args.gpu_number != 0:
     assert gpu
 
-if not a.args.resize:
+if not a.args.resize and not a.args.model_name == 'CSRNet':
     img_size = (800,600)
     density_map_w,density_map_h = (800,608)
 

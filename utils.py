@@ -71,7 +71,7 @@ def is_baseline(mdl):
         return True
     if str(type(mdl))=="<class 'baselines.LCFCN'>":
         return True
-    if str(type(mdl))=="<class 'baselines.FCRN'>":
+    if str(type(mdl))=="<class 'baselines.FCRN_A'>":
         return True
         
     return False

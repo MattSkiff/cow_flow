@@ -29,13 +29,19 @@ if a.args.cows:
     # torchivsion inputs are 3x227x227, mnist_resnet 1x227...
     # 0.1307, 0.3081 = mean, std dev mnist
     
-    transforms = [CustToTensor(),CustResize(),AerialNormalize(),Resize(),RotateFlip(),DmapAddUniformNoise(),]
+    transforms = [CustToTensor()]
     
-    if not a.args.normalise:
-        del transforms[2]
-        
+    if a.args.resize:
+        transforms.append(Resize())
+    
+    if a.args.normalise:
+        transforms.append(AerialNormalize())
+    
     if not a.args.resize:
-        del transforms[3]
+        transforms.append(CustResize())
+        
+    transforms.extend([DmapAddUniformNoise(),RotateFlip(),])
+        
         
     dmaps_pre = Compose(transforms)
                         
