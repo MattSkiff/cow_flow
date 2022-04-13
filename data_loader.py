@@ -616,13 +616,15 @@ class CowObjectsDataset(Dataset):
                 labels = np.array(labels) # list into default collate function produces empty tensors
                 
                 if a.args.model_name == 'CSRNet':
-                    g.DMAP_DIR = g.DMAP_DIR+'/CSRNet/'
                     density_map = density_map*64
+                    csr = '/CSRNet/'
+                else:
+                    csr = ''
                 
                 # store dmaps/labels/annotations
                 if c.store_dmaps:
-                    if not os.path.exists(g.DMAP_DIR):
-                        os.makedirs(g.DMAP_DIR)
+                    if not os.path.exists(g.DMAP_DIR+csr):
+                        os.makedirs(g.DMAP_DIR+csr)
                     
                     store = [density_map,labels,annotations,point_map]
                     savez_compressed(dmap_path[:-5]+dmap_type,store)
