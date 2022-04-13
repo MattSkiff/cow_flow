@@ -337,6 +337,11 @@ def plot_preds_baselines(mdl, loader,mode="",mdl_type=''):
                 preds = mdl(images)
                 
                 if str(type(mdl)) == "<class 'baselines.LCFCN'>":
+                    probs = preds.sigmoid().cpu().numpy()
+                    pred_blobs = lcfcn_loss.get_blobs(probs=probs).squeeze()
+                    pred_points = lcfcn_loss.blobs2points(pred_blobs).squeeze()
+                    y_list, x_list = np.where(pred_points.squeeze())
+                    pred_counts = (np.unique(pred_blobs)!=0).sum()
                     preds = preds.sigmoid().squeeze(0).permute(1,2,0).cpu().numpy()
                 else:
                     preds = preds[lb_idx].permute(1,2,0).cpu().numpy()
@@ -362,7 +367,14 @@ def plot_preds_baselines(mdl, loader,mode="",mdl_type=''):
                 ax[2].title.set_text('Ground Truth Density Map')
                 ax[2].imshow(dmaps[lb_idx].cpu().numpy())
                 
-                return preds, preds.sum(),dmaps[lb_idx].sum(),len(labels[lb_idx])
+                print("\n Sum Pred Density Map: {} ".format(preds.sum()))
+                print("Sum GT Density Map: {} ".format(dmaps[lb_idx].sum()))
+                print("Label Count: {}".format(len(labels[lb_idx])))
+                
+                if str(type(mdl)) == "<class 'baselines.LCFCN'>":
+                    print("%s predicted (LCFCN)" % (len(y_list)))
+                
+                return # preds, preds.sum(),dmaps[lb_idx].sum(),len(labels[lb_idx])
                 
 # TODO split into minst and non mnist funcs
 @torch.no_grad()

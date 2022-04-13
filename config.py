@@ -15,9 +15,9 @@ gpu = True
 seed = 101 # important to keep this constant between model and servers for evaluaton
 
 ## Dataset Options ------
-load_stored_dmaps = False # speeds up precomputation (with RAM = True)
+load_stored_dmaps = True # speeds up precomputation (with RAM = True)
 store_dmaps = False # this will save dmap objects (numpy arrays) to file
-ram = False # load aerial imagery and precompute dmaps and load both into ram before training
+ram = True # load aerial imagery and precompute dmaps and load both into ram before training
 counts = False # must be off for pretraining feature extractor (#TODO)
 
 ## Training Options ------
@@ -28,7 +28,7 @@ data_prop = 1 # proportion of the full dataset to use (ignored in DLR ACD,MNIST)
 test_train_split = 70 # percentage of data to allocate to train set
 
 ## Density Map Options ------
-sigma = 8.0 # "   -----    "  ignored for DLR ACD which uses gsd correspondence
+sigma = 4.0 # "   -----    "  ignored for DLR ACD which uses gsd correspondence
 
 if a.args.model_name == "CSRNet":
     sigma = sigma/8
