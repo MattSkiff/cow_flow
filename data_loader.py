@@ -537,7 +537,7 @@ class CowObjectsDataset(Dataset):
                     if a.args.resize and a.args.model_name == 'CSRNet':
                         density_map = np.zeros((256//CSRNet_scaling,256//CSRNet_scaling), dtype=np.float32) # c.raw_img_size
                     else:
-                        density_map = np.zeros((c.raw_img_size[1], c.raw_img_size[0]), dtype=np.float32) # c.raw_img_size
+                        density_map = np.zeros((c.raw_img_size[1]//CSRNet_scaling, c.raw_img_size[0]//CSRNet_scaling), dtype=np.float32) # c.raw_img_size
                     
                     if not a.args.resize:
                         point_map= np.zeros((c.raw_img_size[1]//CSRNet_scaling, c.raw_img_size[0]//CSRNet_scaling), dtype=np.float32) # c.raw_img_size
@@ -577,7 +577,7 @@ class CowObjectsDataset(Dataset):
                         if not a.args.resize:
                             point_map= np.zeros((c.raw_img_size[1]//CSRNet_scaling, c.raw_img_size[0]//CSRNet_scaling), dtype=np.float32) # c.raw_img_size
                         else:
-                            point_map= np.zeros((256,256), dtype=np.float32) # c.raw_img_size
+                            point_map= np.zeros((256//CSRNet_scaling,256//CSRNet_scaling), dtype=np.float32) # c.raw_img_size
                             
                         # add points onto basemap
                         for point in annotations:
@@ -616,7 +616,6 @@ class CowObjectsDataset(Dataset):
                 labels = np.array(labels) # list into default collate function produces empty tensors
                 
                 if a.args.model_name == 'CSRNet':
-                    density_map = density_map*64
                     csr = '/CSRNet/'
                 else:
                     csr = ''
@@ -1009,7 +1008,6 @@ class CustToTensor(object):
         # issue: https://discuss.pytorch.org/t/how-to-preprocess-input-for-pre-trained-networks/683/3
         # code: https://discuss.pytorch.org/t/how-to-efficiently-normalize-a-batch-of-tensor-to-0-1/65122/5
         
-        # edit: normalization is v. simply - simply divide by 255
         image = image.float().div(255).to(c.device)
         
         sample['image'] =  image.float()
