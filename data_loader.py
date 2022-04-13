@@ -578,15 +578,16 @@ class CowObjectsDataset(Dataset):
                             point_map= np.zeros((c.raw_img_size[1]//CSRNet_scaling, c.raw_img_size[0]//CSRNet_scaling), dtype=np.float32) # c.raw_img_size
                         else:
                             point_map= np.zeros((256//CSRNet_scaling,256//CSRNet_scaling), dtype=np.float32) # c.raw_img_size
-                            
+                         
+                        # error introduced here as float position annotation centre converted to int
+                        if a.args.resize and a.args.model_name == 'CSRNet':
+                            base_map = np.zeros((256//CSRNet_scaling,256//CSRNet_scaling), dtype=np.float32) # c.raw_img_size
+                        else:
+                            base_map = np.zeros((c.raw_img_size[1]//CSRNet_scaling, c.raw_img_size[0]//CSRNet_scaling), dtype=np.float32)
+                         
                         # add points onto basemap
                         for point in annotations:
-                            # error introduced here as float position annotation centre converted to int
-                            if a.args.resize and a.args.model_name == 'CSRNet':
-                                base_map = np.zeros((256//CSRNet_scaling,256//CSRNet_scaling), dtype=np.float32) # c.raw_img_size
-                            else:
-                                base_map = np.zeros((c.raw_img_size[1]//CSRNet_scaling, c.raw_img_size[0]//CSRNet_scaling), dtype=np.float32)
-                            
+
                             if c.debug_dataloader:
                                 print(point)
                                 
@@ -602,10 +603,10 @@ class CowObjectsDataset(Dataset):
                             else:
                                 point_map[int(round(point[2]*256//CSRNet_scaling)),int(round(point[1]*256//CSRNet_scaling))] = 1 # +=1
                             
-                            if a.args.dmap_type == 'max':
-                                density_map += scipy.ndimage.filters.maximum_filter(base_map,size = (7,7))
-                            else:
-                                density_map += scipy.ndimage.filters.gaussian_filter(base_map, sigma = c.sigma, mode='constant')
+                        if a.args.dmap_type == 'max':
+                            density_map += scipy.ndimage.filters.maximum_filter(base_map,size = (7,7))
+                        else:
+                            density_map += scipy.ndimage.filters.gaussian_filter(base_map, sigma = c.sigma, mode='constant')
                             
                             labels.append(point[0])
                             
@@ -669,18 +670,20 @@ class CowObjectsDataset(Dataset):
                 
                 sample = compute_labels(idx)
                 
-                self.images.append(sample['image'])
-                                  
-                if self.density and not self.count:  
-                    self.density_list.append(sample['density'])
-                    self.point_maps.append(sample['point_map'])
-                    self.labels_list.append(sample['labels'])
-                if self.count:
-                    self.count_list.append(sample['counts'])
-                if self.classification:
-                    self.binary_labels_list.append(sample['binary_labels'])
-                    
-                self.annotations_list.append(sample['annotations'])
+                if not c.store_dmaps:
+                
+                    self.images.append(sample['image'])
+                                      
+                    if self.density and not self.count:  
+                        self.density_list.append(sample['density'])
+                        self.point_maps.append(sample['point_map'])
+                        self.labels_list.append(sample['labels'])
+                    if self.count:
+                        self.count_list.append(sample['counts'])
+                    if self.classification:
+                        self.binary_labels_list.append(sample['binary_labels'])
+                        
+                    self.annotations_list.append(sample['annotations'])
         
         
     def __len__(self):
