@@ -10,17 +10,16 @@ parser.add_argument("-uc", "--unconditional", help="Trains the model without lab
 parser.add_argument("-gn", "--gpu_number", help="Selects which GPU to train on.", type=int, default=0)
 
 # Choose Dataset
-parser.add_argument("-dlr", "--dlr_acd", help="Run the architecture on the DLR ACD dataset.", action="store_true",default=False)
-parser.add_argument("-cows", "--cows", help="Run the architecture on the aerial cows dataset.", action="store_true",default=True)
-parser.add_argument('-mnist',help='Run the architecture on the DLR ACD dataset.', action="store_true",default=False)
+parser.add_argument('-d','--data',help='Run the architecture on the [dlr,cows,mnist] dataset.', action="store_true",default='cows')
 
 parser.add_argument('-anno','--annotations_only',help='whether to only use image patches that have annotations',action="store_true",default=False)
 parser.add_argument('-weighted','--weighted_sampler',help='whether to weight minibatch samples such that sampling distribution is 50/50 null/annotated', action="store_true",default=True)
 parser.add_argument('-normalise',help='normalise aerial imagery supplied to model with img net mean & std dev',action='store_true',default=True)
 parser.add_argument('-resize',help='Whether to resize image to the specified img size',action="store_true",default=False)
+parser.add_argument('-rrc',help='Whether to perform random resize cropping',action="store_true",default=False)
 parser.add_argument('-dmap_type',help='Use density or segmentation masks (gauss or max filters)',default='gauss')
 parser.add_argument('-dmap_scaling',help='Scale up density map to ensure gaussianed density is not too close to zero per pixel',type=int,default=1)
-#parser.add_argument('-min_scaling',help='Minimum scaling bound (0-1) for random resized crop transform',type=float,default=1)
+parser.add_argument('-min_scaling',help='Minimum scaling bound (0-1) for random resized crop transform',type=float,default=-1)
 parser.add_argument('-img_sz','--image_size',help='Size of the random crops taken from the original data patches [Cows 800x600, DLR 320x320] - must be divisble by 8 for CSRNet',type=int,default=256)
 
 parser.add_argument('-test','--test_run',help='use only a small fraction of data to check everything works',action='store_true')
@@ -61,6 +60,9 @@ host = socket.gethostname()
 
 assert args.gpu_number > -1
 
+if args.rrc:
+    assert args.min_scaling > 0 and args.min_scaling < 1
+
 if (args.step_size != 0 or args.step_gamma != 0) and args.scheduler != 'step':
     ValueError
 
@@ -88,7 +90,7 @@ if args.model_name in ['UNet','CSRNet','FCRN']:
     assert args.noise == 0
 #    assert args.filters == None
 
-assert args.cows+args.dlr_acd+args.mnist == 1
+assert args.data in ['cows','dlr','mnist']
 
 if host == 'hydra':
      assert args.gpu_number < 8

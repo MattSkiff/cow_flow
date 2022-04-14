@@ -206,7 +206,7 @@ def sub_fc(dims_in,dims_out,internal_size):
 
 def nf_pyramid(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat):
     assert c.subnet_type == 'conv'
-    assert not c.gap and not c.counts and not a.args.mnist
+    assert not c.gap and not c.counts and not a.args.data == 'mnist'
     
     # TODO - will break because of ref to config file
     mdl = ResNetPyramid()
@@ -246,7 +246,7 @@ def nf_pyramid(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_fea
 
 def nf_pyramid_split(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat):
     assert c.subnet_type == 'conv'
-    assert not c.gap and not c.counts and not a.args.mnist
+    assert not c.gap and not c.counts and not a.args.data == 'mnist'
     
     # TODO - will break because of ref to config file
     mdl = ResNetPyramid()
@@ -373,9 +373,9 @@ def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,m
     # https://github.com/VLL-HD/FrEIA/issues/9
     
     # condition = exacted image features
-    if (a.args.mnist or (c.counts and not c.gap)) and c.subnet_type == 'conv':
+    if (a.args.data == 'mnist' or (c.counts and not c.gap)) and c.subnet_type == 'conv':
         condition = [Ff.ConditionNode(condition_dim,input_dim[0] // 2,input_dim[1] // 2, name = 'condition')]
-    elif (c.counts and c.gap) or (c.subnet_type == 'fc' and a.args.mnist):
+    elif (c.counts and c.gap) or (c.subnet_type == 'fc' and a.args.data == 'mnist'):
         condition = [Ff.ConditionNode(condition_dim,name = 'condition')]
     else:
         # TODO: avoid hardcoding feature spatial dimensions in
@@ -394,7 +394,7 @@ def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,m
     # haar downsampling to resolves input data only having a single channel (from unsqueezed singleton dimension)
     # affine coupling performs channel wise split
     # https://github.com/VLL-HD/FrEIA/issues/8
-    if (a.args.mnist or (c.counts and not c.gap) or c.feat_extractor == 'none' or not c.downsampling) and c.subnet_type == 'conv':
+    if (a.args.data == 'mnist' or (c.counts and not c.gap) or c.feat_extractor == 'none' or not c.downsampling) and c.subnet_type == 'conv':
         nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling'))
         
     elif not c.counts and c.feat_extractor != 'none' and c.downsampling:
@@ -459,7 +459,7 @@ class CowFlow(nn.Module):
         
         self.classification_head = resnet18(pretrained=c.pretrained,progress=False) #ResNetPyramidClassificationHead()
         
-        if a.args.dlr_acd:
+        if a.args.data == 'dlr_acd':
             self.dlr_acd = True
         else:
             self.dlr_acd = False
