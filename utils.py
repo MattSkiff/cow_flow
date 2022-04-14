@@ -253,6 +253,9 @@ def predict_image(mdl_path,nf=False,geo=True,nf_n=10,mdl_type='',
         patch = patch.permute(2,0,1)
         patch = TF.normalize(patch,mean = c.norm_mean,std= c.norm_std)
         
+        if not dlr:
+            patch = TF.resize(patch, (1,mdl.density_map_h,mdl.density_map_h))
+        
         if nf:
             
             x_list = []
@@ -264,9 +267,12 @@ def predict_image(mdl_path,nf=False,geo=True,nf_n=10,mdl_type='',
                                 
                 dummy_z = (randn(1, in_channels,ft_dims[0],ft_dims[1])).to(c.device)
                 dummy_z = dummy_z.float()
-                # TODO - DOWNSAMPLE HERE - 256 for both DLR and COWS
+                
                 x, log_det_jac = mdl(patch.unsqueeze(0),dummy_z,rev=True)
-                # TODO - UPSAMPLE HERE
+                
+                if not dlr:
+                    x = TF.resize(x, (1,800,600))
+                    
                 x_list.append(x)
                         
             x_agg = torch.stack(x_list,dim=1)
@@ -284,7 +290,10 @@ def predict_image(mdl_path,nf=False,geo=True,nf_n=10,mdl_type='',
             im_patches[i] = im_patches[i] * mdl.dmap_scaling
             
         else:
-            im_patches[i] = mdl(patch.unsqueeze(0)).squeeze(0).permute(1,2,0).cpu().numpy() #.astype(np.uint8)
+            im_patches[i] = mdl(patch.unsqueeze(0)).squeeze(0).permute(1,2,0).cpu().numpy() * mdl.dmap_scaling #.astype(np.uint8)
+            
+            if not dlr:
+                im_patches[i] = TF.resize( im_patches[i], (1,800,600))
     
     shape = im.shape
     

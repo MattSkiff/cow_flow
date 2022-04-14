@@ -153,7 +153,7 @@ class UNet(nn.Module):
     image segmentation."
     """
 
-    def __init__(self,modelname,filters: int=64, input_filters: int=3, **kwargs):
+    def __init__(self, modelname, n_channels = 3, bilinear=False):
         """
         Create U-Net model with:
             * fixed kernel size = (3, 3)
@@ -189,50 +189,103 @@ class UNet(nn.Module):
         self.dmap_scaling = a.args.dmap_scaling
         
         super(UNet, self).__init__()
-        # first block channels size
-        initial_filters = (input_filters, filters)
-        # channels size for downsampling
-        down_filters = (filters, filters)
-        # channels size for upsampling (input doubled because of concatenate)
-        up_filters = (2 * filters, filters)
+        self.n_channels = n_channels
+        self.bilinear = bilinear
 
-        # downsampling
-        self.block1 = conv_block(channels=initial_filters, size=(3, 3), N=2)
-        self.block2 = conv_block(channels=down_filters, size=(3, 3), N=2)
-        self.block3 = conv_block(channels=down_filters, size=(3, 3), N=2)
-
-        # upsampling
-        self.block4 = ConvCat(channels=down_filters, size=(3, 3), N=2)
-        self.block5 = ConvCat(channels=up_filters, size=(3, 3), N=2)
-        self.block6 = ConvCat(channels=up_filters, size=(3, 3), N=2)
-
-        # density prediction
-        self.block7 = conv_block(channels=up_filters, size=(3, 3), N=2)
-        self.density_pred = nn.Conv2d(in_channels=filters, out_channels=1,
+        self.inc = DoubleConv(n_channels, 64)
+        self.down1 = Down(64, 128)
+        self.down2 = Down(128, 256)
+        self.down3 = Down(256, 512)
+        factor = 2 if bilinear else 1
+        self.down4 = Down(512, 1024 // factor)
+        self.up1 = Up(1024, 512 // factor, bilinear)
+        self.up2 = Up(512, 256 // factor, bilinear)
+        self.up3 = Up(256, 128 // factor, bilinear)
+        self.up4 = Up(128, 64, bilinear)
+        
+        # adapt for density map estimation
+        # https://github.com/NeuroSYS-pl/objects_counting_dmap/blob/master/model.py
+        self.density_pred = nn.Conv2d(in_channels=64, out_channels=1,
                                       kernel_size=(1, 1), bias=False)
 
-    def forward(self, input: torch.Tensor):
-        """Forward pass."""
-        # use the same max pooling kernel size (2, 2) across the network
-        pool = nn.MaxPool2d(2)
-
-        # downsampling
-        block1 = self.block1(input)
-        pool1 = pool(block1)
-        block2 = self.block2(pool1)
-        pool2 = pool(block2)
-        block3 = self.block3(pool2)
-        pool3 = pool(block3)
-
-        # upsampling
-        block4 = self.block4(pool3, block3)
-        block5 = self.block5(block4, block2)
-        block6 = self.block6(block5, block1)
-
-        # density prediction
-        block7 = self.block7(block6)
-        return self.density_pred(block7)
+    def forward(self, x):
+        x1 = self.inc(x)
+        x2 = self.down1(x1)
+        x3 = self.down2(x2)
+        x4 = self.down3(x3)
+        x5 = self.down4(x4)
+        x = self.up1(x5, x4)
+        x = self.up2(x, x3)
+        x = self.up3(x, x2)
+        x = self.up4(x, x1)
     
+        return self.density_pred(x)
+
+    
+class DoubleConv(nn.Module):
+    """(convolution => [BN] => ReLU) * 2"""
+
+    def __init__(self, in_channels, out_channels, mid_channels=None):
+        super().__init__()
+        if not mid_channels:
+            mid_channels = out_channels
+        self.double_conv = nn.Sequential(
+            nn.Conv2d(in_channels, mid_channels, kernel_size=3, padding=1, bias=False),
+            nn.BatchNorm2d(mid_channels),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(mid_channels, out_channels, kernel_size=3, padding=1, bias=False),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(inplace=True)
+        )
+
+    def forward(self, x):
+        return self.double_conv(x)
+
+
+class Down(nn.Module):
+    """Downscaling with maxpool then double conv"""
+
+    def __init__(self, in_channels, out_channels):
+        super().__init__()
+        self.maxpool_conv = nn.Sequential(
+            nn.MaxPool2d(2),
+            DoubleConv(in_channels, out_channels)
+        )
+
+    def forward(self, x):
+        return self.maxpool_conv(x)
+
+
+class Up(nn.Module):
+    """Upscaling then double conv"""
+
+    def __init__(self, in_channels, out_channels, bilinear=True):
+        super().__init__()
+
+        # if bilinear, use the normal convolutions to reduce the number of channels
+        if bilinear:
+            self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
+            self.conv = DoubleConv(in_channels, out_channels, in_channels // 2)
+        else:
+            self.up = nn.ConvTranspose2d(in_channels, in_channels // 2, kernel_size=2, stride=2)
+            self.conv = DoubleConv(in_channels, out_channels)
+
+    def forward(self, x1, x2):
+        x1 = self.up(x1)
+        # input is CHW
+        diffY = x2.size()[2] - x1.size()[2]
+        diffX = x2.size()[3] - x1.size()[3]
+
+        x1 = F.pad(x1, [diffX // 2, diffX - diffX // 2,
+                        diffY // 2, diffY - diffY // 2])
+        # if you have padding issues, see
+        # https://github.com/HaiyongJiang/U-Net-Pytorch-Unstructured-Buggy/commit/0e854509c2cea854e247a9c615f175f76fbb2e3a
+        # https://github.com/xiaopeng-liao/Pytorch-UNet/commit/8ebac70e633bac59fc22bb5195e513d5832fb3bd
+        x = torch.cat([x2, x1], dim=1)
+        return self.conv(x)
+
+
+
 # https://github.com/leeyeehoo/CSRNet-pytorch- official CSRNet repo
 
 class CSRNet(nn.Module):
