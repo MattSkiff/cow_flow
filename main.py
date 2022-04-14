@@ -19,13 +19,13 @@ from data_loader import CowObjectsDataset, CustToTensor, AerialNormalize, DmapAd
 
 empty_cache() # free up memory for cuda
 
-if a.args.dlr_acd:
+if a.args.data == 'dlr':
     mdl, train_loader, val_loader = train_dlr_acd()
 
-if a.args.mnist:
+if a.args.data == 'mnist':
     mdl, train_loader, val_loader = train_mnist()
 
-if a.args.cows:
+if a.args.data == 'cows':
     # torchivsion inputs are 3x227x227, mnist_resnet 1x227...
     # 0.1307, 0.3081 = mean, std dev mnist
     
@@ -39,7 +39,9 @@ if a.args.cows:
     
     if not a.args.resize:
         transforms.append(CustResize())
-        
+    
+    #if a.args.rrc:
+    
     transforms.extend([DmapAddUniformNoise(),RotateFlip(),])
         
         

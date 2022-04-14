@@ -40,7 +40,7 @@ from utils import UnNormalize
 from utils import split_image
 
 # save numpy array as npz file
-from numpy import savez_compressed, load
+from numpy import savez_compressed, save, load
 
 proj_dir = c.proj_dir
 random_flag = False
@@ -602,17 +602,17 @@ class CowObjectsDataset(Dataset):
                                 point_map[int(round(point[2]*c.raw_img_size[1]//CSRNet_scaling)),int(round(point[1]*c.raw_img_size[0]//CSRNet_scaling))] = 1 # +=1
                             else:
                                 point_map[int(round(point[2]*256//CSRNet_scaling)),int(round(point[1]*256//CSRNet_scaling))] = 1 # +=1
+                                
+                            labels.append(point[0])
                             
                         if a.args.dmap_type == 'max':
                             density_map += scipy.ndimage.filters.maximum_filter(base_map,size = (7,7))
                         else:
                             density_map += scipy.ndimage.filters.gaussian_filter(base_map, sigma = c.sigma, mode='constant')
                             
-                            labels.append(point[0])
-                            
-                            if c.debug_dataloader:
-                                print("base map sum ",base_map.sum())
-                                print("density map sum ",density_map.sum())    
+                        if c.debug_dataloader:
+                            print("base map sum ",base_map.sum())
+                            print("density map sum ",density_map.sum())    
                                 
                 labels = np.array(labels) # list into default collate function produces empty tensors
                 
@@ -625,9 +625,8 @@ class CowObjectsDataset(Dataset):
                 if c.store_dmaps:
                     if not os.path.exists(g.DMAP_DIR+csr):
                         os.makedirs(g.DMAP_DIR+csr)
-                    
-                    store = [density_map,labels,annotations,point_map]
-                    savez_compressed(dmap_path[:-5]+dmap_type,store)
+    
+                    savez_compressed(dmap_path[:-5]+dmap_type,density_map,labels,annotations,point_map,allow_pickle=True)
             
             sample = {'image': image}
                 

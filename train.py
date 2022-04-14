@@ -177,7 +177,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
             
             feat_extractor = model.select_feat_extractor(c.feat_extractor,train_loader,val_loader)
             
-            if a.args.mnist:
+            if a.args.data == 'mnist':
                 mdl = model.MNISTFlow(modelname=modelname,feat_extractor = feat_extractor)    
             else:
                 mdl = model.CowFlow(modelname=modelname,feat_extractor = feat_extractor)
@@ -241,36 +241,36 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                         optimizer.zero_grad()
                         
                         # TODO - can this section
-                        if a.args.dlr_acd:
+                        if a.args.data == 'dlr':
                             images,dmaps,counts,point_maps = data
-                        elif not a.args.mnist and not c.counts and not train_loader.dataset.classification:
+                        elif not a.args.data == 'mnist' and not c.counts and not train_loader.dataset.classification:
                             images,dmaps,labels,annotations, point_maps = data 
-                        elif not a.args.mnist and not c.counts:
+                        elif not a.args.data == 'mnist' and not c.counts:
                             images,dmaps,labels,annotations,binary_labels,point_maps  = data 
-                        elif not a.args.mnist:
+                        elif not a.args.data == 'mnist':
                             images,dmaps,labels,counts, point_maps = data
                         else:
                             images,labels = data
                         
-                        if c.debug and not a.args.dlr_acd:
+                        if c.debug and not a.args.data == 'dlr':
                             print("labels:")
                             print(labels)
                             
                         images = images.float().to(c.device)
                         
-                        if not a.args.mnist and not c.counts:
+                        if not a.args.data == 'mnist' and not c.counts:
                             dmaps = dmaps.float().to(c.device)
-                        elif not a.args.mnist:
+                        elif not a.args.data == 'mnist':
                             counts = counts.float().to(c.device)
                         else: 
                             labels = labels.float().to(c.device)
                         
-                        if c.debug and not a.args.mnist and not c.counts:
+                        if c.debug and not a.args.data == 'mnist' and not c.counts:
                             print("density maps from data batch size, device..")
                             print(dmaps.size())
                             print(dmaps.device,"\n")
                             
-                        elif c.debug and not a.args.mnist:
+                        elif c.debug and not a.args.data == 'mnist':
                             print("counts from data batch size, device..")
                             print(counts.size())
                             print(counts.device,"\n")
@@ -283,9 +283,9 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                         # z is the probability density under the latent normal distribution
                         # output of model - two elements: y (z), jacobian
                           
-                        if not a.args.mnist and not c.counts:
+                        if not a.args.data == 'mnist' and not c.counts:
                             input_data = (images,dmaps*a.args.dmap_scaling) # inputs features,dmaps
-                        elif not a.args.mnist:
+                        elif not a.args.data == 'mnist':
                             input_data = (images,counts) 
                         else:
                             input_data = (images,labels)
@@ -336,7 +336,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                                 print('{:d} Mini-Batches in sub-epoch remaining'.format(len(train_loader)-i))
                                 print('Total Iterations: ',total_iter,'| Passed Iterations: ',k)
                                 
-                        if c.debug and not a.args.mnist:
+                        if c.debug and not a.args.data == 'mnist':
                             print("number of elements in density maps list:")
                             print(len(dmaps)) # images
                             print("number of images in image tensor:")
@@ -367,13 +367,13 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                                 
                                 # Validation
                                 # TODO - DRY violation...
-                                if a.args.dlr_acd:
+                                if a.args.data == 'dlr':
                                     images,dmaps,counts,point_maps = data
-                                elif not a.args.mnist and not c.counts and not train_loader.dataset.classification:
+                                elif not a.args.data == 'mnist' and not c.counts and not train_loader.dataset.classification:
                                     images,dmaps,labels, annotations,point_maps = data 
-                                elif not a.args.mnist and not c.counts:
+                                elif not a.args.data == 'mnist' and not c.counts:
                                     images,dmaps,labels,annotations,binary_labels,point_maps  = data 
-                                elif not a.args.mnist:
+                                elif not a.args.data == 'mnist':
                                     images,dmaps,labels,counts = data
                                 else:
                                     images,labels = data
@@ -382,7 +382,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                                     
                                 val_z.append(z)
                                 
-                                if i % c.report_freq == 0 and c.debug and not a.args.mnist and not c.counts:
+                                if i % c.report_freq == 0 and c.debug and not a.args.data == 'mnist' and not c.counts:
                                         print('val true count: {:f}'.format(dmaps.sum()))
                                     
                                 dims = tuple(range(1, len(z.size())))
@@ -421,7 +421,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                 plot_preds(mdl,train_loader)
                 
                 # train classification head to filter out null patches
-                if not a.args.dlr_acd and not mdl.mnist and not c_head_trained:
+                if not a.args.data == 'dlr' and not mdl.mnist and not c_head_trained:
                     c_head_trained = True
                     mdl.classification_head = train_classification_head(mdl,head_train_loader,head_val_loader)
                 
@@ -541,7 +541,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                 mdl.to(c.device)
             
             
-            if not a.args.dlr_acd:
+            if not a.args.data == 'dlr':
                 print("Performing final evaluation with trained null classifier...")
                 final_metrics = dmap_metrics(mdl, train_loader,n=1,mode='train',null_filter = True)
                 print(final_metrics)

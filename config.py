@@ -28,7 +28,7 @@ data_prop = 1 # proportion of the full dataset to use (ignored in DLR ACD,MNIST)
 test_train_split = 70 # percentage of data to allocate to train set
 
 ## Density Map Options ------
-sigma = 4.0 # "   -----    "  ignored for DLR ACD which uses gsd correspondence
+sigma = 8.0 # "   -----    "  ignored for DLR ACD which uses gsd correspondence
 
 if a.args.model_name == "CSRNet":
     sigma = sigma/8
@@ -104,20 +104,20 @@ elif feat_extractor == "vgg16_bn":
 elif feat_extractor == "resnet18":
     n_feat = 512
 elif feat_extractor == "none":
-    if a.args.mnist:
+    if a.args.data == 'mnist':
         n_feat = 1 
     else:
         # conditioning on raw RGB image
          n_feat = 3
 
-if a.args.mnist:
+if a.args.data == 'mnist':
     one_hot = True # only for MNIST
 else:
     one_hot = False
 
 if one_hot:
     channels = 10 # onehot 1 num -> 0,0,0,1 etc
-elif a.args.mnist or feat_extractor != "none":
+elif a.args.data == 'mnist' or feat_extractor != "none":
     channels = 1 # greyscale mnist, density maps
 elif counts:
     channels = 1 # duplication not needed (linear subnets)
@@ -128,11 +128,11 @@ else:
 if debug:
     a.args.schema = 'debug' # aka ignore debugs
 
-if a.args.dlr_acd:
+if a.args.data == 'dlr':
     img_size = (a.args.image_size,a.args.image_size)
-elif a.args.mnist and feat_extractor == "none":
+elif a.args.data == 'mnist' and feat_extractor == "none":
     img_size = (28,28)
-elif a.args.mnist:
+elif a.args.data == 'mnist':
     img_size = (228,228) # (28,28)
 else:
     img_size = (a.args.image_size, a.args.image_size) # width, height (x-y)
@@ -143,9 +143,9 @@ img_dims = [3] + list(img_size) # RGB + x-y
 
 # TODO: rename this parameter
 # this effects the padding applied to the density maps
-if a.args.dlr_acd:
+if a.args.data == 'dlr_acd':
     density_map_h,density_map_w = a.args.image_size,a.args.image_size
-elif not a.args.mnist and not counts and downsampling:
+elif not a.args.data == 'mnist' and not counts and downsampling:
     density_map_w = a.args.image_size//scale #img_size[0]
     density_map_h = a.args.image_size//scale
     # if feat_extractor == 'resnet18':
@@ -157,21 +157,21 @@ elif not a.args.mnist and not counts and downsampling:
     #     density_map_h = 576//scale #img_size[1]
     # elif feat_extractor == 'none':
     #     density_map_h = 600//scale
-elif not a.args.mnist and not counts and not downsampling:
+elif not a.args.data == 'mnist' and not counts and not downsampling:
     density_map_w = a.args.image_size//scale
     density_map_h = a.args.image_size//scale
-elif not a.args.mnist:
+elif not a.args.data == 'mnist':
     # size of count expanded to map spatial feature dimensions
     density_map_h = 19 * 2 # need at least 2 channels, expand x2, then downsample (haar)
     density_map_w = 25 * 2 # TODO - rework so this ties to ft_dims (vgg,alexnet, resnet, etc)
-elif a.args.mnist and feat_extractor != "none":
+elif a.args.data == 'mnist' and feat_extractor != "none":
     if gap:
         density_map_h = img_size[1] * 2
         density_map_w = img_size[0] * 2
     else:
         density_map_h = 6 * 2
         density_map_w = 6 * 2 # feature size x2 (account for downsampling)
-elif a.args.mnist and feat_extractor == "none":
+elif a.args.data == 'mnist' and feat_extractor == "none":
     # minimum possible dimensionality of flow possible with coupling layers
     density_map_h = 4
     density_map_w = 4
@@ -198,7 +198,7 @@ assert feat_extractor in ['none' ,'alexnet','vgg16_bn','resnet18']
 
 if subnet_type == 'fc':
     assert gap
-    assert a.args.mnist or counts
+    assert a.args.data == 'mnist' or counts
     assert not fixed1x1conv
 
 assert not (load_stored_dmaps and store_dmaps)
@@ -212,7 +212,7 @@ if store_dmaps:
 if subnet_type == 'conv':
     assert dropout_p == 0
     
-if a.args.mnist:
+if a.args.data == 'mnist':
     assert not counts
 
 if counts:

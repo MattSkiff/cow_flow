@@ -85,7 +85,7 @@ def ft_dims_select(mdl=None):
     
     if c.downsampling:
         
-        if a.args.dlr_acd:
+        if a.args.data == 'dlr_acd':
             ft_dims = (mdl.density_map_h // 2**5,mdl.density_map_w // 2**5) # 10, 10
         elif fe in ['resnet18','ResNetPyramid'] or fe == 'Sequential':
             ft_dims = (19, 25) # (mdl.density_map_h // 2**5,mdl.density_map_w // 2**5)
@@ -1243,10 +1243,10 @@ def make_model_name(train_loader):
         
      parts.append(str(a.args.scheduler))
      
-     if a.args.dlr_acd:
+     if a.args.data == 'dlr_acd':
          parts.append('DLRACD')
      
-     if a.args.mnist:
+     if a.args.data == 'mnist':
          parts.append('MNIST')
      
      if a.args.model_name == 'NF' and c.joint_optim:
@@ -1258,7 +1258,7 @@ def make_model_name(train_loader):
      if a.args.model_name == 'NF' and c.pyramid:
          parts.append('PY_{}'.format(a.args.n_pyramid_blocks))
          
-     if c.counts and not a.args.mnist:
+     if c.counts and not a.args.data == 'mnist':
          parts.append('CT')
      
      if a.args.model_name == 'NF' and c.fixed1x1conv:
@@ -1276,13 +1276,13 @@ def make_model_name(train_loader):
      if c.train_feat_extractor or c.load_feat_extractor_str != '':
          parts.append('FT')
          
-     if c.sigma != 4 and not a.args.mnist:
+     if c.sigma != 4 and not a.args.data == 'mnist':
          parts.extend(["FSG",str(c.sigma)])
          
-     if a.args.model_name == 'NF' and c.clamp_alpha != 1.9 and not a.args.mnist:
+     if a.args.model_name == 'NF' and c.clamp_alpha != 1.9 and not a.args.data == 'mnist':
          parts.extend(["CLA",str(c.clamp_alpha)])
          
-     if c.test_train_split != 70 and not a.args.mnist:
+     if c.test_train_split != 70 and not a.args.data == 'mnist':
          parts.extend(["SPLIT",str(c.test_train_split)])
          
             
@@ -1314,7 +1314,7 @@ def make_hparam_dict(val_loader):
                         'conv filters':a.args.filters,
                         'fc_width':c.width,
                         'finetuned?':c.train_feat_extractor,
-                        'mnist?':a.args.mnist,
+                        'mnist?':a.args.data == 'mnist',
                         'counts?':c.counts,
                         'n pyramid blocks?':a.args.n_pyramid_blocks,
                         'subnet_type?':c.subnet_type,
