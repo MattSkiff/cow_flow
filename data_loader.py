@@ -523,10 +523,10 @@ class CowObjectsDataset(Dataset):
                     ValueError("Dmaps must have been previously stored!")
    
                 store = load(dmap_path[:-5]+dmap_type+'.npz',allow_pickle=True)
-                density_map = store['arr_0'][0]
-                labels = store['arr_0'][1]
-                annotations = store['arr_0'][2]
-                point_map = store['arr_0'][3]
+                density_map = store['arr_0']
+                labels = store['arr_0']
+                annotations = store['arr_0']
+                point_map = store['arr_0']
                     
             else:
             
@@ -612,8 +612,8 @@ class CowObjectsDataset(Dataset):
                             
                         if c.debug_dataloader:
                             print("base map sum ",base_map.sum())
-                            print("density map sum ",density_map.sum())    
-                                
+                            print("density map sum ",density_map.sum()) 
+                                               
                 labels = np.array(labels) # list into default collate function produces empty tensors
                 
                 if a.args.model_name == 'CSRNet':
@@ -625,7 +625,7 @@ class CowObjectsDataset(Dataset):
                 if c.store_dmaps:
                     if not os.path.exists(g.DMAP_DIR+csr):
                         os.makedirs(g.DMAP_DIR+csr)
-    
+                    
                     savez_compressed(dmap_path[:-5]+dmap_type,density_map,labels,annotations,point_map,allow_pickle=True)
             
             sample = {'image': image}
@@ -1106,6 +1106,10 @@ class RotateFlip(object):
             sample['image'] = sample['image'].unsqueeze(0)
             sample['density'] = sample['density'].unsqueeze(0).unsqueeze(0)
             sample['point_map'] = sample['point_map'].unsqueeze(0).unsqueeze(0)
+            
+        print(sample['image'])
+        print(sample['density'] )
+        print(sample['point_map'] )
         
         if random.randint(0,1):
             sample['image'] = torch.flip(sample['image'],(3,))
