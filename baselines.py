@@ -1,5 +1,3 @@
-# from https://github.com/NeuroSYS-pl/objects_counting_dmap
-# Implementations by NeuroSys Poland
 """The implementation of U-Net and FCRN-A models."""
 from typing import Tuple
 
@@ -73,7 +71,8 @@ class ConvCat(nn.Module):
         """
         return torch.cat([self.conv(to_conv), to_cat], dim=1)
 
-
+# from https://github.com/NeuroSYS-pl/objects_counting_dmap
+# Implementations by NeuroSys Poland
 class FCRN_A(nn.Module):
     """
     Fully Convolutional Regression Network A
@@ -145,7 +144,8 @@ class FCRN_A(nn.Module):
         """Forward pass."""
         return self.model(input)
 
-
+# implementation from: https://github.com/milesial/Pytorch-UNet
+# density modification from: https://github.com/NeuroSYS-pl/objects_counting_dmap 
 class UNet(nn.Module):
     """
     U-Net implementation.
@@ -153,7 +153,7 @@ class UNet(nn.Module):
     image segmentation."
     """
 
-    def __init__(self, modelname, n_channels = 3, bilinear=False):
+    def __init__(self, modelname, n_channels = 3, bilinear=False,seg=False):
         """
         Create U-Net model with:
             * fixed kernel size = (3, 3)
@@ -187,6 +187,7 @@ class UNet(nn.Module):
         self.noise = a.args.noise
         self.seed = c.seed
         self.dmap_scaling = a.args.dmap_scaling
+        self.seg = seg
         
         super(UNet, self).__init__()
         self.n_channels = n_channels
@@ -203,23 +204,32 @@ class UNet(nn.Module):
         self.up3 = Up(256, 128 // factor, bilinear)
         self.up4 = Up(128, 64, bilinear)
         
-        # adapt for density map estimation
-        # https://github.com/NeuroSYS-pl/objects_counting_dmap/blob/master/model.py
-        self.density_pred = nn.Conv2d(in_channels=64, out_channels=1,
-                                      kernel_size=(1, 1), bias=False)
+        if self.seg:
+            self.outc = nn.Conv2d(64, 1, kernel_size=1)
+        else:
+            # adapt for density map estimation
+            # https://github.com/NeuroSYS-pl/objects_counting_dmap/blob/master/model.py
+            self.density_pred = nn.Conv2d(in_channels=64, out_channels=1,
+                                          kernel_size=(1, 1), bias=False)
 
     def forward(self, x):
+        
         x1 = self.inc(x)
         x2 = self.down1(x1)
         x3 = self.down2(x2)
         x4 = self.down3(x3)
         x5 = self.down4(x4)
-        x = self.up1(x5, x4)
-        x = self.up2(x, x3)
-        x = self.up3(x, x2)
-        x = self.up4(x, x1)
+        x6 = self.up1(x5, x4)
+        x7 = self.up2(x6, x3)
+        x8 = self.up3(x7, x2)
+        x9 = self.up4(x8, x1)
     
-        return self.density_pred(x)
+        if self.seg:
+            x10 = self.outc(x9)
+        else:
+            x10 = self.density_pred(x9)
+        
+        return x10
 
     
 class DoubleConv(nn.Module):
@@ -363,7 +373,6 @@ def make_layers(cfg, in_channels = 3,batch_norm=False,dilation = False):
 # LC-FCN
 # From the 'Deep Fish' GitHub repository
 # https://github.com/alzayats/DeepFish/blob/master/src/models/lcfcn.py
-
 class LCFCN(nn.Module):
     def __init__(self,modelname):
         super().__init__()
@@ -506,3 +515,43 @@ class LCFCN(nn.Module):
                                                                   align_corners=True)
 
         return logits_upsampled
+  
+# from milesial UNet PyTorch implementation
+# https://github.com/milesial/Pytorch-UNet/blob/master/utils/dice_score.py
+def dice_coeff(input: torch.Tensor, target: torch.Tensor, reduce_batch_first: bool = False, epsilon=1e-6):
+    # Average of Dice coefficient for all batches, or for a single mask
+    assert input.size() == target.size()
+    if input.dim() == 2 and reduce_batch_first:
+        raise ValueError(f'Dice: asked to reduce batch but got tensor without batch dimension (shape {input.shape})')
+
+    if input.dim() == 2 or reduce_batch_first:
+        #inter = torch.dot(input.flatten(), target.flatten())
+        inter = torch.dot(input.reshape(-1), target.reshape(-1))
+        sets_sum = torch.sum(input) + torch.sum(target)
+        if sets_sum.item() == 0:
+            sets_sum = 2 * inter
+
+        return (2 * inter + epsilon) / (sets_sum + epsilon)
+    else:
+        # compute and average metric for each batch element
+        dice = 0
+        for i in range(input.shape[0]):
+            dice += dice_coeff(input[i, ...], target[i, ...])
+        return dice / input.shape[0]
+
+
+def multiclass_dice_coeff(input: torch.Tensor, target: torch.Tensor, reduce_batch_first: bool = False, epsilon=1e-6):
+    # Average of Dice coefficient for all classes
+    assert input.size() == target.size()
+    dice = 0
+    for channel in range(input.shape[1]):
+        dice += dice_coeff(input[:, channel, ...], target[:, channel, ...], reduce_batch_first, epsilon)
+
+    return dice / input.shape[1]
+
+
+def dice_loss(input: torch.Tensor, target: torch.Tensor, multiclass: bool = False):
+    # Dice loss (objective to minimize) between 0 and 1
+    assert input.size() == target.size()
+    fn = multiclass_dice_coeff if multiclass else dice_coeff
+    return 1 - fn(input, target, reduce_batch_first=True)

@@ -156,7 +156,7 @@ class DLRACD(Dataset):
                                 print('Anno path is {}'.format(anno_path))
                                 print('GSD is {}'.format(gsd_sigma))
                             
-                            if a.args.dmap_type == 'max':
+                            if a.args.model_name == 'UNet_seg': #a.args.dmap_type == 'max':
                                 p_d = scipy.ndimage.filters.maximum_filter(pm,size = (7,7))
                             else:
                                 p_d = scipy.ndimage.filters.gaussian_filter(pm, sigma = gsd_sigma, mode='constant')
@@ -484,7 +484,7 @@ class CowObjectsDataset(Dataset):
             else:
                 CSRNet_scaling = 1
             
-            if a.args.dmap_type == 'max':
+            if a.args.model_name == 'UNet_seg': #a.args.dmap_type == 'max':
                 dmap_type = '_max'
             else:
                 dmap_type = '' # _gauss
@@ -600,7 +600,7 @@ class CowObjectsDataset(Dataset):
                                 
                             labels.append(point[0])
                             
-                        if a.args.dmap_type == 'max':
+                        if a.args.model_name == 'UNet_seg': #a.args.dmap_type == 'max':
                             density_map += scipy.ndimage.filters.maximum_filter(base_map,size = (7,7))
                         else:
                             density_map += scipy.ndimage.filters.gaussian_filter(base_map, sigma = c.sigma, mode='constant')

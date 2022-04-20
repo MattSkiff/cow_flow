@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 from torch.nn.utils import clip_grad_value_
 from torch.optim.lr_scheduler import ExponentialLR, StepLR
+import torch.nn.functional as TF
 from tqdm import tqdm # progress bar
 
 import time 
@@ -34,21 +35,21 @@ def train_baselines(model_name,train_loader,val_loader):
     #if not a.args.model_name == 'UNet':
     if a.args.model_name == 'CSRNet':
         loss = torch.nn.MSELoss(size_average=False)
+    elif a.args.model_name == 'UNet_seg':
+        loss = torch.nn.BCEWithLogitsLoss()
     else:
         loss = torch.nn.MSELoss()
-        
-    #else:
-    #    loss = torch.nn.CrossEntropyLoss()
     
     if a.args.model_name == "FCRN":
         mdl = b.FCRN_A(modelname=modelname)
     elif a.args.model_name == "UNet":
         mdl = b.UNet(modelname=modelname)
+    elif a.args.model_name == "UNet_seg":
+        mdl = b.UNet(modelname=modelname,seg=True)        
     elif a.args.model_name == "CSRNet":
         mdl = b.CSRNet(modelname=modelname)
     elif a.args.model_name == "LCFCN":
         mdl = b.LCFCN(modelname=modelname)
-        #raise ValueError#mdl = b.UNet(modelname=modelname)
         
     if a.args.optim == 'adam':   
         optimizer = torch.optim.Adam(mdl.parameters(), lr=a.args.learning_rate, betas=(a.args.adam_b1, a.args.adam_b2), eps=a.args.adam_e, weight_decay=a.args.weight_decay)
@@ -80,8 +81,17 @@ def train_baselines(model_name,train_loader,val_loader):
                 results = mdl(images)
                 
                 if a.args.model_name == 'LCFCN':
-                    iter_loss = lcfcn_loss.compute_loss(points=point_maps, probs=results.sigmoid())
+                    
+                    iter_loss = lcfcn_loss.compute_loss(points=point_maps, probs=results.sigmoid())*a.args.dmap_scaling
+                 
+                # TODO: check no one-hot encoding here is ok (single class only)
+                elif a.args.model_name == 'UNet_seg':
+                    
+                    iter_loss = loss(input = results.squeeze(0),target = dmaps) \
+                              + b.dice_loss(TF.softmax(results, dim=0).float().squeeze(0),dmaps,multiclass=False)
+                    
                 else:
+                    
                     iter_loss = loss(results.squeeze(),dmaps.squeeze()*a.args.dmap_scaling)
                     
                 t_loss = t2np(iter_loss)
