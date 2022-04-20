@@ -147,6 +147,7 @@ class UnNormalize(object):
             # The normalize code -> t.sub_(m).div_(s)
         return tensor      
 
+# TODO - edit to include UNet seg and LCFCN
 @torch.no_grad()
 def plot_preds_multi(UNet_path,CSRNet_path,FCRN_path,NF_path,mode,loader,sample_n=5): 
     UNet = load_model(UNet_path)
