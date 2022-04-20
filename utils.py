@@ -585,9 +585,6 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
                     outputs = mdl.classification_head(images)  
                     _, preds = torch.max(outputs, 1)  
                     x[(preds == 1).bool(),:,:,:] = torch.zeros(1,mdl.density_map_h,mdl.density_map_w).to(c.device)
-                    
-            if c.debug_utils:
-                print("\nsampled from model\n")
             
             if lb_idx == None:
                 lb_idx = 0

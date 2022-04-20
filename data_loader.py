@@ -312,11 +312,6 @@ class DLRACD(Dataset):
         counts = torch.stack(counts,dim = 0)
         point_maps = torch.stack(point_maps,dim = 0)
         
-        if c.debug:
-            print(type(patches))
-            print(type(patch_densities))
-            print(type(counts))
-        
         collated_batch = patches,patch_densities,counts,point_maps
         
         return collated_batch
@@ -333,10 +328,6 @@ class DLRACDToTensor(object):
         # torch image: C x H x W
         patch = torch.from_numpy(patch)
         patch = patch.permute(2,0,1)
-
-        if c.debug:
-            print("patch transposed from numpy format")
-            print("patch rescaled to 0-1 range")
             
         patch = patch.float().div(255).to(c.device)
         
@@ -587,9 +578,6 @@ class CowObjectsDataset(Dataset):
                          
                         # add points onto basemap
                         for point in annotations:
-
-                            if c.debug_dataloader:
-                                print(point)
                                 
                             # subtract 1 to account for 0 indexing
                             # NOTE: this overrides duplicate annotation points (4 out of 22k)
@@ -609,10 +597,6 @@ class CowObjectsDataset(Dataset):
                             density_map += scipy.ndimage.filters.maximum_filter(base_map,size = (7,7))
                         else:
                             density_map += scipy.ndimage.filters.gaussian_filter(base_map, sigma = c.sigma, mode='constant')
-                            
-                        if c.debug_dataloader:
-                            print("base map sum ",base_map.sum())
-                            print("density map sum ",density_map.sum()) 
                                                
                 labels = np.array(labels) # list into default collate function produces empty tensors
                 
@@ -791,11 +775,7 @@ class CowObjectsDataset(Dataset):
                 grid = utils.make_grid(images_batch[i])
                 ax[i].imshow(grid.numpy().transpose((1, 2, 0)))
                 ax[i].axis('off')
-            
-            if debug:
-                print(annotations_batch)
         
-            
             for i in range(batch_size):
                 # sample_batched: image, annotations, classes
                 an = sample_batched[1][i]
@@ -826,7 +806,7 @@ class CowObjectsDataset(Dataset):
         plt.show()
             
     # helper function to show annotations + example
-    def show_annotations(self,sample_no,title = "", save = False,show = False,debug = False):
+    def show_annotations(self,sample_no,title = ""):
         
         sample = self[sample_no]
         
@@ -857,9 +837,6 @@ class CowObjectsDataset(Dataset):
             
             fig, ax = plt.subplots(figsize=(3,4))
             ax.imshow(image)
-            
-            if debug:
-                print(an)
             
             # define patch using x1,x2,y1,y2 coords -> map to height and width
             # <object-class> <centre-x> <centre-y> <width> <height>
@@ -895,12 +872,6 @@ class CowObjectsDataset(Dataset):
             ax[0].set_title(title)
         elif title != "":
             ax.set_title(title)
-            
-        if save:      
-            plt.savefig(cow_dataset.root_dir+"plot.jpg", bbox_inches='tight', pad_inches = 0)
-                
-        if show:
-            plt.show()
             
         print('Image size: {}'.format(im.shape))
         print('Density map size: {}'.format(dmap.shape))
@@ -1029,10 +1000,6 @@ class AerialNormalize(object):
 
     def __call__(self, sample):
         
-        if c.debug_dataloader:
-            print('aerial normalize size')
-            print(sample['image'].size())
-            
         sample['image'] = TF.normalize(sample['image'], 
                                        mean = c.norm_mean,
                                        std = c.norm_std)
@@ -1102,14 +1069,9 @@ class RotateFlip(object):
             # sample['density'] = resize(sample['density'].unsqueeze(0).unsqueeze(0))*64 #*(c.raw_img_size[0]*c.raw_img_size[1])/(a.args.image_size**2)*64
             # sample['point_map'] = resize(sample['point_map'].unsqueeze(0).unsqueeze(0))
         
-        if True:#a.args.model_name != 'CSRNet':
-            sample['image'] = sample['image'].unsqueeze(0)
-            sample['density'] = sample['density'].unsqueeze(0).unsqueeze(0)
-            sample['point_map'] = sample['point_map'].unsqueeze(0).unsqueeze(0)
-            
-        print(sample['image'])
-        print(sample['density'] )
-        print(sample['point_map'] )
+        sample['image'] = sample['image'].unsqueeze(0)
+        sample['density'] = sample['density'].unsqueeze(0).unsqueeze(0)
+        sample['point_map'] = sample['point_map'].unsqueeze(0).unsqueeze(0)
         
         if random.randint(0,1):
             sample['image'] = torch.flip(sample['image'],(3,))
@@ -1316,99 +1278,3 @@ def train_val_split(dataset,train_percent,oversample=False,annotations_only = Fa
         print("Finished creating indicies")
     
     return t_indices, t_weights, v_indices, v_weights
-
-# demonstrate class and methods:
-if demo:
-
-# instantiate class
-    cow_dataset = CowObjectsDataset(root_dir=proj_dir,convert_to_points=points_flag,generate_density=density_demo)
-    
-    if cow_dataset.density:
-        key = 'density'
-    else:
-        key = 'annotations'
-    
-# test helper 'show annotations' function
-    header_list = ['class', 'x', 'y', 'width', 'height']   
-    img_name = '930WJ-92NMX_2400_2400.jpg' 
-    txt_path = os.path.join(cow_dataset.root_dir,"obj/930WJ-92NMX_2400_2400.txt") 
-    annotations = pd.read_csv(txt_path,names=header_list,delim_whitespace=True)
-    annotations = np.asarray(annotations)  
-    im = Image.open(os.path.join(cow_dataset.root_dir,'obj/', img_name))
-
-    # iterate through the data samples. 
-    # we will print the sizes of first 4 samples and show their annotations.
-    if False:
-        for i in range(len(cow_dataset)):
-            sample = cow_dataset[i]
-        
-            if c.debug:
-                # second item will either be annotations or a density map
-                print(i, sample['image'].shape, sample[key].shape)
-        
-            cow_dataset.show_annotations(i,title = 'Sample #{}'.format(i),show = True)
-        
-            if i == 3:
-                break
-        
-    # since the first images are empty, hit the below until some annotations come up
-    if random_flag:
-        r_int = random.randint(0, len(cow_dataset))
-        cow_dataset.show_annotations(r_int,show = True,title = r_int)
-    else:
-        cow_dataset.show_annotations(5809,show = True,title = 5809)
-    
-    transformed_dataset = CowObjectsDataset(root_dir=proj_dir,transform = CustToTensor(),convert_to_points=points_flag,generate_density=density_demo)
-        
-    # example iterating over the dataset
-    for i in range(len(transformed_dataset)):
-        sample = transformed_dataset[i]
-        
-        if c.debug:
-            print(i, sample['image'].size(), sample[key].size())
-    
-        if i == 3:
-            break
-    
-    # use DataLoader for batching, shuffling, loading images in parallel
-    # if density, can use default collate function for batching
-    if transformed_dataset.density:
-        dataloader = DataLoader(transformed_dataset, batch_size=4,
-                                shuffle=True, num_workers=0,collate_fn=cow_dataset.custom_collate_aerial)
-    else:
-        dataloader = DataLoader(transformed_dataset, batch_size=4,
-                                shuffle=True, num_workers=0,collate_fn=cow_dataset.custom_collate_fn)
-    
-    j = 0
-    
-    for i_batch, sample_batched in enumerate(dataloader):
-        r_int = random.randint(0, len(cow_dataset))
-        
-        if transformed_dataset.density:  
-            sb = list()
-            sb.append(sample_batched[0])
-            sb.append(sample_batched[1])
-        else: 
-            sb = sample_batched
-        
-        if c.debug:
-            print(i_batch)
-            print(sb[0])
-            print(sb[1])
-        
-        # since annotations are sparse, break when some are found:
-        if True:
-            for i in range(0,len(sb[0])):
-                if sb[1][i].sum() != 0:
-                    cow_dataset.show_annotations_batch(sb,debug=c.debug)
-                    j += 1
-                    break
-                
-        if j == 1: break
-    
-        # observe 4th batch and stop.
-        if i_batch == r_int and random == True:
-            cow_dataset.show_annotations_batch(sb,debug=c.debug)
-            
-        if i_batch == 4:
-            cow_dataset.show_annotations_batch(sb,debug=c.debug)
