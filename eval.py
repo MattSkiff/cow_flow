@@ -125,21 +125,17 @@ def eval_baselines(mdl,loader,mode,thres=c.sigma*2):
             # TODO - mismatched data type warning here
             dm_psnr.append(peak_signal_noise_ratio(ground_truth_dmap,dmap_np,data_range=ground_truth_dmap.max()-ground_truth_dmap.min()))
             dm_ssim.append(structural_similarity(ground_truth_dmap,dmap_np))
-            #dm_kl.append(entropy(pk=ground_truth_dmap,qk=dmap_rev_np)) # both dists normalised to one automatically
                         
             # local-count metrics # TODO
             l = 1 # cell size param - number of cells to split images into: 0 = 1, 1 = 4, 2 = 16, etc
             
             # this splits the density maps into cells for counting per cell
-            # mdl.density_map_w//4**l, mdl.density_map_h//4**l
-            gt_dmap_split_counts = np_split(ground_truth_point_map,nrows=mdl.density_map_h//4**l,ncols=mdl.density_map_w//4**l).sum(axis=(1,2))
-            
-            # mdl.density_map_w//4**l, mdl.density_map_h//4**l
+            gt_dmap_split_counts = np_split(ground_truth_point_map,nrows=mdl.density_map_w//4**l,ncols=mdl.density_map_h//4**l).sum(axis=(1,2))
             
             if str(type(mdl)) != "<class 'baselines.CSRNet'>":
-                pred_dmap_split_counts = np_split(dmap_np,nrows=mdl.density_map_h//4**l,ncols=mdl.density_map_w//4**l).sum(axis=(1,2))
+                pred_dmap_split_counts = np_split(dmap_np,nrows=mdl.density_map_w//4**l,ncols=mdl.density_map_h//4**l).sum(axis=(1,2))
             else:
-                pred_dmap_split_counts = np_split(dmap_np,nrows=(mdl.density_map_h//8)//4**l,ncols=(mdl.density_map_w//8)//4**l).sum(axis=(1,2))
+                pred_dmap_split_counts = np_split(dmap_np,nrows=(mdl.density_map_w//8)//4**l,ncols=(mdl.density_map_h//8)//4**l).sum(axis=(1,2))
 
             game.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)))
             gampe.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)/np.maximum(np.ones(len(gt_dmap_split_counts)),gt_dmap_split_counts)))     
