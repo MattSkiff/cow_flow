@@ -72,10 +72,6 @@ hide_tqdm_bar = False
 save_model = True # also saves a copy of the config file with the name of the model
 checkpoints = False # saves after every meta epoch
 
-# debug opts
-debug_dataloader = False
-debug_utils = False
-
 # nb: same as the defaults specified for the pretrained pytorch model zoo
 norm_mean, norm_std = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225] 
 
