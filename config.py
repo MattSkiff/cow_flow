@@ -15,20 +15,20 @@ gpu = True
 seed = 101 # important to keep this constant between model and servers for evaluaton
 
 ## Dataset Options ------
-load_stored_dmaps = False # speeds up precomputation (with RAM = True)
+load_stored_dmaps = True # speeds up precomputation (with RAM = True)
 store_dmaps = False # this will save dmap objects (numpy arrays) to file
-ram = False # load aerial imagery and precompute dmaps and load both into ram before training
+ram = True # load aerial imagery and precompute dmaps and load both into ram before training
 counts = False # must be off for pretraining feature extractor (#TODO)
 
 ## Training Options ------
 train_model = True # (if false, will only prep dataset,dataloaders, store dmaps)
 validation = True # whether to run validation data per meta epoch
 eval_n = 10
-data_prop = 0.1 # proportion of the full dataset to use (ignored in DLR ACD,MNIST)
+data_prop = 1 # proportion of the full dataset to use (ignored in DLR ACD,MNIST)
 test_train_split = 70 # percentage of data to allocate to train set
 
 ## Density Map Options ------
-sigma = 16.0 # "   -----    "  ignored for DLR ACD which uses gsd correspondence
+sigma = 4.0 # "   -----    "  ignored for DLR ACD which uses gsd correspondence
 
 if a.args.model_name == "CSRNet":
     sigma = sigma/8
@@ -76,11 +76,12 @@ checkpoints = False # saves after every meta epoch
 norm_mean, norm_std = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225] 
 
 # Logic # TODO - move out of config.py ------
-device = 'cpu'
-# if not gpu:
-#     device = 'cpu' 
-# else: 
-#     device = 'cuda' 
+
+if not gpu:
+    device = 'cpu' 
+else: 
+    device = 'cuda' 
+    
 torch.cuda.set_device(0)
 
 # if dmap is scaled down outside of flow
@@ -179,7 +180,7 @@ if gpu:
 if a.args.gpu_number != 0:
     assert gpu
 
-if not a.args.resize and not a.args.model_name == 'CSRNet':
+if not a.args.resize: #and not a.args.model_name == 'CSRNet':
     img_size = (800,600)
     density_map_w,density_map_h = (800,608)
 
