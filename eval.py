@@ -118,13 +118,6 @@ def eval_baselines(mdl,loader,mode,thres=c.sigma*2):
             
             y_hat_coords.append(coordinates) 
             
-            # dmap metrics (we do use the kernalised dmap for this)
-            dm_mae.append(sum(abs(dmap_np-ground_truth_dmap)))
-            dm_mse.append(sum(np.square(dmap_np-ground_truth_dmap)))
-            # TODO - mismatched data type warning here
-            dm_psnr.append(peak_signal_noise_ratio(ground_truth_dmap,dmap_np,data_range=ground_truth_dmap.max()-ground_truth_dmap.min()))
-            dm_ssim.append(structural_similarity(ground_truth_dmap,dmap_np))
-                        
             # local-count metrics # TODO
             l = 1 # cell size param - number of cells to split images into: 0 = 1, 1 = 4, 2 = 16, etc
             
@@ -144,7 +137,16 @@ def eval_baselines(mdl,loader,mode,thres=c.sigma*2):
                 pred_dmap_split_counts = np_split(dmap_np,nrows=mdl.density_map_w//4**l,ncols=mdl.density_map_h//4**l).sum(axis=(1,2))
 
             game.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)))
-            gampe.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)/np.maximum(np.ones(len(gt_dmap_split_counts)),gt_dmap_split_counts)))     
+            gampe.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)/np.maximum(np.ones(len(gt_dmap_split_counts)),gt_dmap_split_counts)))  
+            
+            # dmap metrics (we do use the kernalised dmap for this)
+            dm_mae.append(sum(abs(dmap_np-ground_truth_dmap)))
+            dm_mse.append(sum(np.square(dmap_np-ground_truth_dmap)))
+            # TODO - mismatched data type warning here
+            dm_psnr.append(peak_signal_noise_ratio(ground_truth_dmap,dmap_np,data_range=ground_truth_dmap.max()-ground_truth_dmap.min()))
+            dm_ssim.append(structural_similarity(ground_truth_dmap,dmap_np))
+                        
+   
     
     # localisation metrics (using kernalised dmaps)
     for gt_dmap, pred_dmap in zip(y_coords, y_hat_coords):
