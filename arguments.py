@@ -4,7 +4,7 @@ import socket
 # command line params
 parser = argparse.ArgumentParser(description='Create dataloaders and train a model on MNIST, DLRACD or cow dataset.')
 
-parser.add_argument('-mod',"--model_name",help="Specify model to train (NF, CSRNet, UNet, UNet_seg,FCRN, LCFCN).",default='UNet_seg')
+parser.add_argument('-mod',"--model_name",help="Specify model to train (NF, CSRNet, UNet, UNet_seg,FCRN, LCFCN).",default='')
 parser.add_argument("-fe_only", "--feat_extract_only", help="Trains the feature extractor component only.", action="store_true",default=False)
 parser.add_argument("-uc", "--unconditional", help="Trains the model without labels.", action="store_true")
 parser.add_argument("-gn", "--gpu_number", help="Selects which GPU to train on.", type=int, default=0)
@@ -12,7 +12,7 @@ parser.add_argument("-gn", "--gpu_number", help="Selects which GPU to train on."
 # Choose Dataset
 parser.add_argument('-d','--data',help='Run the architecture on the [dlr,cows,mnist] dataset.',default='cows')
 
-parser.add_argument('-anno','--annotations_only',help='whether to only use image patches that have annotations',action="store_true",default=True)
+parser.add_argument('-anno','--annotations_only',help='whether to only use image patches that have annotations',action="store_true",default=False)
 parser.add_argument('-weighted','--weighted_sampler',help='whether to weight minibatch samples such that sampling distribution is 50/50 null/annotated', action="store_true",default=False)
 parser.add_argument('-normalise',help='normalise aerial imagery supplied to model with img net mean & std dev',action='store_true',default=True)
 parser.add_argument('-resize',help='Whether to resize image to the specified img size',action="store_true",default=False)

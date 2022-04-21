@@ -4,12 +4,13 @@ from skimage.feature import peak_local_max #
 from skimage.metrics import peak_signal_noise_ratio, structural_similarity
 from scipy.spatial import distance
 from scipy.optimize import linear_sum_assignment
-#from scipy.stats import entropy
+
 import random
 import os
 import time 
 import torch
 from torch import randn
+import torch.nn.functional as F
 
 import matplotlib.pyplot as plt
 from utils import ft_dims_select, np_split,is_baseline
@@ -18,8 +19,6 @@ import gvars as g
 import arguments as a
 
 from lcfcn import lcfcn_loss
-
-from torchvision.models import resnet18 
 
 MAX_DISTANCE = 100
 MIN_D = int(c.sigma*2)
@@ -130,12 +129,19 @@ def eval_baselines(mdl,loader,mode,thres=c.sigma*2):
             l = 1 # cell size param - number of cells to split images into: 0 = 1, 1 = 4, 2 = 16, etc
             
             # this splits the density maps into cells for counting per cell
+            # if str(type(mdl)) != "<class 'baselines.CSRNet'>":
             gt_dmap_split_counts = np_split(ground_truth_point_map,nrows=mdl.density_map_w//4**l,ncols=mdl.density_map_h//4**l).sum(axis=(1,2))
             
             if str(type(mdl)) != "<class 'baselines.CSRNet'>":
                 pred_dmap_split_counts = np_split(dmap_np,nrows=mdl.density_map_w//4**l,ncols=mdl.density_map_h//4**l).sum(axis=(1,2))
             else:
-                pred_dmap_split_counts = np_split(dmap_np,nrows=(mdl.density_map_w//8)//4**l,ncols=(mdl.density_map_h//8)//4**l).sum(axis=(1,2))
+                scale = ((ground_truth_point_map.shape[0]*ground_truth_point_map.shape[1])/(dmap_np.shape[0]*dmap_np.shape[1]))
+                # reshape smaller CSR out to full dmap size, adjust density 
+                dmap_torch = torch.from_numpy(dmap_np).unsqueeze(0).unsqueeze(0)
+                dmap_torch = (F.interpolate(dmap_torch,size=ground_truth_point_map.shape,mode='bilinear')/scale)
+                dmap_np = dmap_torch.squeeze(0).squeeze(0).numpy()
+                
+                pred_dmap_split_counts = np_split(dmap_np,nrows=mdl.density_map_w//4**l,ncols=mdl.density_map_h//4**l).sum(axis=(1,2))
 
             game.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)))
             gampe.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)/np.maximum(np.ones(len(gt_dmap_split_counts)),gt_dmap_split_counts)))     
@@ -146,13 +152,6 @@ def eval_baselines(mdl,loader,mode,thres=c.sigma*2):
             gt_dmap = np.swapaxes(gt_dmap,1,0)
         else:
             gt_dmap = np.array(gt_dmap)
-        
-        if c.debug:
-            print('dmap metrics: gt dmap')
-            print(gt_dmap)
-            print(len(gt_dmap))
-            print(gt_dmap.shape)
-            print(pred_dmap.shape)
         
         if not len(gt_dmap) == 0:
             dist_matrix = distance.cdist(gt_dmap, pred_dmap, 'euclidean')
@@ -223,7 +222,11 @@ def eval_baselines(mdl,loader,mode,thres=c.sigma*2):
     fp = localisation_dict['fp']
     fn = localisation_dict['fn']
     
-    pr = tp/(tp+fp)
+    if tp+fp == 0:
+        pr = None
+    else:
+        pr = tp/(tp+fp)
+        
     rc = tp/(tp+fn)
     fscore = tp/(tp+0.5*(fp+fn))
     

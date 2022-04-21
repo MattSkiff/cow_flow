@@ -87,8 +87,8 @@ def train_baselines(model_name,train_loader,val_loader):
                 # TODO: check no one-hot encoding here is ok (single class only)
                 elif a.args.model_name == 'UNet_seg':
                     
-                    iter_loss = loss(input = results.squeeze(0),target = dmaps) \
-                              + b.dice_loss(TF.softmax(results, dim=0).float().squeeze(0),dmaps,multiclass=False)
+                    iter_loss = (loss(input = results.squeeze(0),target = dmaps) \
+                              + b.dice_loss(TF.softmax(results, dim=0).float().squeeze(0),dmaps,multiclass=False))*a.args.dmap_scaling
                     
                 else:
                     
