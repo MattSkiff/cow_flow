@@ -88,7 +88,10 @@ def ft_dims_select(mdl=None):
         if a.args.data == 'dlr_acd':
             ft_dims = (mdl.density_map_h // 2**5,mdl.density_map_w // 2**5) # 10, 10
         elif fe in ['resnet18','ResNetPyramid'] or fe == 'Sequential':
-            ft_dims = (19, 25) # (mdl.density_map_h // 2**5,mdl.density_map_w // 2**5)
+            if a.args.resize:
+                ft_dims = (8,8)
+            else:
+                ft_dims = (19, 25) # (mdl.density_map_h // 2**5,mdl.density_map_w // 2**5)
         elif fe == 'vgg16_bn' or fe == 'VGG':
             ft_dims = (8,8) #(18,25)
         elif fe == 'alexnet' or fe == 'AlexNet':
@@ -567,7 +570,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
                             else:
                                 dummy_z = (randn(images.size()[0], c.channels)).to(c.device)
                         
-                ## sample from model ---
+                ## sample from model -
                 dummy_z = dummy_z.float().to(c.device)
                 x, log_det_jac = mdl(images,dummy_z,rev=True)
                 x_list.append(x)

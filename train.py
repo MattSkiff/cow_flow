@@ -428,7 +428,8 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                         j += 1
                 
                 #### Meta epoch code (metrics) ------
-                plot_preds(mdl,train_loader)
+                if c.viz:
+                    plot_preds(mdl,train_loader)
                 
                 # train classification head to filter out null patches
                 if not a.args.data == 'dlr' and not mdl.mnist and not c_head_trained:

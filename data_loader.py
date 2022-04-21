@@ -513,8 +513,9 @@ class CowObjectsDataset(Dataset):
             if c.load_stored_dmaps:
                 if not os.path.exists(dmap_path):
                     ValueError("Dmaps must have been previously stored!")
-   
+                
                 store = load(dmap_path[:-5]+dmap_type+'.npz',allow_pickle=True)
+                
                 density_map = store['arr_0']
                 labels = store['arr_1']
                 annotations = store['arr_2']
@@ -622,10 +623,6 @@ class CowObjectsDataset(Dataset):
             sample = {'image': image}
                 
             if self.density and not self.count:
-                
-                # if a.args.model_name == 'CSRNet':
-                #     tgt = density_map
-                #     density_map = cv2.resize(tgt,(int(tgt.shape[1]/8),int(tgt.shape[0]/8)),interpolation = cv2.INTER_CUBIC)*64
 
                 sample['density'] = density_map; sample['labels'] = labels
                 sample['point_map'] = point_map
