@@ -1022,7 +1022,6 @@ class DmapAddUniformNoise(object):
         # https://stackoverflow.com/questions/44328530/how-to-get-a-uniform-distribution-in-a-range-r1-r2-in-pytorch
         
         if 'density' in sample.keys():
-            pass
             sample['density'] =  sample['density'] + torch.FloatTensor(sample['density'].size()).uniform_(self.r1, self.r2).to(c.device)
         
             if c.debug:
@@ -1225,6 +1224,7 @@ def train_val_split(dataset,train_percent,oversample=False,annotations_only = Fa
     
     if seed != -1:
         random.seed(seed)
+        np.random.seed(seed)
     else:
         ValueError('Must set random seed for evaluation purposes!')
     

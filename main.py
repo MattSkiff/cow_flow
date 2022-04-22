@@ -1,4 +1,3 @@
-# This file starts the training on the cows dataset
 from torchvision.transforms import Compose
 from torch.cuda import empty_cache
 from torch.utils.data import DataLoader # Dataset                                                                                                                                                                    
@@ -41,10 +40,7 @@ if a.args.data == 'cows':
         transforms.append(CustResize())
     
     #if a.args.rrc:
-    
     transforms.extend([DmapAddUniformNoise(),RotateFlip(),])
-        
-        
     dmaps_pre = Compose(transforms)
                         
     # instantiate class
