@@ -31,12 +31,7 @@ def save_cstate(cdir,modelname,config_file):
         os.makedirs(g.C_DIR)
         
     base, extension = os.path.splitext(config_file)
-    
-    if c.verbose:
-        'Config file copied to {}'.format(g.C_DIR)
-    
     new_name = os.path.join(cdir, base+"_"+modelname+".txt")
-    
     shutil.copy(config_file, new_name)
 
 def save_model(mdl,filename,loc=g.MODEL_DIR):
@@ -392,7 +387,6 @@ def plot_preds_baselines(mdl, loader,mode="",mdl_type=''):
                 
                 return preds, preds.sum(),dmaps[lb_idx].sum(),len(labels[lb_idx])
                 
-# TODO split into minst and non mnist funcs
 @torch.no_grad()
 def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
                hist=False,sampling="randn",plot_n=None,writer=None,writer_epoch=None,
@@ -405,17 +399,15 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
     Parameters
     ----------
     model
-        A saved model, either MNISTFlow or CowFlow
+        A saved model CowFlow
     loader
         A dataloader of samples.
     plot : Bool, optional
-        Whether to return a plot or not. If not MNISt, will cycle through data loader until an item with an annotation is found.
+        Whether to return a plot or not. Will cycle through data loader until an item with an annotation is found.
     save : TYPE, optional
         DESCRIPTION. The default is True.
     title : TYPE, optional
         Plot title. The default is "".
-    digit : TYPE, optional
-        Predict a specific digit from MNIST. The default is None.
     hist : TYPE, optional
         Plot histogram of predictions. The default is True.
     sampling : TYPE, optional
@@ -423,7 +415,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
     digit: 
         If 'None' and plot_n == 'None', a random digits will be plotted, else the digit specified will be plotted
     plot_n:
-        Plots n plots from the loader sequentially. If not MNIST, plots null-labelled data.
+        Plots n plots from the loader sequentially. Plots null-labelled data.
     include_empty:
         (True) Skip check for images with no annotations. Default: False.
     sample_n:
@@ -438,21 +430,6 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
         The mean reconstruction
 
     """
-      
-    if not mdl.mnist and digit != None:
-        print('Digit argument ignored for non-MNIST models')
-        
-    if not mdl.mnist :
-        if mdl.count != loader.dataset.count:
-            raise ValueError("model and loader count properties do not match!")
-    
-    if mdl.mnist:
-        if plot_n != None and digit != None:
-            print("Warning: plot_n argument will be ignored")
-        elif plot_n == None and digit == None:
-            print("Plotting a random digit")
-        elif plot_n != None:
-            print("Plotting first {} digits".format(plot_n))
     
     def inner_func(mdl=mdl,hist=hist):
         
@@ -469,63 +446,36 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
     #            if not mdl.mnist:
     #                sample_fname = loader.dataset.train_im_paths[i]
             
-            if mdl.mnist:
-                images,labels = data
-            elif mdl.dlr_acd:
+            if mdl.dlr_acd:
                 images,dmaps,counts,point_maps = data
-            elif loader.dataset.count: # mdl.dataset.count
-                images,dmaps,labels,counts, point_maps = data
-            elif loader.dataset.classification:
-                images,dmaps,labels,binary_labels,annotations, point_maps = data
             else:
-                images,dmaps,labels,_ = data
-            
-            # TODO - intermittent bug here
+                images,dmaps,labels,binary_labels,annotations, point_maps = data
+
             dmaps = dmaps.cpu()
             
             lb_idx = random.randint(0,loader.batch_size-1)
-                
-            if mdl.count: #  or # TODO
     
-                # check annotations in batch aren't empty
-                lb_idx = None
-                 
-                for count in counts:
-                    j = 0
-                    z = z+1
-                    if z >= len(loader)*loader.batch_size:
-                        print("Loader has no labelled data!")
-                    if count != 0:
-                        lb_idx = j
-                        break
-                    else:
-                        j = j + 1
-                    
-                if lb_idx == None:
-                    continue  
             
-            elif not mdl.mnist and not mdl.dlr_acd and not include_empty:
+
                 
-                 # check annotations in batch aren't empty
-                lb_idx = None
-                 
-                j = 0
-                for label in labels:
-                    
-                    z = z+1
-                    if z >= len(loader)*loader.batch_size:
-                        print("Loader has no labelled data!")
-                    if len(label) != 0:
-                        lb_idx = j
-                        break
-                    else:
-                        j = j + 1
-    
-                if lb_idx == None:
-                    continue  
+             # check annotations in batch aren't empty
+            lb_idx = None
+             
+            j = 0
+            for label in labels:
+                
+                z = z+1
+                if z >= len(loader)*loader.batch_size:
+                    print("Loader has no labelled data!")
+                if len(label) != 0:
+                    lb_idx = j
+                    break
+                else:
+                    j = j + 1
+
+            if lb_idx == None:
+                continue  
             
-            if i != idx and plot_n == None and digit == None and mdl.mnist:
-                continue
            
             images = images.float().to(c.device)
             mdl = mdl.to(c.device)
@@ -534,44 +484,12 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
             for i in range(sample_n):
            
                 ## create noise vector ---
-                if (mdl.mnist and labels.size) or not mdl.mnist: # triggers only if there is at least one annotation
-                    # Z shape: torch.Size([2, 4, 300, 400]) (batch size = 2)
-                    
-                    if not mdl.mnist:
-                        # TODO - remove hard coding dims here
-                        if (loader.dataset.count and not mdl.gap) or (not mdl.downsampling and mdl.subnet_type == 'conv'):
-                            dummy_z = (randn(images.size()[0],mdl.channels*4,(mdl.density_map_h) // 2,(mdl.density_map_w) // 2)).to(c.device) 
-                        elif loader.dataset.count and mdl.gap:
-                            dummy_z = (randn(images.size()[0],1)).to(c.device) 
-                        elif mdl.downsampling: # self.downsampling
-                            
-                            if mdl.scale == 1:
-                                n_ds = 5
-                            elif mdl.scale == 2:
-                                n_ds = 4
-                            elif mdl.scale == 4:
-                                n_ds = 3
-                                
-                            in_channels = c.channels*4**n_ds
-                            ft_dims = ft_dims_select(mdl)
-                            
-                            if mdl.feat_extractor.__class__.__name__ == 'NothingNet':
-                                in_channels = 2                      
-                            
-                            dummy_z = (randn(images.size()[0], in_channels,ft_dims[0],ft_dims[1])).to(c.device)
-                    else:
-                            if mdl.subnet_type == 'conv':
-                               
-                                if sampling == 'ones':
-                                    dummy_z = (torch.ones(images.size()[0], mdl.channels*4, mdl.density_map_h // 2,mdl.density_map_w  // 2).to(c.device))
-                                elif sampling == "zeros":
-                                    dummy_z = torch.zeros(images.size()[0], mdl.channels*4, mdl.density_map_h // 2,mdl.density_map_w  // 2).to(c.device)
-                                elif sampling == "randn":
-                                    dummy_z = (randn(images.size()[0], mdl.channels*4, mdl.density_map_h // 2,mdl.density_map_w  // 2)).to(c.device)
-                                else:
-                                    ValueError("Invalid function arg (sampling). Try 'randn', 'zeros' or 'ones'.")
-                            else:
-                                dummy_z = (randn(images.size()[0], c.channels)).to(c.device)
+                n_ds = 5
+                in_channels = c.channels*4**n_ds
+                ft_dims = ft_dims_select(mdl)
+                
+                dummy_z = (randn(images.size()[0], in_channels,ft_dims[0],ft_dims[1])).to(c.device)
+                dummy_z = (randn(images.size()[0], mdl.channels*4, mdl.density_map_h // 2,mdl.density_map_w  // 2)).to(c.device)
                 
                 ## sample from model -
                 dummy_z = dummy_z.float().to(c.device)
@@ -584,25 +502,18 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
             # replace predicted densities with null predictions if not +ve pred from feature extractor
             constant = ((mdl.noise)/2)*dmaps[lb_idx].shape[0]*dmaps[lb_idx].shape[1]
             loader_noise = ((a.args.noise)/2)*dmaps[lb_idx].shape[0]*dmaps[lb_idx].shape[1]
-            if not mdl.mnist and not mdl.count and null_filter==True:
+
+            # subtract constrant for uniform noise
+            if not mdl.dlr_acd:
                 # subtract constrant for uniform noise
-                if not mdl.dlr_acd:
-                    # subtract constrant for uniform noise
-                    print('replacing predicted densities with empty predictions from feature extractor')
-                    outputs = mdl.classification_head(images)  
-                    _, preds = torch.max(outputs, 1)  
-                    x[(preds == 1).bool(),:,:,:] = torch.zeros(1,mdl.density_map_h,mdl.density_map_w).to(c.device)
+                print('replacing predicted densities with empty predictions from feature extractor')
+                outputs = mdl.classification_head(images)  
+                _, preds = torch.max(outputs, 1)  
+                x[(preds == 1).bool(),:,:,:] = torch.zeros(1,mdl.density_map_h,mdl.density_map_w).to(c.device)
             
             if lb_idx == None:
                 lb_idx = 0
-            
-            if c.one_hot:
-                
-                if c.subnet_type == 'conv':
-                    x = x.argmax(-3).to(torch.float)
-                else:
-                    x = x.argmax(-1).to(torch.float)
-            
+                     
             if  plot_n != None:
                 lb_idx = range(images.size()[0])
             else:
@@ -647,8 +558,6 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
                     plt.subplots_adjust(left=0.1, right=0.9, top=0.9, bottom=0.1)
                     [axi.set_axis_off() for axi in ax.ravel()] # turn off subplot axes
                     
-                    if mdl.mnist:
-                        fig.suptitle('{} \n mode of reconstruction: {}'.format(title,str(mode)),y=1.0,fontsize=16) # :.2f
                     if mdl.count:   
                         fig.suptitle('{} \n Predicted count: {:.2f}\n True Labelled Count: {:.1f}'.format(title,mean_pred),y=1.0,fontsize=16)
                     else:
@@ -679,28 +588,13 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
                     else:
                         fig.delaxes(ax[0])
                     
-                    if mdl.count:
-                        # no dmaps provided by dataloader if mdl.count
-                        ax[1].title.set_text('Conditioning Aerial Image')
-                        ax[1].imshow((im * 255).astype(np.uint8))
-                        if hist:
-                            ax[2].hist(dmap_rev_np.flatten(),bins = 30)
-                    else:
-                    
-                        if mdl.mnist:
-                            ax[1].title.set_text('Conditioning Digit')
-                            ax[1].imshow(im)
-                            if hist:
-                                ax[2].title.set_text('Histogram of Reconstruction Values')
-                                ax[2].hist(dmap_rev_np.flatten(),bins = 30)
-                        else:
-                            ax[1].title.set_text('Conditioning Aerial Image')
-                            ax[1].imshow((im * 255).astype(np.uint8))
-                            ax[2].title.set_text('Density Map Ground Truth: N={:.2f}\nLabel Count: N={:.2f}'.format(true_dmap_count,label_count))
-                            ax[2].imshow(dmaps[lb_idx])
-                            if hist:
-                                ax[3].title.set_text('Histogram of Reconstruction Values')
-                                ax[3].hist(dmap_rev_np.flatten(),bins = 30)
+                    ax[1].title.set_text('Conditioning Aerial Image')
+                    ax[1].imshow((im * 255).astype(np.uint8))
+                    ax[2].title.set_text('Density Map Ground Truth: N={:.2f}\nLabel Count: N={:.2f}'.format(true_dmap_count,label_count))
+                    ax[2].imshow(dmaps[lb_idx])
+                    if hist:
+                        ax[3].title.set_text('Histogram of Reconstruction Values')
+                        ax[3].hist(dmap_rev_np.flatten(),bins = 30)
                     
                     if writer != None:
                         writer.add_figure('{} Dmap Pred: epoch {}'.format(writer_mode,writer_epoch), fig)
@@ -712,19 +606,14 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
                             os.makedirs(g.VIZ_DIR)
                         plt.savefig("{}/{}.jpg".format(g.VIZ_DIR,mdl.modelname), bbox_inches='tight', pad_inches = 0)
                     
-                    if mdl.mnist:
-                        out = labels[lb_idx],dmap_rev_np, mean_pred 
+
+                    if mdl.count:
+                        out = counts[lb_idx],dmap_rev_np, mean_pred
                     else:
-                        if mdl.count:
-                            out = counts[lb_idx],dmap_rev_np, mean_pred
-                        else:
-                            out = {'True Density Map count':true_dmap_count,
-                                   'Predicted Density Map':dmap_rev_np, 
-                                   'Predicted Density Map count':sum_pred,
-                                   'Label Count':label_count}
-                    
-                    if digit != None and labels[idx] == digit:
-                        return out 
+                        out = {'True Density Map count':true_dmap_count,
+                               'Predicted Density Map':dmap_rev_np, 
+                               'Predicted Density Map count':sum_pred,
+                               'Label Count':label_count}
                     
                     if plot_n != None:
                         k = k+1
@@ -863,200 +752,7 @@ def plot_peaks(mdl, loader,n=10):
             
             return
         
-    return     
-
-def torch_r2(mdl,loader):
-    """calcs r2 (on torch only)"""
-    assert mdl.count
-    assert loader.dataset.count
-    assert not mdl.mnist
-    assert mdl.modelname 
-    
-    mdl = mdl.to(c.device)
-    actuals = []
-    means = []
-    
-    with torch.no_grad():
-        for i, data in enumerate(tqdm(loader, disable=c.hide_tqdm_bar,desc="Calculating R2")):
-            
-            images,dmaps,labels,counts,point_maps  = data
-            
-            if not mdl.gap:  
-                num = 0
-                dummy_z = (randn(images.size()[0],c.channels*4,c.density_map_h // 2,c.density_map_w // 2, requires_grad=False,device=c.device))
-            else:
-                num = 1
-                dummy_z = (randn(images.size()[0],c.channels,requires_grad=False,device=c.device))
-            
-            dummy_z = dummy_z.float()
-            x, _ = mdl(images,dummy_z,rev=True)
-            
-            if mdl.subnet_type == 'conv':
-                mean_preds = x.mean(dim = tuple(range(1,len(x.shape)-num)))
-                means.append(mean_preds)
-            else:
-                means.append(x)
-                 
-            actuals.append(counts)
-        
-        y_hat = torch.cat(means,dim=0).squeeze()
-        y = torch.cat(actuals)
-        y_bar = y.mean()
-        
-        ss_res = torch.sum((y-y_hat)**2)
-        ss_tot = torch.sum((y-y_bar)**2)
-        
-        r2 = 1 - (ss_res / ss_tot)
-             
-    return r2   
-
-def counts_preds_vs_actual(mdl,loader,plot=False,ignore_zeros=False):
-    """Plots predicted versus actual counts from the data and returns the R^2 value. Required: count dataloader and count model."""
-    
-    assert mdl.count
-    assert loader.dataset.count
-    assert not mdl.mnist
-    assert mdl.modelname 
-    
-    if ignore_zeros:
-        assert loader.batch_size == 1
-    
-    means = []
-    actuals = []
-    
-    if plot:
-        desc = "Plotting Counts vs Actuals"
-    else:
-        desc = "Calculating R2"
-        
-    for i, data in enumerate(tqdm(loader, disable=c.hide_tqdm_bar,desc=desc)):
-        
-        images,dmaps,labels,counts,point_maps  = data
-
-        
-        if not mdl.gap:  
-            num = 0
-            dummy_z = (randn(images.size()[0],c.channels*4,c.density_map_h // 2,c.density_map_w // 2, requires_grad=False)).to(c.device)
-        else:
-            num = 1
-            dummy_z = (randn(images.size()[0],c.channels,requires_grad=False)).to(c.device)
-        
-        images = images.float().to(c.device)
-        dummy_z = dummy_z.float().to(c.device)
-        mdl = mdl.to(c.device)
-        x, _ = mdl(images,dummy_z,rev=True)
-        
-        if mdl.subnet_type == 'conv':
-            mean_preds = x.mean(dim = tuple(range(1,len(x.shape)-num))).detach().cpu().numpy()
-            means.append(mean_preds)
-        else:
-             mean_preds = x.squeeze().detach().cpu().numpy().tolist()
-             
-             if not isinstance(mean_preds, list):
-                means.append(mean_preds) 
-             else:
-                means.extend(mean_preds)
-    
-        actuals.append(counts.detach().cpu().numpy())
-    
-    if mdl.gap:
-        means = [means]
-    
-    means = np.concatenate(means, axis=0)
-    actuals = np.concatenate(actuals, axis=0)
-    
-    correlation_matrix = np.corrcoef(means, actuals)
-    correlation_xy = correlation_matrix[0,1]
-    r_squared = correlation_xy**2
-    
-    # TODO - add model info to plot
-    if plot:
-        ident = [np.min(np.concatenate([means,actuals], axis=0)), np.max(np.concatenate([means,actuals], axis=0))]
-        plt.scatter(means, actuals, alpha=0.5)
-        plt.plot(ident,ident)
-        plt.title('Predicted versus Actual Counts: R2 = {}'.format(str(round(r_squared,2))))
-        plt.xlabel("Predicted Counts")
-        plt.ylabel("Actual Counts")
-        plt.show()
-    
-    return means,actuals,r_squared
-
-def get_likelihood(mdl, loader, plot = True,save=False,digit=None,ood=False):
-    # TODO - more sophisticated ood test of likelihood
-    """"'ood' is simply magnifying the value of the image by 100 and checking the loglikelihood is lower"""
-    for i, data in enumerate(tqdm(loader, disable=c.hide_tqdm_bar)):
-        
-        if c.mnist:
-            images,labels = data
-        else:
-            images,dmaps,labels,point_maps  = data
-            
-        if labels[0] != digit and c.mnist and digit is not None:
-            continue
-        
-        if labels.size: # triggers only if there is at least one annotation
-            
-            z = labels
-            
-            images = images.float().to(c.device)
-            z = z.float().to(c.device)
-            
-            mdl = mdl.to(c.device)
-            
-            x, log_det_jac = mdl(images,z,rev=False)
-            
-            if ood:
-                images_ood = images * 100
-                x_ood, log_det_jac_ood = mdl(images_ood,z,rev=False)
-                dmap_rev_np_ood = x_ood[0].squeeze().cpu().detach().numpy()
-                mean_ll_ood = x_ood[0].mean()
-
-            
-            dmap_rev_np = x[0].squeeze().cpu().detach().numpy()
-            
-            mean_ll = x[0].mean()
-            
-            if plot:
-                
-                if ood: 
-                    n_plots = 3 
-                else: 
-                    n_plots = 2
-                
-                fig, ax = plt.subplots(n_plots,1)
-                plt.ioff()
-                #fig.suptitle('{} \n mean reconstruction: {}'.format(title,mean_pred),y=1.0,fontsize=24)
-                fig.set_size_inches(8*1,12*1)
-                fig.set_dpi(100)
-                
-                if c.mnist:
-                    im = images[0].squeeze().cpu().numpy()
-                else:
-                    im = images[0].permute(1,2,0).cpu().numpy()
-                
-                if c.mnist:
-                    ax[0].imshow(im)
-                else:
-                    ax[0].imshow((im * 255).astype(np.uint8))
-                
-                ax[1].hist(dmap_rev_np.flatten(),bins = 30)
-                
-                if ood:
-                    ax[2].hist(dmap_rev_np_ood.flatten(),bins = 30)
-                
-                if save:
-                    if not os.path.exists(g.VIZ_DIR):
-                        os.makedirs(g.VIZ_DIR)
-                    plt.savefig("{}/{}.jpg".format(g.VIZ_DIR,mdl.modelname), bbox_inches='tight', pad_inches = 0)
-            
-            break
-        
-    if ood:
-        out = mean_ll,mean_ll_ood # z[0],x[0], images_ood[0],x_ood[0]
-    else:
-        out = mean_ll # z[0],x[0],
-        
-    return out # x.size() #
+    return
 
 # https://stackoverflow.com/questions/49201236/check-the-total-number-of-parameters-in-a-pytorch-model
 def count_parameters(mdl):
@@ -1258,27 +954,16 @@ def make_model_name(train_loader):
      
      if a.args.data == 'dlr_acd':
          parts.append('DLRACD')
-     
-     if a.args.data == 'mnist':
-         parts.append('MNIST')
-     
-     if a.args.model_name == 'NF' and c.joint_optim:
-         parts.append('JO')
          
      if a.args.model_name == 'NF' and c.pretrained:
          parts.append('PT')
          
-     if a.args.model_name == 'NF' and c.pyramid:
+     if a.args.model_name == 'NF':
          parts.append('PY_{}'.format(a.args.n_pyramid_blocks))
-         
-     if c.counts and not a.args.data == 'mnist':
-         parts.append('CT')
      
      if a.args.model_name == 'NF' and c.fixed1x1conv:
          parts.append('1x1')
-         
-     if c.scale != 1:
-         parts.append('SC_{}'.format(c.scale))
+
          
      if a.args.model_name == 'NF' and c.dropout_p != 0:
          parts.append('DP_{}'.format(c.dropout_p))
@@ -1318,17 +1003,14 @@ def make_hparam_dict(val_loader):
                         'image width':c.density_map_w,
                         'joint optimisation?':c.joint_optim,
                         'global average pooling?':c.gap,
-                        'scale:':c.scale,
                         'annotations only?':a.args.annotations_only,
                         'pretrained?':c.pretrained,
-                        'feature pyramid?':c.pyramid,
                         'feature extractor?':c.feat_extractor,
                         '1x1convs?':c.fixed1x1conv,
                         'conv filters':a.args.filters,
                         'fc_width':c.width,
                         'finetuned?':c.train_feat_extractor,
                         'mnist?':a.args.data == 'mnist',
-                        'counts?':c.counts,
                         'n pyramid blocks?':a.args.n_pyramid_blocks,
                         'subnet_type?':c.subnet_type,
                         'prop. of data':c.data_prop,

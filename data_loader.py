@@ -968,23 +968,9 @@ class CustToTensor(object):
     def __call__(self, sample):
         
         image = sample['image']
-
-        # swap color axis because
-        # numpy image: H x W x C
-        # torch image: C x H x W
         image = torch.from_numpy(image)
         image = image.permute(2,0,1)
 
-        if c.debug:
-            print("image transposed from numpy format")
-            print("Image rescaled to 0-1 range")
-        
-        # since we are skipping pytorch ToTensor(), we need to manually scale to 0-1
-        # RGB normalization
-        # to align with transforms expected by pytorch model zoo models
-        # issue: https://discuss.pytorch.org/t/how-to-preprocess-input-for-pre-trained-networks/683/3
-        # code: https://discuss.pytorch.org/t/how-to-efficiently-normalize-a-batch-of-tensor-to-0-1/65122/5
-        
         image = image.float().div(255).to(c.device)
         
         sample['image'] =  image.float()
@@ -1018,15 +1004,9 @@ class DmapAddUniformNoise(object):
         self.r2 = r2
     
     def __call__(self, sample):
-        # uniform tensor in pytorch: 
-        # https://stackoverflow.com/questions/44328530/how-to-get-a-uniform-distribution-in-a-range-r1-r2-in-pytorch
         
         if 'density' in sample.keys():
-            pass
             sample['density'] =  sample['density'] + torch.FloatTensor(sample['density'].size()).uniform_(self.r1, self.r2).to(c.device)
-        
-            if c.debug:
-                print("uniform noise ({},{}) added to dmap".format(self.r1, self.r2))
         
         return sample       
 
@@ -1035,14 +1015,6 @@ class Resize(object):
     def __call__(self, sample):
         
         resize = T.Resize(size=(a.args.image_size,a.args.image_size))
-        
-        # rint = random.randint(int(a.args.min_scaling*a.args.image_size),int(1*a.args.image_size))
-        # rint2 = random.randint(int(a.args.min_scaling*a.args.image_size),int(1*a.args.image_size))
-        
-        # i, j, h, w = T.RandomCrop.get_params(sample['image'], output_size=(rint,rint2))
-        # sample['image'] = TF.crop(sample['image'].unsqueeze(0), i, j, h, w)
-        # sample['density'] = TF.crop(sample['density'].unsqueeze(0).unsqueeze(0), i, j, h, w)
-        # sample['point_map'] = TF.crop(sample['point_map'].unsqueeze(0).unsqueeze(0), i, j, h, w) 
         
         sample['image'] = resize(sample['image'].unsqueeze(0))
         
@@ -1062,20 +1034,8 @@ class Resize(object):
 class RotateFlip(object):
     """Resize, then Randomly rotate, flip and scale aerial image and density map."""
 
-     # Left - Right, Up - Down flipping
-     # 1/4 chance of no flip, 1/4 chance of no rotation, 1/16 chance of no flip or rotate
-     # want identical transforms to density and image
-     # https://discuss.pytorch.org/t/torchvision-transfors-how-to-perform-identical-transform-on-both-image-and-target/10606/7
     def __call__(self, sample):
-        
-        # Creating density maps for CSRNet during storing dmaps phase, instead of resizing here
-        if a.args.model_name == 'CSRNet':
-            pass
-            # resize = T.Resize(size=(c.density_map_h//8,c.density_map_w//8))
-            # sample['image'] = sample['image'].unsqueeze(0)
-            # sample['density'] = resize(sample['density'].unsqueeze(0).unsqueeze(0))*64 #*(c.raw_img_size[0]*c.raw_img_size[1])/(a.args.image_size**2)*64
-            # sample['point_map'] = resize(sample['point_map'].unsqueeze(0).unsqueeze(0))
-        
+             
         sample['image'] = sample['image'].unsqueeze(0)
         sample['density'] = sample['density'].unsqueeze(0).unsqueeze(0)
         
@@ -1112,47 +1072,6 @@ class RotateFlip(object):
         
         return sample    
 
-# unused currently - padding was causing artifacting
-# class CustCrop(object):
-#     """Crop images to match vgg feature sizes."""
-
-#     def __call__(self, sample):
-              
-#         if 'density' in sample.keys():
-#             density = sample['density']
-            
-#             pd = 0
-            
-#             if c.feat_extractor == 'resnet18' and c.downsampling:
-#                 pd = 8
-#             elif c.feat_extractor == 'alexnet' and c.downsampling:
-#                 density = density[:544,:768]
-# #            elif c.feat_extractor == 'vgg16_bn':
-# #                density = density[:544,:768]
-            
-#             # (padding_left,padding_right, padding, padding, padding_top,padding_bottom)
-#             if not a.args.resize:
-#                 density = TF.pad(img=density,fill=0,padding=[0,0,pd,0],padding_mode='constant')
-            
-#             if c.debug:
-#                 print("image padded by {}".format(pd))
-            
-#             'remove padding and scale instead (CustResize) to prevent artifacts occuring from model'
-#             if c.pyramid and not a.args.resize:
-#                 # adding padding so high level features match dmap dims after downsampling (37,38)
-#                 image = sample['image']
-#                 image = TF.pad(img=image,fill=0, padding=[0,0,pd,0],padding_mode='constant')
-#                 sample['image'] =  image
-            
-#             if not a.args.resize:
-#                 sample['density'] = density
-                
-#             print(sample['density'].size())
-#             print(sample['image'].size())
-        
-#         return sample
-
-
 class CustResize(object):
     """Resize density, according to config scale parameter (not img_size arg)."""
 
@@ -1171,7 +1090,7 @@ class CustResize(object):
             
             # channels, height, width | alias off by default, bilinear default
             density = density.unsqueeze(0).unsqueeze(0)
-            density = TF.resize(density,(sz[0]//c.scale,sz[1]//c.scale))
+            density = TF.resize(density,(sz[0],sz[1]))
             density = density.squeeze().squeeze()
             
             if not a.args.resize:
@@ -1180,19 +1099,9 @@ class CustResize(object):
                 if a.args.model_name=='LCFCN':
                     point_map = TF.pad(img=point_map,fill=0,padding=[0,0,0,8],padding_mode='constant')
             
-            # point_map = point_map.unsqueeze(0).unsqueeze(0)
-            # point_map = TF.resize(point_map,(sz[0]//c.scale,sz[1]//c.scale))
-            # point_map = point_map.squeeze().squeeze()
-            
-            if c.pyramid:
-                # adding padding so high level features match dmap dims after downsampling (37,38)
-                image = sample['image']
-                image = TF.resize(image,(sz[0]//c.scale,sz[1]//c.scale))
-                sample['image'] =  image
-            
-            if c.debug:
-                print("image scaled down factor by {}".format(c.scale))
-            
+            image = sample['image']
+            image = TF.resize(image,(sz[0],sz[1]))
+            sample['image'] =  image
             sample['density'] = density
             
             if a.args.model_name=='LCFCN':
@@ -1227,9 +1136,6 @@ def train_val_split(dataset,train_percent,oversample=False,annotations_only = Fa
         random.seed(seed)
     else:
         ValueError('Must set random seed for evaluation purposes!')
-    
-    if c.verbose:
-        print("Creating indicies...")
     
     l = len(dataset)
     
@@ -1296,8 +1202,5 @@ def train_val_split(dataset,train_percent,oversample=False,annotations_only = Fa
 
     v_indices = v_indices[:round(c.data_prop*len(v_indices))]
     v_weights = v_weights[:round(c.data_prop*len(v_weights))]
-    
-    if c.verbose:
-        print("Finished creating indicies")
     
     return t_indices, t_weights, v_indices, v_weights

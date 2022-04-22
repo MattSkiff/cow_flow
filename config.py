@@ -16,15 +16,14 @@ seed = 101 # important to keep this constant between model and servers for evalu
 
 ## Dataset Options ------
 load_stored_dmaps = False # speeds up precomputation (with RAM = True)
-store_dmaps = True # this will save dmap objects (numpy arrays) to file
-ram = True # load aerial imagery and precompute dmaps and load both into ram before training
+store_dmaps = False # this will save dmap objects (numpy arrays) to file
+ram = False # load aerial imagery and precompute dmaps and load both into ram before training
 counts = False # must be off for pretraining feature extractor (#TODO)
 
 ## Training Options ------
-train_model = True # (if false, will only prep dataset,dataloaders, store dmaps)
 validation = True # whether to run validation data per meta epoch
 eval_n = 10
-data_prop = 1 # proportion of the full dataset to use (ignored in DLR ACD,MNIST)
+data_prop = 0.1 # proportion of the full dataset to use (ignored in DLR ACD)
 test_train_split = 70 # percentage of data to allocate to train set
 
 ## Density Map Options ------
@@ -32,12 +31,10 @@ sigma = 4.0 # "   -----    "  ignored for DLR ACD which uses gsd correspondence
 
 if a.args.model_name == "CSRNet":
     sigma = sigma/8
-    
-scale = 1 # 4, 2 = downscale dmaps four/two fold, 1 = unchanged
 
 ## Feature Extractor Options ------
 pretrained = True
-feat_extractor = "resnet18" # alexnet, vgg16_bn,resnet18, none # TODO mnist_resnet, efficient net
+feat_extractor = "resnet18" # alexnet, vgg16_bn,resnet18, none 
 feat_extractor_epochs = 100
 train_feat_extractor = False # whether to finetune or load finetuned model # redundent
 load_feat_extractor_str = 'resnet18_FTE_5_16_11_2021_13_47_53_PT_True_BS_100' # '' to train from scratch, loads FE  # 
@@ -46,10 +43,8 @@ load_feat_extractor_str = 'resnet18_FTE_5_16_11_2021_13_47_53_PT_True_BS_100' # 
 ## Architecture Options ------
 fixed1x1conv = True 
 freq_1x1 = 2 # 1 for always | how many x coupling blocks to have a 1x1 conv permutation layer
-pyramid = True # only implemented for resnet18
 n_splits = 4 # number of splits
 gap = False # global average pooling
-downsampling = True # whether to downsample (5 ds layers) dmaps by converting spatial dims to channel dims
 n_coupling_blocks = 5 # if pyramid, total blocks will be n_pyramid_blocks x 5
 
 ## Subnet Architecture Options
@@ -64,8 +59,6 @@ clip_value = 1 # gradient clipping
 clamp_alpha = 1.9 
 
 ## Output Settings ----
-debug = False # report loads of info/debug info
-verbose = True # report stats per sub epoch and other info
 report_freq = -1 # nth minibatch to report minibatch loss on (1 = always,-1 = turn off)
 viz = False # visualise outputs and stats
 hide_tqdm_bar = False
@@ -75,8 +68,7 @@ checkpoints = False # saves after every meta epoch
 # nb: same as the defaults specified for the pretrained pytorch model zoo
 norm_mean, norm_std = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225] 
 
-# Logic # TODO - move out of config.py ------
-
+# Logic # TODO - move out of config.py -----
 if not gpu:
     device = 'cpu' 
 else: 
@@ -87,12 +79,6 @@ torch.cuda.set_device(0)
 # if dmap is scaled down outside of flow
 # less downsample 'levels' are needed'
 levels = 5
-# if scale == 1:
-#     levels = 5
-# elif scale == 2:
-#     levels = 4
-# elif scale == 4:
-#     levels = 3
 
 # "condition dim"
 if feat_extractor == "alexnet":
@@ -102,36 +88,12 @@ elif feat_extractor == "vgg16_bn":
 elif feat_extractor == "resnet18":
     n_feat = 512
 elif feat_extractor == "none":
-    if a.args.data == 'mnist':
-        n_feat = 1 
-    else:
-        # conditioning on raw RGB image
          n_feat = 3
 
-if a.args.data == 'mnist':
-    one_hot = True # only for MNIST
-else:
-    one_hot = False
-
-if one_hot:
-    channels = 10 # onehot 1 num -> 0,0,0,1 etc
-elif a.args.data == 'mnist' or feat_extractor != "none":
-    channels = 1 # greyscale mnist, density maps
-elif counts:
-    channels = 1 # duplication not needed (linear subnets)
-else:
-    # TODO - this is a massive hack to test feature extractor-less  NF
-    channels = 2 # duplicate dmap over channel dimension (1->2)
-
-if debug:
-    a.args.schema = 'debug' # aka ignore debugs
+channels = 1
 
 if a.args.data == 'dlr':
     img_size = (a.args.image_size,a.args.image_size)
-elif a.args.data == 'mnist' and feat_extractor == "none":
-    img_size = (28,28)
-elif a.args.data == 'mnist':
-    img_size = (228,228) # (28,28)
 else:
     img_size = (a.args.image_size, a.args.image_size) # width, height (x-y)
 
@@ -143,42 +105,10 @@ img_dims = [3] + list(img_size) # RGB + x-y
 # this effects the padding applied to the density maps
 if a.args.data == 'dlr_acd':
     density_map_h,density_map_w = a.args.image_size,a.args.image_size
-elif not a.args.data == 'mnist' and not counts and downsampling:
-    density_map_w = a.args.image_size//scale #img_size[0]
-    density_map_h = a.args.image_size//scale
-    # if feat_extractor == 'resnet18':
-    #     density_map_h = 256//scale #img_size[1]
-    # elif feat_extractor == 'alexnet':
-    #      density_map_h = 544//scale #img_size[1]
-    #      density_map_w = 768//scale
-    # elif feat_extractor == 'vgg16_bn':
-    #     density_map_h = 576//scale #img_size[1]
-    # elif feat_extractor == 'none':
-    #     density_map_h = 600//scale
-elif not a.args.data == 'mnist' and not counts and not downsampling:
-    density_map_w = a.args.image_size//scale
-    density_map_h = a.args.image_size//scale
-elif not a.args.data == 'mnist':
+else:
     # size of count expanded to map spatial feature dimensions
     density_map_h = 19 * 2 # need at least 2 channels, expand x2, then downsample (haar)
     density_map_w = 25 * 2 # TODO - rework so this ties to ft_dims (vgg,alexnet, resnet, etc)
-elif a.args.data == 'mnist' and feat_extractor != "none":
-    if gap:
-        density_map_h = img_size[1] * 2
-        density_map_w = img_size[0] * 2
-    else:
-        density_map_h = 6 * 2
-        density_map_w = 6 * 2 # feature size x2 (account for downsampling)
-elif a.args.data == 'mnist' and feat_extractor == "none":
-    # minimum possible dimensionality of flow possible with coupling layers
-    density_map_h = 4
-    density_map_w = 4
-
-if gpu:
-    device = torch.device("cuda:{}".format(a.args.gpu_number) if torch.cuda.is_available() else "cpu") # select gpu
-
-if a.args.gpu_number != 0:
-    assert gpu
 
 if not a.args.resize: #and not a.args.model_name == 'CSRNet':
     img_size = (800,600)
@@ -187,42 +117,21 @@ if not a.args.resize: #and not a.args.model_name == 'CSRNet':
 # Checks ------ 
 
 # TODO
-# assert not (pyramid and fixed1x1conv)
+
 assert not (feat_extractor == 'none' and gap == True)
-assert gap != downsampling
 assert n_splits >= 0 and n_splits < 6
 assert subnet_type in ['conv','fc']
 assert feat_extractor in ['none' ,'alexnet','vgg16_bn','resnet18']
 
 if subnet_type == 'fc':
-    assert gap
-    assert a.args.data == 'mnist' or counts
     assert not fixed1x1conv
 
 assert not (load_stored_dmaps and store_dmaps)
 
 if load_stored_dmaps or store_dmaps:
     assert ram
- 
-if store_dmaps:
-    assert not train_model 
 
 if subnet_type == 'conv':
     assert dropout_p == 0
-    
-if a.args.data == 'mnist':
-    assert not counts
 
-if counts:
-    assert subnet_type == 'fc' and gap or subnet_type == 'conv' and not gap
-
-if pyramid:
-    assert n_coupling_blocks == 5 # for recording purposes
-    assert (pyramid and feat_extractor == 'resnet18')
-    assert (pyramid and downsampling) # pyramid nf head has  downsmapling
-    #assert (pyramid and not train_feat_extractor) # TODO
-    # TODO - get pyramid working with other scales!
-    assert scale == 1
-
-assert scale in (1,2,4)
 assert freq_1x1 != 0

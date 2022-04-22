@@ -6,12 +6,8 @@ from torch.utils.data import DataLoader # Dataset
 from train import train     
 import os                                                                                                                                                            
 import config as c
-
-
-from utils import plot_preds, plot_peaks
 import arguments as a
 
-#from utils import load_datasets, make_dataloaders
 from data_loader import DLRACD, DLRACDToTensor, DLRACDAddUniformNoise,DLRACDCropRotateFlipScaling
 
 def train_dlr_acd(load_only=False):    
@@ -27,10 +23,6 @@ def train_dlr_acd(load_only=False):
     dlr_dataset = DLRACD(root_dir=c.proj_dir,transform = dlracd_pre,overlap=0.5)
     
     t_indices, v_indices  = dlr_dataset.train_indices,dlr_dataset.test_indices
-    
-    if a.args.test_run:
-        t_indices = range(1000)
-        v_indices = range(1000)
     
     train_sampler = SubsetRandomSampler(t_indices)
     val_sampler = SubsetRandomSampler(v_indices)   

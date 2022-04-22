@@ -40,8 +40,7 @@ def conv_block(channels: Tuple[int, int],
         nn.BatchNorm2d(num_features=channels[1]),
         nn.ReLU()
     )
-    # create and return a sequential container of convolutional layers
-    # input size = channels[0] for first block and channels[1] for all others
+
     return nn.Sequential(*[block(channels[bool(i)]) for i in range(N)])
 
 
@@ -95,21 +94,16 @@ class FCRN_A(nn.Module):
         # these attr's are needed to make the model object independant of the config file
         self.dlr_acd = a.args.data == 'dlr'
         self.modelname = modelname
-        self.unconditional = False
-        self.count = False
         self.subnet_type = None
-        self.mnist = False
         self.gap = c.gap
         self.n_coupling_blocks = 0
         self.joint_optim = False
         self.pretrained = False
         self.finetuned = False
         self.scheduler = a.args.scheduler
-        self.scale = c.scale
         self.density_map_h = c.density_map_h
         self.density_map_w = c.density_map_w
         self.downsampling = c.downsampling
-        self.scale = c.scale
         self.noise = a.args.noise
         self.seed = c.seed
         self.dmap_scaling = a.args.dmap_scaling
@@ -169,21 +163,17 @@ class UNet(nn.Module):
         # these attr's are needed to make the model object independant of the config file
         self.dlr_acd = a.args.data == 'dlr'
         self.modelname = modelname
-        self.unconditional = False
         self.count = False
         self.subnet_type = None
-        self.mnist = False
         self.gap = c.gap
         self.n_coupling_blocks = 0
         self.joint_optim = False
         self.pretrained = False
         self.finetuned = False
         self.scheduler = a.args.scheduler
-        self.scale = c.scale
         self.density_map_h = c.density_map_h
         self.density_map_w = c.density_map_w
         self.downsampling = c.downsampling
-        self.scale = c.scale
         self.noise = a.args.noise
         self.seed = c.seed
         self.dmap_scaling = a.args.dmap_scaling
@@ -231,7 +221,6 @@ class UNet(nn.Module):
         
         return x10
 
-    
 class DoubleConv(nn.Module):
     """(convolution => [BN] => ReLU) * 2"""
 
@@ -251,7 +240,6 @@ class DoubleConv(nn.Module):
     def forward(self, x):
         return self.double_conv(x)
 
-
 class Down(nn.Module):
     """Downscaling with maxpool then double conv"""
 
@@ -264,7 +252,6 @@ class Down(nn.Module):
 
     def forward(self, x):
         return self.maxpool_conv(x)
-
 
 class Up(nn.Module):
     """Upscaling then double conv"""
@@ -295,7 +282,6 @@ class Up(nn.Module):
         return self.conv(x)
 
 
-
 # https://github.com/leeyeehoo/CSRNet-pytorch- official CSRNet repo
 
 class CSRNet(nn.Module):
@@ -305,21 +291,15 @@ class CSRNet(nn.Module):
         # these attr's are needed to make the model object independant of the config file
         self.dlr_acd = a.args.data == 'dlr'
         self.modelname = modelname
-        self.unconditional = False
         self.count = False
         self.subnet_type = None
-        self.mnist = False
         self.gap = c.gap
         self.n_coupling_blocks = 0
-        self.joint_optim = False
         self.pretrained = False
         self.finetuned = False
         self.scheduler = a.args.scheduler
-        self.scale = c.scale
         self.density_map_h = c.density_map_h
         self.density_map_w = c.density_map_w
-        self.downsampling = c.downsampling
-        self.scale = c.scale
         self.noise = a.args.noise
         self.seed = c.seed
         self.dmap_scaling = a.args.dmap_scaling
@@ -381,21 +361,15 @@ class LCFCN(nn.Module):
         # these attr's are needed to make the model object independant of the config file
         self.dlr_acd = a.args.data == 'dlr'
         self.modelname = modelname
-        self.unconditional = False
-        self.count = False
         self.subnet_type = None
         self.mnist = False
         self.gap = c.gap
         self.n_coupling_blocks = 0
-        self.joint_optim = False
         self.pretrained = False
         self.finetuned = False
         self.scheduler = a.args.scheduler
-        self.scale = c.scale
         self.density_map_h = c.density_map_h
         self.density_map_w = c.density_map_w
-        self.downsampling = c.downsampling
-        self.scale = c.scale
         self.noise = a.args.noise
         self.seed = c.seed
         self.dmap_scaling = a.args.dmap_scaling
