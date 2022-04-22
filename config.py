@@ -15,8 +15,8 @@ gpu = True
 seed = 101 # important to keep this constant between model and servers for evaluaton
 
 ## Dataset Options ------
-load_stored_dmaps = False # speeds up precomputation (with RAM = True)
-store_dmaps = True # this will save dmap objects (numpy arrays) to file
+load_stored_dmaps = True # speeds up precomputation (with RAM = True)
+store_dmaps = False # this will save dmap objects (numpy arrays) to file
 ram = True # load aerial imagery and precompute dmaps and load both into ram before training
 counts = False # must be off for pretraining feature extractor (#TODO)
 

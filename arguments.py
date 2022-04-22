@@ -4,7 +4,7 @@ import socket
 # command line params
 parser = argparse.ArgumentParser(description='Create dataloaders and train a model on MNIST, DLRACD or cow dataset.')
 
-parser.add_argument('-mod',"--model_name",help="Specify model to train (NF, CSRNet, UNet, UNet_seg,FCRN, LCFCN).",default='')
+parser.add_argument('-mod',"--model_name",help="Specify model to train (NF, CSRNet, UNet, UNet_seg,FCRN, LCFCN).",default='CSRNet')
 parser.add_argument("-fe_only", "--feat_extract_only", help="Trains the feature extractor component only.", action="store_true",default=False)
 parser.add_argument("-uc", "--unconditional", help="Trains the model without labels.", action="store_true")
 parser.add_argument("-gn", "--gpu_number", help="Selects which GPU to train on.", type=int, default=0)
@@ -12,7 +12,7 @@ parser.add_argument("-gn", "--gpu_number", help="Selects which GPU to train on."
 # Choose Dataset
 parser.add_argument('-d','--data',help='Run the architecture on the [dlr,cows,mnist] dataset.',default='cows')
 
-parser.add_argument('-anno','--annotations_only',help='only use image patches that have annotations',action="store_true",default=False)
+parser.add_argument('-anno','--annotations_only',help='only use image patches that have annotations',action="store_true",default=True)
 parser.add_argument('-weighted','--weighted_sampler',help='weight minibatch samples such that sampling distribution is 50/50 null/annotated', action="store_true",default=False)
 parser.add_argument('-normalise',help='normalise aerial imagery supplied to model with img net mean & std dev',action='store_true',default=True)
 parser.add_argument('-resize',help='resize image to the specified img size',action="store_true",default=False)
@@ -33,13 +33,13 @@ parser.add_argument("-tb","--tensorboard",help='calc and write metrics, hyper pa
 # Key params
 parser.add_argument("-se","--sub_epochs",help='evaluation is not performed in sub epochs',type=int,default=1)
 parser.add_argument("-me","--meta_epochs",help='eval after every meta epoch. total epochs = meta*sub',type=int,default=1)
-parser.add_argument("-scheduler",help="Learning rate scheduler (exponential,step,none)",default ='')
-parser.add_argument("-step_size",help="step size of stepLR scheduler",type=int,default=0)
-parser.add_argument("-step_gamma",help="gamma of stepLR scheduler",type=float,default=0)
+parser.add_argument("-scheduler",help="Learning rate scheduler (exponential,step,none)",default ='exponential')
+parser.add_argument("-step_size",help="step size of stepLR scheduler",type=int,default=10)
+parser.add_argument("-step_gamma",help="gamma of stepLR scheduler",type=float,default=0.1)
 
 parser.add_argument("-lr","--learning_rate",type=float,default=1e-3)
 parser.add_argument("-bs","--batch_size",type=int,default=1)
-parser.add_argument('-optim',help='optimizer',type=str,default='')
+parser.add_argument('-optim',help='optimizer [sgd,adam]',type=str,default='adam')
 parser.add_argument('-adam_b1',help='adam beta1',type=float,default=0.9)
 parser.add_argument('-adam_b2',help='adam beta2',type=float,default=0.999)
 parser.add_argument('-adam_e',help='adam episilon',type=float,default=1e-8)
