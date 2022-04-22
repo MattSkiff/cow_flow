@@ -87,8 +87,8 @@ def train_baselines(model_name,train_loader,val_loader):
                 # TODO: check no one-hot encoding here is ok (single class only)
                 elif a.args.model_name == 'UNet_seg':
                     
-                    iter_loss = (loss(input = results.squeeze(0),target = dmaps) \
-                              + b.dice_loss(TF.softmax(results, dim=0).float().squeeze(0),dmaps,multiclass=False))*a.args.dmap_scaling
+                    iter_loss = (loss(input = results.squeeze(),target = dmaps) \
+                              + b.dice_loss(TF.softmax(results, dim=0).float().squeeze(),dmaps,multiclass=False))*a.args.dmap_scaling
                     
                 else:
                     
@@ -113,6 +113,10 @@ def train_baselines(model_name,train_loader,val_loader):
                     
                     if a.args.model_name == 'LCFCN':
                         iter_loss = lcfcn_loss.compute_loss(points=point_maps, probs=results.sigmoid())
+                    elif a.args.model_name == 'UNet_seg':
+                        
+                        iter_loss = (loss(input = results.squeeze(),target = dmaps) \
+                                  + b.dice_loss(TF.softmax(results, dim=0).float().squeeze(),dmaps,multiclass=False))*a.args.dmap_scaling
                     else:
                         iter_loss = loss(results.squeeze(),dmaps.squeeze()*a.args.dmap_scaling)
                         
@@ -200,7 +204,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                     optimizer = torch.optim.Adam([
                                 {'params': mdl.nf.parameters()},
                                 {'params': mdl.feat_extractor.parameters() } # , 'lr_init': 1e-3,'betas':(0.9,0.999),'eps':1e-08, 'weight_decay':0}
-                            ], lr=a.args.learning_rate, betas=(0.8, 0.8), eps=1e-04, weight_decay=a.args.weight_decay )                
+                            ], lr=a.args.learning_rate, betas=(a.args.adam_b1, a.args.adam_b2), eps=a.args.adam_e, weight_decay=a.args.weight_decay )                
                 
                 if a.args.optim == 'sgd':
                     optimizer = torch.optim.SGD([

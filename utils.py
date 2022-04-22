@@ -339,7 +339,7 @@ def predict_image(mdl_path,nf=False,geo=True,nf_n=10,mdl_type='',
 def plot_preds_baselines(mdl, loader,mode="",mdl_type=''):
     
         assert mode in ['train','val']
-        assert mdl_type in ['UNet','CSRNet','FCRN','LCFCN']
+        assert mdl_type in ['UNet','CSRNet','FCRN','LCFCN','UNet_seg']
         
         lb_idx = random.randint(0,loader.batch_size-1)
     
@@ -348,6 +348,9 @@ def plot_preds_baselines(mdl, loader,mode="",mdl_type=''):
                 mdl.to(c.device)
                 images,dmaps,labels,binary_labels,annotations, point_maps = data
                 preds = mdl(images)
+                
+                if mdl_type == 'UNet_seg':
+                    preds = preds.sigmoid()
                 
                 if str(type(mdl)) == "<class 'baselines.LCFCN'>":
                     probs = preds.sigmoid().cpu().numpy()
@@ -387,7 +390,7 @@ def plot_preds_baselines(mdl, loader,mode="",mdl_type=''):
                 if str(type(mdl)) == "<class 'baselines.LCFCN'>":
                     print("%s predicted (LCFCN)" % (len(y_list)))
                 
-                return # preds, preds.sum(),dmaps[lb_idx].sum(),len(labels[lb_idx])
+                return preds, preds.sum(),dmaps[lb_idx].sum(),len(labels[lb_idx])
                 
 # TODO split into minst and non mnist funcs
 @torch.no_grad()
@@ -569,7 +572,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
                                     ValueError("Invalid function arg (sampling). Try 'randn', 'zeros' or 'ones'.")
                             else:
                                 dummy_z = (randn(images.size()[0], c.channels)).to(c.device)
-                        
+                
                 ## sample from model -
                 dummy_z = dummy_z.float().to(c.device)
                 x, log_det_jac = mdl(images,dummy_z,rev=True)

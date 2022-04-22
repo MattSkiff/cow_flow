@@ -54,7 +54,7 @@ def eval_baselines(mdl,loader,mode,thres=c.sigma*2):
         
         x = mdl(images)
         
-        if str(type(mdl)) == "<class 'baselines.LCFCN'>":
+        if str(type(mdl)) == "<class 'baselines.LCFCN'>": #or hasattr(mdl, 'seg') and mdl.seg:
             x = x.sigmoid().cpu().numpy() # logits -> probs
             blobs = lcfcn_loss.get_blobs(probs=x)
             blob_counts = (np.unique(blobs)!=0).sum()
@@ -62,10 +62,10 @@ def eval_baselines(mdl,loader,mode,thres=c.sigma*2):
             
         for idx in range(images.size()[0]):               
             
-            if str(type(mdl)) != "<class 'baselines.LCFCN'>":
-                dmap_np = x[idx].squeeze().cpu().detach().numpy()
-            else:
+            if str(type(mdl)) == "<class 'baselines.LCFCN'>": # or hasattr(mdl, 'seg') and mdl.seg:
                 dmap_np = x[idx].squeeze()
+            else:
+                dmap_np = x[idx].squeeze().cpu().detach().numpy()
                 
             dmap_np = dmap_np/mdl.dmap_scaling
             sum_count = dmap_np.sum() # sum across channel, spatial dims for counts

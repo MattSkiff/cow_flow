@@ -15,8 +15,8 @@ gpu = True
 seed = 101 # important to keep this constant between model and servers for evaluaton
 
 ## Dataset Options ------
-load_stored_dmaps = True # speeds up precomputation (with RAM = True)
-store_dmaps = False # this will save dmap objects (numpy arrays) to file
+load_stored_dmaps = False # speeds up precomputation (with RAM = True)
+store_dmaps = True # this will save dmap objects (numpy arrays) to file
 ram = True # load aerial imagery and precompute dmaps and load both into ram before training
 counts = False # must be off for pretraining feature extractor (#TODO)
 
@@ -44,7 +44,7 @@ load_feat_extractor_str = 'resnet18_FTE_5_16_11_2021_13_47_53_PT_True_BS_100' # 
 # nb: pretraining FE saves regardless of save flag
 
 ## Architecture Options ------
-fixed1x1conv = False 
+fixed1x1conv = True 
 freq_1x1 = 2 # 1 for always | how many x coupling blocks to have a 1x1 conv permutation layer
 pyramid = True # only implemented for resnet18
 n_splits = 4 # number of splits
