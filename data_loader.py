@@ -434,7 +434,7 @@ class CowObjectsDataset(Dataset):
         if not self.density:
             self.sigma = 0
         else:
-            self.sigma = c.sigma
+            self.sigma = a.args.sigma
         
         self.images = []
         self.annotations_list = []
@@ -604,7 +604,7 @@ class CowObjectsDataset(Dataset):
                         if a.args.model_name == 'UNet_seg': #a.args.dmap_type == 'max':
                             density_map += scipy.ndimage.filters.maximum_filter(base_map,size = (7,7))
                         else:
-                            density_map += scipy.ndimage.filters.gaussian_filter(base_map, sigma = c.sigma, mode='constant')
+                            density_map += scipy.ndimage.filters.gaussian_filter(base_map, sigma = a.args.sigma, mode='constant')
                                                
                 labels = np.array(labels) # list into default collate function produces empty tensors
                 

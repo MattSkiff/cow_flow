@@ -113,7 +113,8 @@ class FCRN_A(nn.Module):
         self.noise = a.args.noise
         self.seed = c.seed
         self.dmap_scaling = a.args.dmap_scaling
-       
+        self.sigma = a.args.sigma
+        
         super(FCRN_A, self).__init__()
         self.model = nn.Sequential(
             # downsampling
@@ -184,6 +185,7 @@ class UNet(nn.Module):
         self.density_map_w = c.density_map_w
         self.downsampling = c.downsampling
         self.scale = c.scale
+        self.sigma = a.args.sigma
         self.noise = a.args.noise
         self.seed = c.seed
         self.dmap_scaling = a.args.dmap_scaling
@@ -323,7 +325,7 @@ class CSRNet(nn.Module):
         self.noise = a.args.noise
         self.seed = c.seed
         self.dmap_scaling = a.args.dmap_scaling
-        
+        self.sigma = a.args.sigma
         self.seen = 0
         self.frontend_feat = [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512]
         self.backend_feat  = [512, 512, 512,256,128,64]
@@ -399,6 +401,7 @@ class LCFCN(nn.Module):
         self.noise = a.args.noise
         self.seed = c.seed
         self.dmap_scaling = a.args.dmap_scaling
+        self.sigma = a.args.sigma
         
         # Load the pretrained weights, remove avg pool
         # layer and get the output stride of 8

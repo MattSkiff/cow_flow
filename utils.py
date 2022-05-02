@@ -5,6 +5,7 @@ from tqdm import tqdm
 import os
 import torch
 import torchvision.transforms.functional as TF
+import torch.nn.functional as F
 import numpy as np
 import random
 from datetime import datetime 
@@ -19,6 +20,8 @@ import shutil
 import config as c
 import gvars as g
 import arguments as a
+
+from sklearn.preprocessing import StandardScaler
 
 from lcfcn import lcfcn_loss
 
@@ -150,6 +153,12 @@ class UnNormalize(object):
             # The normalize code -> t.sub_(m).div_(s)
         return tensor      
 
+def add_plot_tb(writer,fig,writer_mode,writer_epoch):
+    
+    if writer != None and writer_mode != None and writer_epoch != None:
+        writer.add_figure('{} Dmap Pred: epoch {}'.format(writer_mode,writer_epoch), fig)
+        writer.close() 
+
 # TODO - edit to include UNet seg and LCFCN
 @torch.no_grad()
 def plot_preds_multi(UNet_path,CSRNet_path,FCRN_path,NF_path,mode,loader,sample_n=5): 
@@ -240,7 +249,7 @@ def plot_preds_multi(UNet_path,CSRNet_path,FCRN_path,NF_path,mode,loader,sample_
 def predict_image(mdl_path,nf=False,geo=True,nf_n=10,mdl_type='',
                   image_path='/home/mks29/6-6-2018_Ortho_ColorBalance.tif',dlr=False):
     
-    assert mdl_type in ['FCRN','UNet','NF','LCFCN','CSRNet']
+    assert mdl_type in ['FCRN','UNet','NF','LCFCN','CSRNet','UNet_seg']
     print('Patch sizes hardcoded to 800x600 (cow dataset)')
     
     mdl = load_model(mdl_path).to(c.device)
@@ -253,12 +262,14 @@ def predict_image(mdl_path,nf=False,geo=True,nf_n=10,mdl_type='',
     for i in tqdm(range(len(im_patches)),desc="Predicting patches"):
         
         # normalise image patches
+        # raw_patch = im_patches[i]
         patch = torch.from_numpy(im_patches[i]).float().to(c.device)
         patch = patch.permute(2,0,1)
+        patch = patch.float().div(255).to(c.device)
         patch = TF.normalize(patch,mean = c.norm_mean,std= c.norm_std)
         
-        if not dlr:
-            patch = TF.resize(patch, (1,mdl.density_map_h,mdl.density_map_h))
+        if not dlr and not mdl_type == 'CSRNet':
+            patch = TF.resize(patch, (mdl.density_map_h,mdl.density_map_w))
         
         if nf:
             
@@ -275,7 +286,7 @@ def predict_image(mdl_path,nf=False,geo=True,nf_n=10,mdl_type='',
                 x, log_det_jac = mdl(patch.unsqueeze(0),dummy_z,rev=True)
                 
                 if not dlr:
-                    x = TF.resize(x, (1,800,600))
+                    x = TF.resize(x, (1,mdl.density_map_h,mdl.density_map_w))
                     
                 x_list.append(x)
                         
@@ -294,13 +305,23 @@ def predict_image(mdl_path,nf=False,geo=True,nf_n=10,mdl_type='',
             im_patches[i] = im_patches[i] * mdl.dmap_scaling
             
         else:
-            im_patches[i] = mdl(patch.unsqueeze(0)).squeeze(0).permute(1,2,0).cpu().numpy() * mdl.dmap_scaling #.astype(np.uint8)
+            im_patches[i] = mdl(patch.unsqueeze(0)).squeeze(0) * mdl.dmap_scaling #.astype(np.uint8)
+            #print(torch.max(im_patches[i]))
+            # DEBUG - model seems to be working?
+            # fig, ax = plt.subplots(2)
+            # plt.subplots_adjust(left=0.1, right=0.9, top=0.9, bottom=0.1)
+            # fig.set_size_inches(35*1,7*1)
+            # fig.set_dpi(100)
+            # ax[0].imshow(im_patches[i].cpu().numpy()) 
+            # ax[1].imshow(raw_patch) 
             
             if not dlr:
-                im_patches[i] = TF.resize( im_patches[i], (1,800,600))
+                im_patches[i] = F.interpolate(im_patches[i].unsqueeze(0),(608,800), mode='bicubic', align_corners=False)
+                im_patches[i] = im_patches[i].squeeze(0).permute(1,2,0).cpu().numpy() # 
+            else:
+                im_patches[i] = im_patches[i].cpu().numpy()
     
     shape = im.shape
-    
     del im
     
     path='/home/mks29/' ; frmt = 'tif' ; name = Path(image_path).stem
@@ -308,12 +329,19 @@ def predict_image(mdl_path,nf=False,geo=True,nf_n=10,mdl_type='',
     predicted = stich_image(shape, im_patches, name=name,save=True,path=path,
                             frmt=frmt,geo=geo,mdl_type=mdl_type,dlr=dlr)
     
+    x_scaler = StandardScaler()
+    predicted[0,:,:] = x_scaler.fit_transform(predicted[0,:,:])
+    
+    del im_patches
+    
+    print('whole pred image max')
+    print(np.max(predicted))
+    
     if geo:
         
         src = rasterio.open(image_path)
-
         predicted = reshape_as_raster(predicted)
-        
+
         # Register GDAL format drivers and configuration options with a
         # context manager.
         with rasterio.Env():
@@ -332,11 +360,12 @@ def predict_image(mdl_path,nf=False,geo=True,nf_n=10,mdl_type='',
     
         with rasterio.open(path+mdl_type+name+"."+frmt, 'w', **profile) as dst:
             dst.write(predicted.astype(rasterio.float32))
+            dst.close()
             print('{}{}{}"."{} saved to file.'.format(path,mdl_type,name,frmt))
     
 
 @torch.no_grad()
-def plot_preds_baselines(mdl, loader,mode="",mdl_type=''):
+def plot_preds_baselines(mdl, loader,mode="",mdl_type='',writer=None,writer_epoch=None,writer_mode=None):
     
         assert mode in ['train','val']
         assert mdl_type in ['UNet','CSRNet','FCRN','LCFCN','UNet_seg']
@@ -382,6 +411,8 @@ def plot_preds_baselines(mdl, loader,mode="",mdl_type=''):
                 ax[1].imshow((im * 255).astype(np.uint8))
                 ax[2].title.set_text('Ground Truth Density Map')
                 ax[2].imshow(dmaps[lb_idx].cpu().numpy())
+                
+                add_plot_tb(writer,fig,writer_mode,writer_epoch)
                 
                 print("\n Sum Pred Density Map: {} ".format(preds.sum()))
                 print("Sum GT Density Map: {} ".format(dmaps[lb_idx].sum()))
@@ -701,10 +732,8 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
                             if hist:
                                 ax[3].title.set_text('Histogram of Reconstruction Values')
                                 ax[3].hist(dmap_rev_np.flatten(),bins = 30)
-                    
-                    if writer != None:
-                        writer.add_figure('{} Dmap Pred: epoch {}'.format(writer_mode,writer_epoch), fig)
-                        writer.close() 
+                                
+                    add_plot_tb(writer,fig,writer_mode,writer_epoch)
                     
                     # saving and outs
                     if save:
@@ -1074,12 +1103,11 @@ def count_parameters(mdl):
 
 # https://github.com/Devyanshu/image-split-with-overlap/blob/master/split_image_with_overlap.py
 # minor edits to function, remove non-square opt, grey scale
-def split_image(img,patch_size,save=True,overlap=0,name=None,path=None,frmt=None,dlr=False):
+def split_image(img,save=True,overlap=0,name=None,path=None,frmt=None,dlr=False):
     
     if save:
         assert name and path and frmt
         
-
     assert 0 <= overlap < 1
     
     splits = []
@@ -1095,7 +1123,7 @@ def split_image(img,patch_size,save=True,overlap=0,name=None,path=None,frmt=None
         split_height = 320  
     else:
         split_width = 800
-        split_height = 600
+        split_height = 608
     
     X_points = start_points(img_w, split_width, overlap)
     Y_points = start_points(img_h, split_height, overlap)
@@ -1131,14 +1159,14 @@ def stich_image(img_size,image_patches,name,save=True,overlap=0,path=None,frmt=N
     else:
         img_h, img_w, _ = img_size
         
-    predicted = np.zeros(shape=((img_size)[:2]+(1,)),dtype=np.uint8)
+    predicted = np.zeros(shape=((img_size)[:2]+(1,)),dtype=np.float32)
     
     if dlr:
         split_width = 320
         split_height = 320
     else:
         split_width = 800
-        split_height = 600
+        split_height = 608
     
     X_points = start_points(img_w, split_width, overlap)
     Y_points = start_points(img_h, split_height, overlap)
@@ -1289,8 +1317,8 @@ def make_model_name(train_loader):
      if c.train_feat_extractor or c.load_feat_extractor_str != '':
          parts.append('FT')
          
-     if c.sigma != 4 and not a.args.data == 'mnist':
-         parts.extend(["FSG",str(c.sigma)])
+     if a.args.sigma != 4 and not a.args.data == 'mnist':
+         parts.extend(["FSG",str(a.args.sigma)])
          
      if a.args.model_name == 'NF' and c.clamp_alpha != 1.9 and not a.args.data == 'mnist':
          parts.extend(["CLA",str(c.clamp_alpha)])
@@ -1336,7 +1364,7 @@ def make_hparam_dict(val_loader):
                         'weight decay':a.args.weight_decay,
                         'epochs':a.args.meta_epochs*a.args.sub_epochs,
                         'no. of coupling blocks':c.n_coupling_blocks,
-                        'filter sigma':c.sigma,
+                        'dmap sigma':a.args.sigma,
                         'feat vec length':c.n_feat}
     
     return hparam_dict

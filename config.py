@@ -15,9 +15,9 @@ gpu = True
 seed = 101 # important to keep this constant between model and servers for evaluaton
 
 ## Dataset Options ------
-load_stored_dmaps = True # speeds up precomputation (with RAM = True)
+load_stored_dmaps = False # speeds up precomputation (with RAM = True)
 store_dmaps = False # this will save dmap objects (numpy arrays) to file
-ram = True # load aerial imagery and precompute dmaps and load both into ram before training
+ram = False # load aerial imagery and precompute dmaps and load both into ram before training
 counts = False # must be off for pretraining feature extractor (#TODO)
 
 ## Training Options ------
@@ -28,17 +28,12 @@ data_prop = 1 # proportion of the full dataset to use (ignored in DLR ACD,MNIST)
 test_train_split = 70 # percentage of data to allocate to train set
 
 ## Density Map Options ------
-sigma = 4.0 # "   -----    "  ignored for DLR ACD which uses gsd correspondence
-
-if a.args.model_name == "CSRNet":
-    sigma = sigma/8
-    
 scale = 1 # 4, 2 = downscale dmaps four/two fold, 1 = unchanged
 
 ## Feature Extractor Options ------
 pretrained = True
 feat_extractor = "resnet18" # alexnet, vgg16_bn,resnet18, none # TODO mnist_resnet, efficient net
-feat_extractor_epochs = 100
+feat_extractor_epochs = 1
 train_feat_extractor = False # whether to finetune or load finetuned model # redundent
 load_feat_extractor_str = 'resnet18_FTE_5_16_11_2021_13_47_53_PT_True_BS_100' # '' to train from scratch, loads FE  # 
 # nb: pretraining FE saves regardless of save flag
@@ -67,7 +62,6 @@ clamp_alpha = 1.9
 debug = False # report loads of info/debug info
 verbose = True # report stats per sub epoch and other info
 report_freq = -1 # nth minibatch to report minibatch loss on (1 = always,-1 = turn off)
-viz = False # visualise outputs and stats
 hide_tqdm_bar = False
 save_model = True # also saves a copy of the config file with the name of the model
 checkpoints = False # saves after every meta epoch
@@ -81,8 +75,7 @@ if not gpu:
     device = 'cpu' 
 else: 
     device = 'cuda' 
-    
-torch.cuda.set_device(0)
+    torch.cuda.set_device(0)
 
 # if dmap is scaled down outside of flow
 # less downsample 'levels' are needed'
