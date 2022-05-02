@@ -3,7 +3,6 @@ from torch.cuda import empty_cache
 from torch.utils.data import DataLoader # Dataset                                                                                                                                                                    
 from torch.utils.data.sampler import SubsetRandomSampler # RandomSampling
 
-# from torchvision import transforms
 import config as c
 import arguments as a
 import model
@@ -13,7 +12,6 @@ from train import train, train_baselines, train_feat_extractor
 from dlr_acd import train_dlr_acd
 from mnist import train_mnist
 
-#from utils import load_datasets, make_dataloaders
 from data_loader import CowObjectsDataset, CustToTensor, AerialNormalize, DmapAddUniformNoise, train_val_split, Resize, RotateFlip, CustResize
 
 empty_cache() # free up memory for cuda

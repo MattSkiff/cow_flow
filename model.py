@@ -484,6 +484,7 @@ class CowFlow(nn.Module):
         self.downsampling = c.downsampling
         self.scale = c.scale
         self.noise = a.args.noise
+        self.sigma = a.args.sigma
         self.seed = c.seed
         self.optim = a.args.optim
         self.dmap_scaling = a.args.dmap_scaling

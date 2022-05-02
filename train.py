@@ -12,7 +12,7 @@ import os
 from datetime import datetime 
 
 from eval import eval_mnist, dmap_metrics, dmap_pr_curve, eval_baselines
-from utils import get_loss, plot_preds, counts_preds_vs_actual, t2np, torch_r2, make_model_name, make_hparam_dict, load_model, save_model
+from utils import get_loss, plot_preds,plot_preds_baselines, counts_preds_vs_actual, t2np, torch_r2, make_model_name, make_hparam_dict, load_model, save_model
 from lcfcn  import lcfcn_loss # lcfcn
 import model # importing entire file fixes 'cyclical import' issues
 #from model import CowFlow, MNISTFlow, select_feat_extractor, save_model #, save_weights
@@ -87,8 +87,8 @@ def train_baselines(model_name,train_loader,val_loader):
                 # TODO: check no one-hot encoding here is ok (single class only)
                 elif a.args.model_name == 'UNet_seg':
                     
-                    iter_loss = (loss(input = results.squeeze(),target = dmaps) \
-                              + b.dice_loss(TF.softmax(results, dim=0).float().squeeze(),dmaps,multiclass=False))*a.args.dmap_scaling
+                    iter_loss = (loss(input = results.squeeze(1),target = dmaps) \
+                              + b.dice_loss(TF.softmax(results, dim=0).float().squeeze(1),dmaps,multiclass=False))*a.args.dmap_scaling
                     
                 else:
                     
@@ -112,12 +112,15 @@ def train_baselines(model_name,train_loader,val_loader):
                     results = mdl(images)
                     
                     if a.args.model_name == 'LCFCN':
-                        iter_loss = lcfcn_loss.compute_loss(points=point_maps, probs=results.sigmoid())
-                    elif a.args.model_name == 'UNet_seg':
                         
-                        iter_loss = (loss(input = results.squeeze(),target = dmaps) \
-                                  + b.dice_loss(TF.softmax(results, dim=0).float().squeeze(),dmaps,multiclass=False))*a.args.dmap_scaling
+                        iter_loss = lcfcn_loss.compute_loss(points = point_maps, probs=results.sigmoid())
+                        
+                    elif a.args.model_name == 'UNet_seg':
+                    
+                        iter_loss = (loss(input = results.squeeze(1),target = dmaps) \
+                                  + b.dice_loss(TF.softmax(results, dim=0).float().squeeze(1),dmaps,multiclass=False))*a.args.dmap_scaling
                     else:
+                        
                         iter_loss = loss(results.squeeze(),dmaps.squeeze()*a.args.dmap_scaling)
                         
                     v_loss = t2np(iter_loss)
@@ -132,6 +135,9 @@ def train_baselines(model_name,train_loader,val_loader):
                 # At this point also save a snapshot of the current model
                 save_model(mdl,"best"+"_"+modelname) # want to overwrite - else too many copies stored # +str(l)
                 
+                if a.args.viz and l % a.args.viz_freq == 0:
+                    plot_preds_baselines(mdl,val_loader,mode="val",mdl_type=a.args.model_name,writer=writer,writer_epoch=meta_epoch,writer_mode='val')
+                
             t_e2 = time.perf_counter()
             print("\nTrain | Sub Epoch Time (s): {:f}, Epoch train loss: {:.4f},Epoch val loss: {:.4f}".format(t_e2-t_e1,mean_train_loss,mean_val_loss))
             print('Meta Epoch: {:d}, Sub Epoch: {:d}, | Epoch {:d} out of {:d} Total Epochs'.format(meta_epoch, sub_epoch,meta_epoch*a.args.sub_epochs + sub_epoch+1,a.args.meta_epochs*a.args.sub_epochs))
@@ -139,7 +145,7 @@ def train_baselines(model_name,train_loader,val_loader):
             writer.add_scalar('loss/epoch_train',mean_train_loss, l)
             writer.add_scalar('loss/epoch_val',mean_val_loss, l)
     
-        val_metric_dict = eval_baselines(mdl,val_loader,mode='val',thres=c.sigma*2)
+        val_metric_dict = eval_baselines(mdl,val_loader,mode='val')
         model_metric_dict.update(val_metric_dict)
     
     writer.add_hparams(
@@ -265,10 +271,6 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                             images,dmaps,labels,counts, point_maps = data
                         else:
                             images,labels = data
-                        
-                        if c.debug and not a.args.data == 'dlr':
-                            print("labels:")
-                            print(labels)
                             
                         images = images.float().to(c.device)
                         
@@ -278,21 +280,6 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                             counts = counts.float().to(c.device)
                         else: 
                             labels = labels.float().to(c.device)
-                        
-                        if c.debug and not a.args.data == 'mnist' and not c.counts:
-                            print("density maps from data batch size, device..")
-                            print(dmaps.size())
-                            print(dmaps.device,"\n")
-                            
-                        elif c.debug and not a.args.data == 'mnist':
-                            print("counts from data batch size, device..")
-                            print(counts.size())
-                            print(counts.device,"\n")
-                            
-                        if c.debug:    
-                            print("images from data batch size, device..")
-                            print(images.size())
-                            print(images.device,"\n")
                         
                         # z is the probability density under the latent normal distribution
                         # output of model - two elements: y (z), jacobian
@@ -308,15 +295,6 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                             
                         # x: inputs (i.e. 'x-side' when rev is False, 'z-side' when rev is True) [FrEIA]
                         # i.e. what y (output) is depends on direction of flow
-                        if c.debug:
-                            print("z shape + contents")
-                            print(z.size()) # log likelihoods
-                            print(z.shape) # equiv to batch size
-                        
-                        if c.debug:
-                            print('\nlog det jacobian size + contents')
-                            print(log_det_jac.size()) # length = batch size
-                            print(log_det_jac)
                         
                         # this loss needs to calc distance between predicted density and density map
                         # note: probably going to get an error with mnist or counts # TODO
@@ -432,8 +410,6 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                         j += 1
                 
                 #### Meta epoch code (metrics) ------
-                if c.viz:
-                    plot_preds(mdl,train_loader)
                 
                 # train classification head to filter out null patches
                 if not a.args.data == 'dlr' and not mdl.mnist and not c_head_trained:
@@ -457,17 +433,17 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                 if writer != None:
                     # DMAP Count Metrics - y,y_n,y_hat_n,y_hat_n_dists,y_hat_coords
                     # add images to TB writer
-                    if c.viz:
+                    if a.args.viz and j % a.args.viz_freq == 0:
                         plot_preds(mdl,train_loader,writer=writer,writer_epoch=meta_epoch,writer_mode='train')
                         
                     train_metric_dict = dmap_metrics(mdl, train_loader,n=c.eval_n,mode='train')
                     model_metric_dict.update(train_metric_dict)
                     
-                    if c.viz and mdl.dlr_acd:
+                    if a.args.viz and mdl.dlr_acd and j % a.args.viz_freq == 0:
                         plot_preds(mdl,train_loader,writer=writer,writer_epoch=meta_epoch,writer_mode='train')
                     
                     if c.validation:
-                        if c.viz:
+                        if a.args.viz and j % a.args.viz_freq == 0:
                             plot_preds(mdl,val_loader,writer=writer,writer_epoch=meta_epoch,writer_mode='val')
                             
                         val_metric_dict = dmap_metrics(mdl, val_loader,n=c.eval_n,mode='val')
@@ -524,7 +500,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
             mdl.metric_dict = model_metric_dict
             
             # visualise a random reconstruction
-            if c.viz:
+            if a.args.viz:
                 
                 if mdl.dlr_acd:
                     preds_loader = train_loader
@@ -539,7 +515,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                 
                 if c.counts:
                     print("Plotting Train R2")
-                    counts_preds_vs_actual(mdl,train_loader,plot=c.viz)
+                    counts_preds_vs_actual(mdl,train_loader,plot=a.args.viz)
             
             # save final model, unless models are being saved at end of every meta peoch
             if c.save_model and not c.checkpoints:

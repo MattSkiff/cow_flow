@@ -21,11 +21,91 @@ import arguments as a
 from lcfcn import lcfcn_loss
 
 MAX_DISTANCE = 100
-MIN_D = int(c.sigma*2)
 STEP = 1
 
+def gen_metrics(dm_mae,dm_mse,dm_ssim,dm_psnr,y_n,y_hat_n,game,gampe,localisation_dict,mode):
+    
+    # dmap metrics (average across images)
+    dm_mae = np.mean(np.vstack(dm_mae))
+    dm_mse = np.mean(np.vstack(dm_mse))
+    dm_ssim = np.mean(np.vstack(dm_ssim))
+    dm_psnr = np.mean(np.vstack(dm_psnr))
+    
+    # R2 
+    n = len(y_n)
+    y_hat_n = np.array(y_hat_n)
+    y_n = np.array(y_n)
+    
+    y_bar = y_n.mean() 
+    ss_res = np.sum((y_n-y_hat_n)**2)
+    ss_tot = np.sum((y_n-y_bar)**2) 
+    r2 = round(1 - (ss_res / ss_tot),4)
+    
+    # RMSE
+    rmse = round(sum(((y_n-y_hat_n)/n)**2)**0.5,4)
+    
+    # MAE
+    mae = round(sum(np.abs(y_n-y_hat_n))/n,4)
+    
+    # MAPE
+    mape = round(sum(np.abs(y_n-y_hat_n)/np.maximum(np.ones(len(y_n)),y_n))/n,4)
+    
+   # GAME
+    game = np.mean(np.vstack(game))
+    
+   # GAMPE
+    gampe = np.mean(np.vstack(gampe))   
+    
+    # localisation metrics: PR, RC, F1
+    tp = localisation_dict['tp']
+    fp = localisation_dict['fp']
+    fn = localisation_dict['fn']
+    
+    if tp+fp == 0:
+        pr = -99
+    else:
+        pr = tp/(tp+fp)
+    
+    if (tp+fn) == 0:
+        rc = -99
+    else:
+        rc = tp/(tp+fn)
+    
+    if (tp+0.5*(fp+fn)) == 0:
+        fscore = -99
+    else:
+        fscore = tp/(tp+0.5*(fp+fn))
+    
+    metric_dict = {
+        
+        # Counts
+        '{}_r2'.format(mode):r2,
+        '{}_rmse'.format(mode):rmse,
+        '{}_mae'.format(mode):mae,
+        '{}_mape'.format(mode):mape,
+        # density maps
+        '{}_dm_mae'.format(mode):dm_mae,
+        '{}_dm_mse'.format(mode):dm_mse,
+        '{}_dm_psnr'.format(mode):dm_psnr,
+        '{}_dm_ssim'.format(mode):dm_ssim,
+        
+        # localised counting performance
+        '{}_game'.format(mode):game,
+        '{}_gampe'.format(mode):gampe,
+        
+        # localisation
+        '{}_fscore'.format(mode):fscore,
+        '{}_precision'.format(mode):pr,
+        '{}_recall'.format(mode):rc
+        
+        }
+    
+    return metric_dict
+    
 @torch.no_grad()
-def eval_baselines(mdl,loader,mode,thres=c.sigma*2):
+def eval_baselines(mdl,loader,mode):
+    
+    thres=mdl.sigma*2
     
     assert not mdl.count
     assert mode in ['train','val']
@@ -103,7 +183,7 @@ def eval_baselines(mdl,loader,mode,thres=c.sigma*2):
             if str(type(mdl)) == "<class 'baselines.LCFCN'>":
                 coordinates = np.argwhere(pred_points != 0)
             else:
-                coordinates = peak_local_max(dmap_np,min_distance=MIN_D,num_peaks=max(1,int(sum_count)))
+                coordinates = peak_local_max(dmap_np,min_distance=int(mdl.sigma*2),num_peaks=max(1,int(sum_count)))
 
             #y.append(labels[idx].cpu().detach().numpy())
             y_n.append(len(labels[idx]))
@@ -128,25 +208,27 @@ def eval_baselines(mdl,loader,mode,thres=c.sigma*2):
             if str(type(mdl)) != "<class 'baselines.CSRNet'>":
                 pred_dmap_split_counts = np_split(dmap_np,nrows=mdl.density_map_w//4**l,ncols=mdl.density_map_h//4**l).sum(axis=(1,2))
             else:
-                scale = ((ground_truth_point_map.shape[0]*ground_truth_point_map.shape[1])/(dmap_np.shape[0]*dmap_np.shape[1]))
+                scale = (ground_truth_point_map.shape[0]*ground_truth_point_map.shape[1])/(dmap_np.shape[0]*dmap_np.shape[1])
                 # reshape smaller CSR out to full dmap size, adjust density 
                 dmap_torch = torch.from_numpy(dmap_np).unsqueeze(0).unsqueeze(0)
-                dmap_torch = (F.interpolate(dmap_torch,size=ground_truth_point_map.shape,mode='bilinear')/scale)
-                dmap_np = dmap_torch.squeeze(0).squeeze(0).numpy()
+                dmap_torch = F.interpolate(dmap_torch,size=ground_truth_point_map.shape,mode='bilinear')/scale
+                dmap_resized = dmap_torch.squeeze(0).squeeze(0).numpy()
                 
-                pred_dmap_split_counts = np_split(dmap_np,nrows=mdl.density_map_w//4**l,ncols=mdl.density_map_h//4**l).sum(axis=(1,2))
+                pred_dmap_split_counts = np_split(dmap_resized,nrows=mdl.density_map_w//4**l,ncols=mdl.density_map_h//4**l).sum(axis=(1,2))
 
             game.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)))
             gampe.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)/np.maximum(np.ones(len(gt_dmap_split_counts)),gt_dmap_split_counts)))  
             
-            # dmap metrics (we do use the kernalised dmap for this)
+            # dmap metrics (kernalised dmap   
             dm_mae.append(sum(abs(dmap_np-ground_truth_dmap)))
             dm_mse.append(sum(np.square(dmap_np-ground_truth_dmap)))
             # TODO - mismatched data type warning here
             dm_psnr.append(peak_signal_noise_ratio(ground_truth_dmap,dmap_np,data_range=ground_truth_dmap.max()-ground_truth_dmap.min()))
             dm_ssim.append(structural_similarity(ground_truth_dmap,dmap_np))
-                        
-   
+            
+            metric_dict = gen_metrics(dm_mae,dm_mse,dm_ssim,dm_psnr,y_n,y_hat_n,game,gampe,localisation_dict,mode)
+            
+            return metric_dict
     
     # localisation metrics (using kernalised dmaps)
     for gt_dmap, pred_dmap in zip(y_coords, y_hat_coords):
@@ -186,80 +268,10 @@ def eval_baselines(mdl,loader,mode,thres=c.sigma*2):
         localisation_dict['fp'] += pred_dmap.shape[0]-tp
         localisation_dict['fn'] += gt_dmap.shape[0]-tp
             
-    # dmap metrics (average across images)
-    dm_mae = np.mean(np.vstack(dm_mae))
-    dm_mse = np.mean(np.vstack(dm_mse))
-    dm_ssim = np.mean(np.vstack(dm_ssim))
-    dm_psnr = np.mean(np.vstack(dm_psnr))
-    
-    ## Counts
-    
-    # R2 
-    n = len(y_n)
-    y_hat_n = np.array(y_hat_n)
-    y_n = np.array(y_n)
-    
-    y_bar = y_n.mean() 
-    ss_res = np.sum((y_n-y_hat_n)**2)
-    ss_tot = np.sum((y_n-y_bar)**2) 
-    r2 = round(1 - (ss_res / ss_tot),4)
-    
-    # RMSE
-    rmse = round(sum(((y_n-y_hat_n)/n)**2)**0.5,4)
-    
-    # MAE
-    mae = round(sum(np.abs(y_n-y_hat_n))/n,4)
-    
-    # MAPE
-    mape = round(sum(np.abs(y_n-y_hat_n)/np.maximum(np.ones(len(y_n)),y_n))/n,4)
-    
-   # GAME
-    game = np.mean(np.vstack(game))
-    
-   # GAMPE
-    gampe = np.mean(np.vstack(gampe))   
-    
-    # localisation metrics: PR, RC, F1
-    tp = localisation_dict['tp']
-    fp = localisation_dict['fp']
-    fn = localisation_dict['fn']
-    
-    if tp+fp == 0:
-        pr = None
-    else:
-        pr = tp/(tp+fp)
+        metric_dict = gen_metrics(dm_mae,dm_mse,dm_ssim,dm_psnr,y_n,y_hat_n,game,gampe,localisation_dict,mode)
         
-    rc = tp/(tp+fn)
-    fscore = tp/(tp+0.5*(fp+fn))
-    
-    metric_dict = {
-        # Counts
-        '{}_r2'.format(mode):r2,
-        '{}_rmse'.format(mode):rmse,
-        '{}_mae'.format(mode):mae,
-        '{}_mape'.format(mode):mape,
-        # density maps
-        '{}_dm_mae'.format(mode):dm_mae,
-        '{}_dm_mse'.format(mode):dm_mse,
-        '{}_dm_psnr'.format(mode):dm_psnr,
-        '{}_dm_ssim'.format(mode):dm_ssim,
-        
-        # localised counting performance
-        '{}_game'.format(mode):game,
-        '{}_gampe'.format(mode):gampe,
-        
-       # '{}_dm_kl'.format(mode):dm_kl,
-        
-        # localisation
-        
-        '{}_fscore'.format(mode):fscore,
-        '{}_precision'.format(mode):pr,
-        '{}_recall'.format(mode):rc
-        
-        }
-    
-    t2 = time.perf_counter()
-    print("Dmap evaluation finished. Wall time: {}".format(round(t2-t1,2)))
+        t2 = time.perf_counter()
+        print("Dmap evaluation finished. Wall time: {}".format(round(t2-t1,2)))
     
     return  metric_dict # localisation_dict
     
@@ -381,8 +393,10 @@ def eval_mnist(mdl, valloader, trainloader,samples = 1,confusion = False, preds 
     return  out # train, val
 
 @torch.no_grad()
-def dmap_metrics(mdl, loader,n=10,mode='',thres=c.sigma*2,null_filter=False):
+def dmap_metrics(mdl, loader,n=10,mode='',null_filter=False):
     '''DMAP,COUNT,LOCALIZATION metrics'''
+    
+    thres=mdl.sigma*2
     
     assert not mdl.count
     assert mode in ['train','val']
@@ -502,7 +516,7 @@ def dmap_metrics(mdl, loader,n=10,mode='',thres=c.sigma*2,null_filter=False):
             dist_counts -= constant
             gt_count -= loader_noise
             
-            coordinates = peak_local_max(dmap_rev_np,min_distance=MIN_D,num_peaks=max(1,int(sum_count)))
+            coordinates = peak_local_max(dmap_rev_np,min_distance=int(mdl.sigma*2),num_peaks=max(1,int(sum_count)))
             
             if mdl.dlr_acd:
                 #y.append()
@@ -542,13 +556,6 @@ def dmap_metrics(mdl, loader,n=10,mode='',thres=c.sigma*2,null_filter=False):
         else:
             gt_dmap = np.array(gt_dmap)
         
-        if c.debug:
-            print('dmap metrics: gt dmap')
-            print(gt_dmap)
-            print(len(gt_dmap))
-            print(gt_dmap.shape)
-            print(pred_dmap.shape)
-        
         if not len(gt_dmap) == 0:
             dist_matrix = distance.cdist(gt_dmap, pred_dmap, 'euclidean')
             
@@ -580,73 +587,7 @@ def dmap_metrics(mdl, loader,n=10,mode='',thres=c.sigma*2,null_filter=False):
         localisation_dict['fp'] += pred_dmap.shape[0]-tp
         localisation_dict['fn'] += gt_dmap.shape[0]-tp
             
-    # dmap metrics (average across images)
-    dm_mae = np.mean(np.vstack(dm_mae))
-    dm_mse = np.mean(np.vstack(dm_mse))
-    dm_ssim = np.mean(np.vstack(dm_ssim))
-    dm_psnr = np.mean(np.vstack(dm_psnr))
-    
-    ## Counts
-    
-    # R2 
-    n = len(y_n)
-    y_hat_n = np.array(y_hat_n)
-    y_n = np.array(y_n)
-    
-    y_bar = y_n.mean() 
-    ss_res = np.sum((y_n-y_hat_n)**2)
-    ss_tot = np.sum((y_n-y_bar)**2) 
-    r2 = round(1 - (ss_res / ss_tot),4)
-    
-    # RMSE
-    rmse = round(sum(((y_n-y_hat_n)/n)**2)**0.5,4)
-    
-    # MAE
-    mae = round(sum(np.abs(y_n-y_hat_n))/n,4)
-    
-    # MAPE
-    mape = round(sum(np.abs(y_n-y_hat_n)/np.maximum(np.ones(len(y_n)),y_n))/n,4)
-    
-   # GAME
-    game = np.mean(np.vstack(game))
-    
-   # GAMPE
-    gampe = np.mean(np.vstack(gampe))   
-    
-    # localisation metrics: PR, RC, F1
-    tp = localisation_dict['tp']
-    fp = localisation_dict['fp']
-    fn = localisation_dict['fn']
-    
-    pr = tp/(tp+fp)
-    rc = tp/(tp+fn)
-    fscore = tp/(tp+0.5*(fp+fn))
-    
-    metric_dict = {
-        # Counts
-        '{}_r2'.format(mode):r2,
-        '{}_rmse'.format(mode):rmse,
-        '{}_mae'.format(mode):mae,
-        '{}_mape'.format(mode):mape,
-        # density maps
-        '{}_dm_mae'.format(mode):dm_mae,
-        '{}_dm_mse'.format(mode):dm_mse,
-        '{}_dm_psnr'.format(mode):dm_psnr,
-        '{}_dm_ssim'.format(mode):dm_ssim,
-        
-        # localised counting performance
-        '{}_game'.format(mode):game,
-        '{}_gampe'.format(mode):gampe,
-        
-       # '{}_dm_kl'.format(mode):dm_kl,
-        
-        # localisation
-        
-        '{}_fscore'.format(mode):fscore,
-        '{}_precision'.format(mode):pr,
-        '{}_recall'.format(mode):rc
-        
-        }
+    metric_dict = gen_metrics(dm_mae,dm_mse,dm_ssim,dm_psnr,y_n,y_hat_n,game,gampe,localisation_dict,mode)
     
     t2 = time.perf_counter()
     print("Dmap evaluation finished. Wall time: {}".format(round(t2-t1,2)))
@@ -729,10 +670,10 @@ def dmap_pr_curve(mdl, loader,n = 10,mode = ''):
             gt_count -= loader_noise
             sum_count -= constant
             
-            y_hat_coords['div2'].append(peak_local_max(dmap_rev_np,min_distance=int(c.sigma//2),num_peaks=max(1,int(sum_count))))
-            y_hat_coords['same'].append(peak_local_max(dmap_rev_np,min_distance=int(c.sigma),num_peaks=max(1,int(sum_count))))
-            y_hat_coords['mult2'].append(peak_local_max(dmap_rev_np,min_distance=int(c.sigma*2),num_peaks=max(1,int(sum_count))))
-            y_hat_coords['mult4'].append(peak_local_max(dmap_rev_np,min_distance=int(c.sigma*4),num_peaks=max(1,int(sum_count))))
+            y_hat_coords['div2'].append(peak_local_max(dmap_rev_np,min_distance=int(mdl.sigma//2),num_peaks=max(1,int(sum_count))))
+            y_hat_coords['same'].append(peak_local_max(dmap_rev_np,min_distance=int(mdl.sigma),num_peaks=max(1,int(sum_count))))
+            y_hat_coords['mult2'].append(peak_local_max(dmap_rev_np,min_distance=int(mdl.sigma*2),num_peaks=max(1,int(sum_count))))
+            y_hat_coords['mult4'].append(peak_local_max(dmap_rev_np,min_distance=int(mdl.sigma*4),num_peaks=max(1,int(sum_count))))
             
             #y.append(labels[idx].cpu().detach().numpy()) # TODO - rm?
             
