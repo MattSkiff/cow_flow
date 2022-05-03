@@ -15,9 +15,9 @@ gpu = True
 seed = 101 # important to keep this constant between model and servers for evaluaton
 
 ## Dataset Options ------
-load_stored_dmaps = False # speeds up precomputation (with RAM = True)
+load_stored_dmaps = True # speeds up precomputation (with RAM = True)
 store_dmaps = False # this will save dmap objects (numpy arrays) to file
-ram = False # load aerial imagery and precompute dmaps and load both into ram before training
+ram = True # load aerial imagery and precompute dmaps and load both into ram before training
 counts = False # must be off for pretraining feature extractor (#TODO)
 
 ## Training Options ------
@@ -31,11 +31,11 @@ test_train_split = 70 # percentage of data to allocate to train set
 scale = 1 # 4, 2 = downscale dmaps four/two fold, 1 = unchanged
 
 ## Feature Extractor Options ------
-pretrained = True
+pretrained = False
 feat_extractor = "resnet18" # alexnet, vgg16_bn,resnet18, none # TODO mnist_resnet, efficient net
-feat_extractor_epochs = 1
+feat_extractor_epochs = 100
 train_feat_extractor = False # whether to finetune or load finetuned model # redundent
-load_feat_extractor_str = 'resnet18_FTE_5_16_11_2021_13_47_53_PT_True_BS_100' # '' to train from scratch, loads FE  # 
+load_feat_extractor_str = '' # '' to train from scratch, loads FE  # 
 # nb: pretraining FE saves regardless of save flag
 
 ## Architecture Options ------
@@ -211,11 +211,20 @@ if counts:
 
 if pyramid:
     assert n_coupling_blocks == 5 # for recording purposes
-    assert (pyramid and feat_extractor == 'resnet18')
-    assert (pyramid and downsampling) # pyramid nf head has  downsmapling
-    #assert (pyramid and not train_feat_extractor) # TODO
+    assert feat_extractor == 'resnet18'
+    assert downsampling # pyramid nf head has  downsmapling
+    assert not train_feat_extractor # TODO
     # TODO - get pyramid working with other scales!
     assert scale == 1
 
 assert scale in (1,2,4)
 assert freq_1x1 != 0
+
+# set config values for local testing
+if any('SPYDER' in name for name in os.environ):
+    
+    data_prop = 0.1
+    feat_extractor_epochs = 1
+    load_stored_dmaps = False # speeds up precomputation (with RAM = True)
+    store_dmaps = False # this will save dmap objects (numpy arrays) to file
+    ram = False # load aerial imagery and precompute dmaps and load both into ram before training

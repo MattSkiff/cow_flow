@@ -537,7 +537,6 @@ def dmap_metrics(mdl, loader,n=10,mode='',null_filter=False):
             # TODO - mismatched data type warning here
             dm_psnr.append(peak_signal_noise_ratio(ground_truth_dmap,dmap_rev_np,data_range=ground_truth_dmap.max()-ground_truth_dmap.min()))
             dm_ssim.append(structural_similarity(ground_truth_dmap,dmap_rev_np))
-            #dm_kl.append(entropy(pk=ground_truth_dmap,qk=dmap_rev_np)) # both dists normalised to one automatically
                         
             # local-count metrics # TODO
             l = 1 # cell size param - number of cells to split images into: 0 = 1, 1 = 4, 2 = 16, etc

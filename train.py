@@ -50,6 +50,8 @@ def train_baselines(model_name,train_loader,val_loader):
         mdl = b.CSRNet(modelname=modelname)
     elif a.args.model_name == "LCFCN":
         mdl = b.LCFCN(modelname=modelname)
+    elif a.args.model_name == "MCNN":
+        mdl = b.MCNN(modelname=modelname)
         
     if a.args.optim == 'adam':   
         optimizer = torch.optim.Adam(mdl.parameters(), lr=a.args.learning_rate, betas=(a.args.adam_b1, a.args.adam_b2), eps=a.args.adam_e, weight_decay=a.args.weight_decay)
@@ -171,6 +173,7 @@ def train_baselines(model_name,train_loader,val_loader):
     return mdl    
 
 def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,writer=None):
+    
             assert c.train_model
             
             if c.debug:
@@ -383,9 +386,6 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                                 val_mb_iter += 1
                                 val_loss.append(t2np(loss))
                                 
-                                if c.debug:
-                                    print('loss/minibatch_val',val_mb_iter)
-                                
                                 if writer != None:
                                     writer.add_scalar('loss/minibatch_val',loss, val_mb_iter)
                              
@@ -393,9 +393,6 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                          
                         if c.verbose:
                                 print('Validation | Sub Epoch: {:d} \t Epoch loss: {:4f}'.format(sub_epoch,mean_val_loss))
-                        
-                        if c.debug:
-                            print('loss/epoch_val: ',meta_epoch)
                         
                         if writer != None:
                             writer.add_scalar('loss/epoch_val',mean_val_loss, meta_epoch)
@@ -434,17 +431,17 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                     # DMAP Count Metrics - y,y_n,y_hat_n,y_hat_n_dists,y_hat_coords
                     # add images to TB writer
                     if a.args.viz and j % a.args.viz_freq == 0:
-                        plot_preds(mdl,train_loader,writer=writer,writer_epoch=meta_epoch,writer_mode='train')
+                        plot_preds(mdl,train_loader,writer=writer,writer_epoch=meta_epoch,writer_mode='train',null_filter=False)
                         
                     train_metric_dict = dmap_metrics(mdl, train_loader,n=c.eval_n,mode='train')
                     model_metric_dict.update(train_metric_dict)
                     
                     if a.args.viz and mdl.dlr_acd and j % a.args.viz_freq == 0:
-                        plot_preds(mdl,train_loader,writer=writer,writer_epoch=meta_epoch,writer_mode='train')
+                        plot_preds(mdl,train_loader,writer=writer,writer_epoch=meta_epoch,writer_mode='train',null_filter=False)
                     
                     if c.validation:
                         if a.args.viz and j % a.args.viz_freq == 0:
-                            plot_preds(mdl,val_loader,writer=writer,writer_epoch=meta_epoch,writer_mode='val')
+                            plot_preds(mdl,val_loader,writer=writer,writer_epoch=meta_epoch,writer_mode='val',null_filter=False)
                             
                         val_metric_dict = dmap_metrics(mdl, val_loader,n=c.eval_n,mode='val')
                         model_metric_dict.update(val_metric_dict)
@@ -509,7 +506,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                     preds_loader = val_loader
                     dmap_pr_mode = 'val'
                     
-                plot_preds(mdl, preds_loader, plot = True)
+                plot_preds(mdl, preds_loader, plot = True,null_filter=False)
                 # TODO skip PR curve, as this funciton takes 20 minutes
                 # dmap_pr_curve(mdl, preds_loader,n = 10,mode = dmap_pr_mode)
                 
@@ -533,8 +530,8 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
             
             
             if not a.args.data == 'dlr':
-                print("Performing final evaluation with trained null classifier...")
-                final_metrics = dmap_metrics(mdl, train_loader,n=1,mode='train',null_filter = True)
+                print("Performing final evaluation without trained null classifier...")
+                final_metrics = dmap_metrics(mdl, train_loader,n=1,mode='train',null_filter = False)
                 print(final_metrics)
             
             run_end = time.perf_counter()
@@ -717,6 +714,9 @@ def train_feat_extractor(feat_extractor,trainloader,valloader,criterion = nn.Cro
                     print('feature extractor labels: ',binary_labels)
                 
                 with torch.set_grad_enabled(phase == 'train'):
+                    
+                    
+                    
                     outputs = feat_extractor(images)
                     _, preds = torch.max(outputs, 1)   
                     

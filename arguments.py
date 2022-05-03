@@ -1,11 +1,10 @@
 import argparse
 import socket
 import os
-
 # command line params
 parser = argparse.ArgumentParser(description='Create dataloaders and train a model on MNIST, DLRACD or cow dataset.')
 
-parser.add_argument('-mod',"--model_name",help="Specify model to train (NF,CSRNet, UNet, UCSRNetNet_seg,FCRN, LCFCN).",default='')
+parser.add_argument('-mod',"--model_name",help="Specify model to train (NF,CSRNet, UNet, UCSRNetNet_seg, FCRN, LCFCN, MCNN).",default='')
 parser.add_argument("-fe_only", "--feat_extract_only", help="Trains the feature extractor component only.", action="store_true",default=False)
 parser.add_argument("-uc", "--unconditional", help="Trains the model without labels.", action="store_true")
 parser.add_argument("-gn", "--gpu_number", help="Selects which GPU to train on.", type=int, default=0)
@@ -16,7 +15,7 @@ parser.add_argument('-d','--data',help='Run the architecture on the [dlr,cows,mn
 parser.add_argument('-anno','--annotations_only',help='only use image patches that have annotations',action="store_true",default=False)
 parser.add_argument('-weighted','--weighted_sampler',help='weight minibatch samples such that sampling distribution is 50/50 null/annotated', action="store_true",default=False)
 parser.add_argument('-normalise',help='normalise aerial imagery supplied to model with img net mean & std dev',action='store_true',default=True)
-parser.add_argument('-resize',help='resize image to the specified img size',action="store_true",default=True)
+parser.add_argument('-resize',help='resize image to the specified img size',action="store_true",default=False)
 parser.add_argument('-rrc',help='perform random resize cropping',action="store_true",default=False)
 parser.add_argument('-sigma',help='Variance of gaussian kernels used to create density maps',type=float,default=4)  # ignored for DLR ACD which uses gsd correspondence
 parser.add_argument('-dmap_scaling',help='Scale up density map to ensure gaussianed density is not too close to zero per pixel',type=int,default=1)
@@ -74,6 +73,7 @@ if any('SPYDER' in name for name in os.environ):
     args.weight_decay = 1e-5
     args.tensorboard = True
     args.viz = True
+    args.resize = True
     
 # checks
 assert args.gpu_number > -1
@@ -89,8 +89,6 @@ if (args.adam_b1 != 0 or args.adam_b2 != 0 or args.adam_e != 0) and args.optim !
     
 if args.sgd_mom != 0 and args.optim != 'sgd':
     ValueError
-  
-assert args.model_name in ['NF','UNet','CSRNet','FCRN','LCFCN','UNet_seg']
 
 if args.model_name == 'LCFCN':
     assert args.batch_size == 1 # https://github.com/ElementAI/LCFCN/issues/9
@@ -102,8 +100,6 @@ assert args.scheduler in ['exponential','step','none']
 assert args.optim in ['sgd','adam']
 
 # todo - find better way of checking NF only arguments
-if args.model_name in ['UNet','CSRNet','FCRN','LCFCN','UNet_seg']:
-    assert args.noise == 0
 
 if args.model_name == 'CSRNet':
     args.sigma = args.sigma / 8
