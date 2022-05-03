@@ -558,3 +558,112 @@ def dice_loss(input: torch.Tensor, target: torch.Tensor, multiclass: bool = Fals
     assert input.size() == target.size()
     fn = multiclass_dice_coeff if multiclass else dice_coeff
     return 1 - fn(input, target, reduce_batch_first=True)
+
+# from https://github.com/gjy3035/C-3-Framework
+class MCNN(nn.Module):
+    '''
+    Multi-column CNN 
+        -Implementation of Single Image Crowd Counting via Multi-column CNN (Zhang et al.)
+    '''
+    
+    def __init__(self, modelname): # bn=False
+        
+        super(MCNN, self).__init__()
+        
+        self.dlr_acd = a.args.data == 'dlr'
+        self.modelname = modelname
+        self.unconditional = False
+        self.count = False
+        self.subnet_type = None
+        self.mnist = False
+        self.gap = c.gap
+        self.n_coupling_blocks = 0
+        self.joint_optim = False
+        self.pretrained = False
+        self.finetuned = False
+        self.scheduler = a.args.scheduler
+        self.scale = c.scale
+        self.density_map_h = c.density_map_h
+        self.density_map_w = c.density_map_w
+        self.downsampling = c.downsampling
+        self.scale = c.scale
+        self.noise = a.args.noise
+        self.seed = c.seed
+        self.dmap_scaling = a.args.dmap_scaling
+        self.sigma = a.args.sigma
+        
+        # todo: re add option for batch norm
+        self.branch1 = nn.Sequential(nn.Conv2d( 3, 16, 9, padding='same'),
+                                     nn.MaxPool2d(2),
+                                     nn.Conv2d(16, 32, 7, padding='same'),
+                                     nn.MaxPool2d(2),
+                                     nn.Conv2d(32, 16, 7, padding='same'),
+                                     nn.Conv2d(16,  8, 7, padding='same'))
+        
+        self.branch2 = nn.Sequential(nn.Conv2d( 3, 20, 7, padding='same'),
+                                     nn.MaxPool2d(2),
+                                     nn.Conv2d(20, 40, 5, padding='same'),
+                                     nn.MaxPool2d(2),
+                                     nn.Conv2d(40, 20, 5, padding='same'),
+                                     nn.Conv2d(20, 10, 5, padding='same'))
+        
+        self.branch3 = nn.Sequential(nn.Conv2d( 3, 24, 5, padding='same'),
+                                     nn.MaxPool2d(2),
+                                     nn.Conv2d(24, 48, 3, padding='same'),
+                                     nn.MaxPool2d(2),
+                                     nn.Conv2d(48, 24, 3, padding='same'),
+                                     nn.Conv2d(24, 12, 3, padding='same'))
+        
+        self.fuse = nn.Sequential(nn.Conv2d( 30, 1, 1, padding='same'))
+
+        initialize_weights(self.modules())   
+        
+    def forward(self, im_data):
+        x1 = self.branch1(im_data)
+        x2 = self.branch2(im_data)
+        x3 = self.branch3(im_data)
+        x = torch.cat((x1,x2,x3),1)
+        x = self.fuse(x)
+        x = F.upsample(x,scale_factor=4)
+        return x
+    
+def initialize_weights(models):
+    for model in models:
+        real_init_weights(model)
+
+
+def real_init_weights(m):
+
+    if isinstance(m, list):
+        for mini_m in m:
+            real_init_weights(mini_m)
+    else:
+        if isinstance(m, nn.Conv2d):    
+            nn.init.normal_(m.weight, std=0.01)
+            if m.bias is not None:
+                nn.init.constant_(m.bias, 0)
+        elif isinstance(m, nn.Linear):
+            m.weight.data.normal_(0.0, std=0.01)
+        elif isinstance(m, nn.BatchNorm2d):
+            nn.init.constant_(m.weight, 1)
+            nn.init.constant_(m.bias, 0)
+        elif isinstance(m,nn.Module):
+            for mini_m in m.children():
+                real_init_weights(mini_m)
+        else:
+            print( m )
+
+def weights_normal_init(*models):
+    for model in models:
+        dev=0.01
+        if isinstance(model, list):
+            for m in model:
+                weights_normal_init(m, dev)
+        else:
+            for m in model.modules():            
+                if isinstance(m, nn.Conv2d):        
+                    m.weight.data.normal_(0.0, dev)
+                    if m.bias is not None:
+                        m.bias.data.fill_(0.0)
+                elif isinstance(m, nn.Linear):
+                    m.weight.data.normal_(0.0, dev)

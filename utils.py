@@ -76,6 +76,8 @@ def is_baseline(mdl):
         return True
     if str(type(mdl))=="<class 'baselines.FCRN_A'>":
         return True
+    if str(type(mdl))=="<class 'baselines.MCNN'>":
+        return True
         
     return False
 
@@ -159,7 +161,7 @@ def add_plot_tb(writer,fig,writer_mode,writer_epoch):
         writer.add_figure('{} Dmap Pred: epoch {}'.format(writer_mode,writer_epoch), fig)
         writer.close() 
 
-# TODO - edit to include UNet seg and LCFCN
+# TODO - edit to include UNet seg and LCFCN, MCNN?
 @torch.no_grad()
 def plot_preds_multi(UNet_path,CSRNet_path,FCRN_path,NF_path,mode,loader,sample_n=5): 
     UNet = load_model(UNet_path)
@@ -249,7 +251,7 @@ def plot_preds_multi(UNet_path,CSRNet_path,FCRN_path,NF_path,mode,loader,sample_
 def predict_image(mdl_path,nf=False,geo=True,nf_n=10,mdl_type='',
                   image_path='/home/mks29/6-6-2018_Ortho_ColorBalance.tif',dlr=False):
     
-    assert mdl_type in ['FCRN','UNet','NF','LCFCN','CSRNet','UNet_seg']
+    assert mdl_type in g.BASELINE_MODEL_NAMES
     print('Patch sizes hardcoded to 800x600 (cow dataset)')
     
     mdl = load_model(mdl_path).to(c.device)
@@ -368,7 +370,7 @@ def predict_image(mdl_path,nf=False,geo=True,nf_n=10,mdl_type='',
 def plot_preds_baselines(mdl, loader,mode="",mdl_type='',writer=None,writer_epoch=None,writer_mode=None):
     
         assert mode in ['train','val']
-        assert mdl_type in ['UNet','CSRNet','FCRN','LCFCN','UNet_seg']
+        assert mdl_type in g.BASELINE_MODEL_NAMES
         
         lb_idx = random.randint(0,loader.batch_size-1)
     
@@ -645,7 +647,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
                 
                 # TODO
                 if (mdl.count or mdl.mnist) and not mdl.gap:
-                    x_flat = torch.reshape(x,(images.size()[0],c.density_map_h * c.density_map_w)) # torch.Size([200, 12, 12])
+                    x_flat = torch.reshape(x,(images.size()[0],mdl.density_map_h * mdl.density_map_w)) # torch.Size([200, 12, 12])
                     mode = torch.mode(x_flat,dim = 1).values.cpu().detach().numpy()
                 elif mdl.count and mdl.gap:
                     x_flat = x
@@ -912,10 +914,10 @@ def torch_r2(mdl,loader):
             
             if not mdl.gap:  
                 num = 0
-                dummy_z = (randn(images.size()[0],c.channels*4,c.density_map_h // 2,c.density_map_w // 2, requires_grad=False,device=c.device))
+                dummy_z = (randn(images.size()[0],mdl.channels*4,mdl.density_map_h // 2,mdl.density_map_w // 2, requires_grad=False,device=c.device))
             else:
                 num = 1
-                dummy_z = (randn(images.size()[0],c.channels,requires_grad=False,device=c.device))
+                dummy_z = (randn(images.size()[0],mdl.channels,requires_grad=False,device=c.device))
             
             dummy_z = dummy_z.float()
             x, _ = mdl(images,dummy_z,rev=True)
@@ -965,10 +967,10 @@ def counts_preds_vs_actual(mdl,loader,plot=False,ignore_zeros=False):
         
         if not mdl.gap:  
             num = 0
-            dummy_z = (randn(images.size()[0],c.channels*4,c.density_map_h // 2,c.density_map_w // 2, requires_grad=False)).to(c.device)
+            dummy_z = (randn(images.size()[0],mdl.channels*4,mdl.density_map_h // 2,mdl.density_map_w // 2, requires_grad=False)).to(c.device)
         else:
             num = 1
-            dummy_z = (randn(images.size()[0],c.channels,requires_grad=False)).to(c.device)
+            dummy_z = (randn(images.size()[0],mdl.channels,requires_grad=False)).to(c.device)
         
         images = images.float().to(c.device)
         dummy_z = dummy_z.float().to(c.device)
@@ -1268,10 +1270,10 @@ def make_model_name(train_loader):
              "BS"+str(train_loader.batch_size),
              "LR_I"+str(a.args.learning_rate),
              "E"+str(a.args.meta_epochs*a.args.sub_epochs),
-             #"DIM"+str(c.density_map_h),
+             "DIM"+str(c.density_map_h),
              "OPTIM"+str(a.args.optim)]
      
-     if a.args.model_name not in ['UNet','FCRN','LCFCN','CSRNet']:
+     if a.args.model_name not in g.BASELINE_MODEL_NAMES:
          parts.append("FE_"+str(c.feat_extractor))    
      
      if a.args.model_name == 'NF':

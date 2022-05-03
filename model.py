@@ -131,6 +131,8 @@ def select_feat_extractor(feat_extractor,train_loader=None,valid_loader=None):
             feat_extractor = NothingNet()
     else:
         feat_extractor = ResNetPyramid()
+        
+        return feat_extractor
     
     if c.train_feat_extractor:
     # pretrain feature extractor with classification problem
@@ -205,10 +207,10 @@ def sub_fc(dims_in,dims_out,internal_size):
     return net
 
 def nf_pyramid(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat):
+    
     assert c.subnet_type == 'conv'
     assert not c.gap and not c.counts and not a.args.data == 'mnist'
     
-    # TODO - will break because of ref to config file
     mdl = ResNetPyramid()
     # TODO: take out hardcoding activation channels (64)
     channels = 3
