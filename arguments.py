@@ -62,10 +62,11 @@ host = socket.gethostname()
 
 # defaults for if running interactively
 if any('SPYDER' in name for name in os.environ):
-    args.model_name = "NF"
+    args.model_name = "CSRNet"
     args.optim = "adam"
     args.scheduler = 'none'
     args.annotations_only = True
+    args.weighted_sampler = False
     args.sub_epochs = 1
     args.meta_epochs = 1
     args.batch_size = 1
@@ -74,6 +75,7 @@ if any('SPYDER' in name for name in os.environ):
     args.tensorboard = True
     args.viz = True
     args.resize = True
+    args.dmap_scaling = 1000
     
 # checks
 assert args.gpu_number > -1
@@ -99,10 +101,7 @@ assert args.weighted_sampler or args.annotations_only
 assert args.scheduler in ['exponential','step','none']
 assert args.optim in ['sgd','adam']
 
-# todo - find better way of checking NF only arguments
-
-if args.model_name == 'CSRNet':
-    args.sigma = args.sigma / 8
+# todo - find better way of checking NF only argument
 
 assert args.data in ['cows','dlr','mnist']
 

@@ -8,7 +8,7 @@ LOG_DIR = './logs'
 C_DIR = './cstates'
 DMAP_DIR = './data/precompute/size_{}_sigma_{}/'.format(15,a.args.sigma)
 
-BASELINE_MODEL_NAMES = ['UNet','CSRNet','FCRN','LCFCN','UNet_seg','MCNN']
+BASELINE_MODEL_NAMES = ['UNet','CSRNet','FCRN','LCFCN','UNet_seg','MCNN','Res50']
 
 if a.args.model_name in BASELINE_MODEL_NAMES:
     assert a.args.noise == 0

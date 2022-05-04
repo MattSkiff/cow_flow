@@ -478,11 +478,6 @@ class CowObjectsDataset(Dataset):
         self.train_im_paths = train_im_paths
         
         def compute_labels(idx):
-             
-            if a.args.model_name == 'CSRNet':
-                CSRNet_scaling = 8
-            else:
-                CSRNet_scaling = 1
             
             if a.args.model_name == 'UNet_seg': #a.args.dmap_type == 'max':
                 dmap_type = '_max'
@@ -527,15 +522,15 @@ class CowObjectsDataset(Dataset):
                         
                     annotations = np.array([])
                     
-                    if a.args.resize and a.args.model_name == 'CSRNet':
-                        density_map = np.zeros((256//CSRNet_scaling,256//CSRNet_scaling), dtype=np.float32) # c.raw_img_size
+                    if a.args.resize:
+                        density_map = np.zeros((256,256), dtype=np.float32) # c.raw_img_size
                     else:
-                        density_map = np.zeros((c.raw_img_size[1]//CSRNet_scaling, c.raw_img_size[0]//CSRNet_scaling), dtype=np.float32) # c.raw_img_size
+                        density_map = np.zeros((c.raw_img_size[1], c.raw_img_size[0]), dtype=np.float32) # c.raw_img_size
                     
                     if not a.args.resize and a.args.model_name == 'LCFCN':
-                        point_map = np.zeros((c.raw_img_size[1]//CSRNet_scaling, c.raw_img_size[0]//CSRNet_scaling), dtype=np.float32) # c.raw_img_size
+                        point_map = np.zeros((c.raw_img_size[1], c.raw_img_size[0]), dtype=np.float32) # c.raw_img_size
                     elif a.args.model_name == 'LCFCN':
-                        point_map = np.zeros((256//CSRNet_scaling,256//CSRNet_scaling), dtype=np.float32) # c.raw_img_size
+                        point_map = np.zeros((256,256), dtype=np.float32) # c.raw_img_size
                     else:
                         point_map = None
                     
@@ -564,38 +559,38 @@ class CowObjectsDataset(Dataset):
                         
                         # TODO - this is possibly massively inefficient
                         
-                        if a.args.resize and a.args.model_name == 'CSRNet':
-                            density_map = np.zeros((256//CSRNet_scaling,256//CSRNet_scaling), dtype=np.float32) # c.raw_img_size
+                        if a.args.resize:
+                            density_map = np.zeros((256,256), dtype=np.float32) # c.raw_img_size
                         else:
-                            density_map = np.zeros((c.raw_img_size[1]//CSRNet_scaling, c.raw_img_size[0]//CSRNet_scaling), dtype=np.float32) # c.raw_img_size  
+                            density_map = np.zeros((c.raw_img_size[1], c.raw_img_size[0]), dtype=np.float32) # c.raw_img_size  
                             
                         if not a.args.resize and a.args.model_name == 'LCFCN':
-                            point_map= np.zeros((c.raw_img_size[1]//CSRNet_scaling, c.raw_img_size[0]//CSRNet_scaling), dtype=np.float32) # c.raw_img_size
+                            point_map= np.zeros((c.raw_img_size[1], c.raw_img_size[0]), dtype=np.float32) # c.raw_img_size
                         elif a.args.model_name == 'LCFCN':
-                            point_map = np.zeros((256//CSRNet_scaling,256//CSRNet_scaling), dtype=np.float32) # c.raw_img_size
+                            point_map = np.zeros((256,256), dtype=np.float32) # c.raw_img_size
                         else:
                             point_map = None
                          
                         # error introduced here as float position annotation centre converted to int
-                        if a.args.resize and a.args.model_name == 'CSRNet':
-                            base_map = np.zeros((256//CSRNet_scaling,256//CSRNet_scaling), dtype=np.float32) # c.raw_img_size
+                        if a.args.resize:
+                            base_map = np.zeros((256,256), dtype=np.float32) # c.raw_img_size
                         else:
-                            base_map = np.zeros((c.raw_img_size[1]//CSRNet_scaling, c.raw_img_size[0]//CSRNet_scaling), dtype=np.float32)
+                            base_map = np.zeros((c.raw_img_size[1], c.raw_img_size[0]), dtype=np.float32)
                          
                         # add points onto basemap
                         for point in annotations:
                                 
                             # subtract 1 to account for 0 indexing
                             # NOTE: this overrides duplicate annotation points (4 out of 22k)
-                            if a.args.resize and a.args.model_name == 'CSRNet':
-                                base_map[int(round(point[2]*256//CSRNet_scaling)),int(round(point[1]*256//CSRNet_scaling))] = 1 # +=1
+                            if a.args.resize:
+                                base_map[int(round(point[2]*256)),int(round(point[1]*256))] = 1 # +=1
                             else:
-                                base_map[int(round(point[2]*c.raw_img_size[1]//CSRNet_scaling)),int(round(point[1]*c.raw_img_size[0]//CSRNet_scaling))] = 1 # +=1
+                                base_map[int(round(point[2]*c.raw_img_size[1])),int(round(point[1]*c.raw_img_size[0]))] = 1 # +=1
                             
                             if not a.args.resize and a.args.model_name == 'LCFCN':
-                                point_map[int(round(point[2]*c.raw_img_size[1]//CSRNet_scaling)),int(round(point[1]*c.raw_img_size[0]//CSRNet_scaling))] = 1 # +=1
+                                point_map[int(round(point[2]*c.raw_img_size[1])),int(round(point[1]*c.raw_img_size[0]))] = 1 # +=1
                             elif a.args.model_name == 'LCFCN':
-                                point_map[int(round(point[2]*256//CSRNet_scaling)),int(round(point[1]*256//CSRNet_scaling))] = 1 # +=1
+                                point_map[int(round(point[2]*256)),int(round(point[1]*256))] = 1 # +=1
                             else:
                                 point_map = None
                                 
@@ -608,15 +603,10 @@ class CowObjectsDataset(Dataset):
                                                
                 labels = np.array(labels) # list into default collate function produces empty tensors
                 
-                if a.args.model_name == 'CSRNet':
-                    csr = '/CSRNet/'
-                else:
-                    csr = ''
-                
                 # store dmaps/labels/annotations
                 if c.store_dmaps:
-                    if not os.path.exists(g.DMAP_DIR+csr):
-                        os.makedirs(g.DMAP_DIR+csr)
+                    if not os.path.exists(g.DMAP_DIR):
+                        os.makedirs(g.DMAP_DIR)
                     
                     savez_compressed(dmap_path[:-5]+dmap_type,density_map,labels,annotations,point_map,allow_pickle=True)
             
