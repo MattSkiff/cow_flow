@@ -592,8 +592,8 @@ class CowObjectsDataset(Dataset):
                                 
                             labels.append(point[0])
                             
-                        if a.args.model_name == 'UNet_seg': #a.args.dmap_type == 'max':
-                            density_map += scipy.ndimage.filters.maximum_filter(base_map,size = (7,7))
+                        if a.args.model_name == 'UNet_seg' or 'LCFCN': #a.args.dmap_type == 'max':
+                            density_map += scipy.ndimage.filters.maximum_filter(base_map,size = (a.args.max_filter_size,a.args.max_filter_size))
                         else:
                             density_map += scipy.ndimage.filters.gaussian_filter(base_map, sigma = a.args.sigma, mode='constant')
                                                

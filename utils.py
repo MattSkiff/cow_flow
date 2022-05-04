@@ -1286,6 +1286,9 @@ def make_model_name(train_loader):
          parts.append('weight')
      else:
          parts.append('anno')
+     
+     if a.args.model_name in ['UNet_seg','LCFCN']:
+         parts.append('MX_SZ_'+a,args.max_filter_size)
         
      parts.append(str(a.args.scheduler))
      

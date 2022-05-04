@@ -97,7 +97,6 @@ def train_baselines(model_name,train_loader,val_loader):
                 else:
                     
                     iter_loss = loss(results.squeeze(),dmaps.squeeze()*a.args.dmap_scaling)
-                    print(iter_loss)
                     
                 t_loss = t2np(iter_loss)
                 iter_loss.backward()

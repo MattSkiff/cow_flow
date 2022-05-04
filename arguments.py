@@ -21,6 +21,8 @@ parser.add_argument('-sigma',help='Variance of gaussian kernels used to create d
 parser.add_argument('-dmap_scaling',help='Scale up density map to ensure gaussianed density is not too close to zero per pixel',type=int,default=1)
 parser.add_argument('-min_scaling',help='Minimum scaling bound (0-1) for random resized crop transform',type=float,default=-1)
 parser.add_argument('-img_sz','--image_size',help='Size of the random crops taken from the original data patches [Cows 800x600, DLR 320x320] - must be divisble by 8 for CSRNet',type=int,default=256)
+parser.add_argument('-max_filter_size',help='Size of max filters for unet seg and LCFCN',type=int,default=0)
+
 
 parser.add_argument('-test','--test_run',help='use only a small fraction of data to check everything works',action='store_true')
 parser.add_argument("-split", "--split_dimensions", help="split off half the dimensions after each block of coupling layers.", type=int, default=0)
@@ -62,7 +64,7 @@ host = socket.gethostname()
 
 # defaults for if running interactively
 if any('SPYDER' in name for name in os.environ):
-    args.model_name = "CSRNet"
+    args.model_name = "LCFCN"
     args.optim = "adam"
     args.scheduler = 'none'
     args.annotations_only = True
@@ -75,7 +77,7 @@ if any('SPYDER' in name for name in os.environ):
     args.tensorboard = True
     args.viz = True
     args.resize = True
-    args.dmap_scaling = 1000
+    args.dmap_scaling = 1
     
 # checks
 assert args.gpu_number > -1
@@ -95,6 +97,9 @@ if args.sgd_mom != 0 and args.optim != 'sgd':
 if args.model_name == 'LCFCN':
     assert args.batch_size == 1 # https://github.com/ElementAI/LCFCN/issues/9
     # LCFCN only supports batch size of 1
+
+if args.model_name in ['UNet_seg','LCFCN']:
+    assert args.max_filter_size >= 1
 
 assert not (args.weighted_sampler and args.annotations_only)
 assert args.weighted_sampler or args.annotations_only
