@@ -28,11 +28,11 @@ if a.args.data == 'cows':
     
     transforms = [CustToTensor()]
     
-    if a.args.resize:
-        transforms.append(Resize())
-    
     if a.args.normalise:
         transforms.append(AerialNormalize())
+    
+    if a.args.resize:
+        transforms.append(Resize())
     
     if not a.args.resize:
         transforms.append(CustResize())

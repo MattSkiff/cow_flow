@@ -78,6 +78,8 @@ def is_baseline(mdl):
         return True
     if str(type(mdl))=="<class 'baselines.MCNN'>":
         return True
+    if str(type(mdl))=="<class 'baselines.Res50'>":
+        return True
         
     return False
 
@@ -378,7 +380,7 @@ def plot_preds_baselines(mdl, loader,mode="",mdl_type='',writer=None,writer_epoc
                 
                 mdl.to(c.device)
                 images,dmaps,labels,binary_labels,annotations, point_maps = data
-                preds = mdl(images)
+                preds = mdl(images)/mdl.dmap_scaling
                 
                 if mdl_type == 'UNet_seg':
                     preds = preds.sigmoid()
@@ -422,6 +424,7 @@ def plot_preds_baselines(mdl, loader,mode="",mdl_type='',writer=None,writer_epoc
                 
                 if str(type(mdl)) == "<class 'baselines.LCFCN'>":
                     print("%s predicted (LCFCN)" % (len(y_list)))
+                    print("%s pred_coounts (LCFCN)" % (len(pred_counts)))
                 
                 return preds, preds.sum(),dmaps[lb_idx].sum(),len(labels[lb_idx])
                 

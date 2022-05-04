@@ -52,6 +52,8 @@ def train_baselines(model_name,train_loader,val_loader):
         mdl = b.LCFCN(modelname=modelname)
     elif a.args.model_name == "MCNN":
         mdl = b.MCNN(modelname=modelname)
+    elif a.args.model_name == "Res50":
+        mdl = b.Res50(modelname=modelname)
         
     if a.args.optim == 'adam':   
         optimizer = torch.optim.Adam(mdl.parameters(), lr=a.args.learning_rate, betas=(a.args.adam_b1, a.args.adam_b2), eps=a.args.adam_e, weight_decay=a.args.weight_decay)
@@ -95,6 +97,7 @@ def train_baselines(model_name,train_loader,val_loader):
                 else:
                     
                     iter_loss = loss(results.squeeze(),dmaps.squeeze()*a.args.dmap_scaling)
+                    print(iter_loss)
                     
                 t_loss = t2np(iter_loss)
                 iter_loss.backward()
