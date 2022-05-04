@@ -499,11 +499,7 @@ class CowObjectsDataset(Dataset):
             with open(txt_path) as annotations:
                 count = len(annotations.readlines())
             
-              
             dmap_path = g.DMAP_DIR+self.im_names[idx]
-            
-            if a.args.model_name == 'CSRNet':
-                dmap_path = g.DMAP_DIR+'/CSRNet/'+self.im_names[idx]
             
             if c.load_stored_dmaps:
                 if not os.path.exists(dmap_path):
@@ -1036,12 +1032,11 @@ class Resize(object):
         sample['image'] = resize(sample['image'].unsqueeze(0))
         
         # scale density up by downscaling amount, so counting still works
-        if not a.args.model_name == 'CSRNet':
-            sample['density'] = resize(sample['density'].unsqueeze(0).unsqueeze(0))*((c.raw_img_size[0]*c.raw_img_size[1])/(a.args.image_size**2))
+        sample['density'] = resize(sample['density'].unsqueeze(0).unsqueeze(0))*((c.raw_img_size[0]*c.raw_img_size[1])/(a.args.image_size**2))
             
-            if a.args.model_name=='LCFCN':
-                sample['point_map'] = resize(sample['point_map'].unsqueeze(0).unsqueeze(0))
-                sample['point_map'] = sample['point_map'].squeeze().squeeze()
+        if a.args.model_name=='LCFCN':
+            sample['point_map'] = resize(sample['point_map'].unsqueeze(0).unsqueeze(0))
+            sample['point_map'] = sample['point_map'].squeeze().squeeze()
             
         sample['image'] = sample['image'].squeeze()
         sample['density'] = sample['density'].squeeze().squeeze()
@@ -1056,14 +1051,6 @@ class RotateFlip(object):
      # want identical transforms to density and image
      # https://discuss.pytorch.org/t/torchvision-transfors-how-to-perform-identical-transform-on-both-image-and-target/10606/7
     def __call__(self, sample):
-        
-        # Creating density maps for CSRNet during storing dmaps phase, instead of resizing here
-        if a.args.model_name == 'CSRNet':
-            pass
-            # resize = T.Resize(size=(c.density_map_h//8,c.density_map_w//8))
-            # sample['image'] = sample['image'].unsqueeze(0)
-            # sample['density'] = resize(sample['density'].unsqueeze(0).unsqueeze(0))*64 #*(c.raw_img_size[0]*c.raw_img_size[1])/(a.args.image_size**2)*64
-            # sample['point_map'] = resize(sample['point_map'].unsqueeze(0).unsqueeze(0))
         
         sample['image'] = sample['image'].unsqueeze(0)
         sample['density'] = sample['density'].unsqueeze(0).unsqueeze(0)
@@ -1146,9 +1133,6 @@ class CustResize(object):
     """Resize density, according to config scale parameter (not img_size arg)."""
 
     def __call__(self, sample):
-    
-        if a.args.model_name == 'CSRNet':
-            return sample
             
         if 'density' in sample.keys():
             density = sample['density']
