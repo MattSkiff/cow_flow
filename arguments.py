@@ -64,7 +64,7 @@ host = socket.gethostname()
 
 # defaults for if running interactively
 if any('SPYDER' in name for name in os.environ):
-    args.model_name = "LCFCN"
+    args.model_name = "UNet_seg"
     args.optim = "adam"
     args.scheduler = 'none'
     args.annotations_only = True
@@ -78,6 +78,7 @@ if any('SPYDER' in name for name in os.environ):
     args.viz = True
     args.resize = True
     args.dmap_scaling = 1
+    args.max_filter_size = 3
     
 # checks
 assert args.gpu_number > -1

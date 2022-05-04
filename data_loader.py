@@ -579,14 +579,14 @@ class CowObjectsDataset(Dataset):
                             # subtract 1 to account for 0 indexing
                             # NOTE: this overrides duplicate annotation points (4 out of 22k)
                             if a.args.resize:
-                                base_map[int(round(point[2]*256)),int(round(point[1]*256))] = 1 # +=1
+                                base_map[int(round((point[2]-1)*256)),int(round((point[1]-1)*256))] = 1 # +=1
                             else:
-                                base_map[int(round(point[2]*c.raw_img_size[1])),int(round(point[1]*c.raw_img_size[0]))] = 1 # +=1
+                                base_map[int(round((point[2]-1)*c.raw_img_size[1])),int(round((point[1]-1)*c.raw_img_size[0]))] = 1 # +=1
                             
                             if not a.args.resize and a.args.model_name == 'LCFCN':
-                                point_map[int(round(point[2]*c.raw_img_size[1])),int(round(point[1]*c.raw_img_size[0]))] = 1 # +=1
+                                point_map[int(round((point[2]-1)*c.raw_img_size[1])),int(round((point[1]-1)*c.raw_img_size[0]))] = 1 # +=1
                             elif a.args.model_name == 'LCFCN':
-                                point_map[int(round(point[2]*256)),int(round(point[1]*256))] = 1 # +=1
+                                point_map[int(round((point[2]-1)*256)),int(round((point[1]-1)*256))] = 1 # +=1
                             else:
                                 point_map = None
                                 
