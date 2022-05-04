@@ -222,7 +222,7 @@ assert freq_1x1 != 0
 
 # set config values for local testing
 if any('SPYDER' in name for name in os.environ):
-    
+    train_model = True
     data_prop = 0.1
     feat_extractor_epochs = 1
     load_stored_dmaps = False # speeds up precomputation (with RAM = True)

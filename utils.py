@@ -189,13 +189,16 @@ def plot_preds_multi(UNet_path,CSRNet_path,FCRN_path,NF_path,mode,loader,sample_
             images,dmaps,labels,binary_labels,annotations,point_maps  = data
             j = 0
             
+            
             for mdl in [UNet,CSRNet,FCRN]:
+                
+                plot_dmap = dmaps[lb_idx]/mdl.dmap_scaling
                 
                 mdl.to(c.device)
                 preds = mdl(images)
                 preds = preds[lb_idx].permute(1,2,0).cpu().numpy()
                 # todo - retrain models with noise attr and uncomment below
-                constant = ((mdl.noise)/2)*dmaps[lb_idx].shape[0]*dmaps[lb_idx].shape[1]
+                constant = ((mdl.noise)/2)*plot_dmap.shape[0]*plot_dmap.shape[1]
                 count_arr.append((preds.sum()/mdl.dmap_scaling)-constant)
                 ax[j].title.set_text('Density Map Prediction {}'.format(str(type(mdl))))
                 ax[j].imshow(preds)
@@ -231,7 +234,7 @@ def plot_preds_multi(UNet_path,CSRNet_path,FCRN_path,NF_path,mode,loader,sample_
             ax[j].title.set_text('Density Map Prediction {}'.format(str(type(mdl))))
             ax[j].imshow(dmap_rev_np)
             
-            constant = ((mdl.noise)/2)*dmaps[lb_idx].shape[0]*dmaps[lb_idx].shape[1]
+            constant = ((mdl.noise)/2)*plot_dmap.shape[0]*plot_dmap.shape[1]
             count_arr.append(dmap_rev_np.sum()-constant)
                 
             break
@@ -373,6 +376,7 @@ def plot_preds_baselines(mdl, loader,mode="",mdl_type='',writer=None,writer_epoc
     
         assert mode in ['train','val']
         assert mdl_type in g.BASELINE_MODEL_NAMES
+        assert mdl.dmap_scaling == a.args.dmap_scaling
         
         lb_idx = random.randint(0,loader.batch_size-1)
     
@@ -398,6 +402,8 @@ def plot_preds_baselines(mdl, loader,mode="",mdl_type='',writer=None,writer_epoc
                 unnorm = UnNormalize(mean=tuple(c.norm_mean),
                                      std=tuple(c.norm_std))
                 
+                plot_dmap = dmaps[lb_idx] #/mdl.dmap_scaling
+                
                 im = unnorm(images[lb_idx])
                 im = im.permute(1,2,0).cpu().numpy()
 
@@ -414,19 +420,19 @@ def plot_preds_baselines(mdl, loader,mode="",mdl_type='',writer=None,writer_epoc
                 ax[1].title.set_text('Conditioning Aerial Image')
                 ax[1].imshow((im * 255).astype(np.uint8))
                 ax[2].title.set_text('Ground Truth Density Map')
-                ax[2].imshow(dmaps[lb_idx].cpu().numpy())
+                ax[2].imshow(plot_dmap.cpu().numpy())
                 
                 add_plot_tb(writer,fig,writer_mode,writer_epoch)
                 
                 print("\n Sum Pred Density Map: {} ".format(preds.sum()))
-                print("Sum GT Density Map: {} ".format(dmaps[lb_idx].sum()))
+                print("Sum GT Density Map: {} ".format(plot_dmap.sum()))
                 print("Label Count: {}".format(len(labels[lb_idx])))
                 
                 if str(type(mdl)) == "<class 'baselines.LCFCN'>":
                     print("%s predicted (LCFCN)" % (len(y_list)))
                     print("%s pred_coounts (LCFCN)" % (len(pred_counts)))
                 
-                return preds, preds.sum(),dmaps[lb_idx].sum(),len(labels[lb_idx])
+                return preds, preds.sum(),plot_dmap.sum(),len(labels[lb_idx])
                 
 # TODO split into minst and non mnist funcs
 @torch.no_grad()

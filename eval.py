@@ -110,6 +110,7 @@ def eval_baselines(mdl,loader,mode):
     assert not mdl.count
     assert mode in ['train','val']
     assert is_baseline(mdl)
+    assert mdl.dmap_scaling == a.args.dmap_scaling
    
     print("Dmap Evaluation....")
     t1 = time.perf_counter()
@@ -130,6 +131,7 @@ def eval_baselines(mdl,loader,mode):
     for i, data in enumerate(tqdm(loader, disable=False)):
         
         images,dmaps,labels, binary_labels , annotations, point_maps = data
+        dmaps = dmaps/mdl.dmap_scaling
         images = images.float().to(c.device)
         
         x = mdl(images)

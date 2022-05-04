@@ -156,8 +156,8 @@ class DLRACD(Dataset):
                                 print('Anno path is {}'.format(anno_path))
                                 print('GSD is {}'.format(gsd_sigma))
                             
-                            if a.args.model_name == 'UNet_seg': #a.args.dmap_type == 'max':
-                                p_d = scipy.ndimage.filters.maximum_filter(pm,size = (7,7))
+                            if a.args.model_name == 'UNet_seg' or a.args.model_name == 'LCFCN' : 
+                                p_d = scipy.ndimage.filters.maximum_filter(pm,size = (a.args.max_filter_size,a.args.max_filter_size))
                             else:
                                 p_d = scipy.ndimage.filters.gaussian_filter(pm, sigma = gsd_sigma, mode='constant')
                                 
@@ -479,7 +479,7 @@ class CowObjectsDataset(Dataset):
         
         def compute_labels(idx):
             
-            if a.args.model_name == 'UNet_seg': #a.args.dmap_type == 'max':
+            if a.args.model_name in ['UNet_seg','LCFCN']:  #a.args.dmap_type == 'max':
                 dmap_type = '_max'
             else:
                 dmap_type = '' # _gauss
@@ -523,9 +523,9 @@ class CowObjectsDataset(Dataset):
                     else:
                         density_map = np.zeros((c.raw_img_size[1], c.raw_img_size[0]), dtype=np.float32) # c.raw_img_size
                     
-                    if not a.args.resize and a.args.model_name == 'LCFCN':
+                    if not a.args.resize and a.args.model_name in ['UNet_seg','LCFCN']:
                         point_map = np.zeros((c.raw_img_size[1], c.raw_img_size[0]), dtype=np.float32) # c.raw_img_size
-                    elif a.args.model_name == 'LCFCN':
+                    elif a.args.model_name == ['UNet_seg','LCFCN']:
                         point_map = np.zeros((256,256), dtype=np.float32) # c.raw_img_size
                     else:
                         point_map = None
@@ -560,9 +560,9 @@ class CowObjectsDataset(Dataset):
                         else:
                             density_map = np.zeros((c.raw_img_size[1], c.raw_img_size[0]), dtype=np.float32) # c.raw_img_size  
                             
-                        if not a.args.resize and a.args.model_name == 'LCFCN':
+                        if not a.args.resize and a.args.model_name in ['LCFCN','UNet_seg']:
                             point_map= np.zeros((c.raw_img_size[1], c.raw_img_size[0]), dtype=np.float32) # c.raw_img_size
-                        elif a.args.model_name == 'LCFCN':
+                        elif a.args.model_name in ['LCFCN','UNet_seg']:
                             point_map = np.zeros((256,256), dtype=np.float32) # c.raw_img_size
                         else:
                             point_map = None
@@ -583,20 +583,20 @@ class CowObjectsDataset(Dataset):
                             else:
                                 base_map[int(round((point[2]-1)*c.raw_img_size[1])),int(round((point[1]-1)*c.raw_img_size[0]))] = 1 # +=1
                             
-                            if not a.args.resize and a.args.model_name == 'LCFCN':
+                            if not a.args.resize and a.args.model_name in ['LCFCN','UNet_seg']:
                                 point_map[int(round((point[2]-1)*c.raw_img_size[1])),int(round((point[1]-1)*c.raw_img_size[0]))] = 1 # +=1
-                            elif a.args.model_name == 'LCFCN':
+                            elif a.args.model_name in ['LCFCN','UNet_seg']:
                                 point_map[int(round((point[2]-1)*256)),int(round((point[1]-1)*256))] = 1 # +=1
                             else:
                                 point_map = None
                                 
                             labels.append(point[0])
                             
-                        if a.args.model_name == 'UNet_seg' or 'LCFCN': #a.args.dmap_type == 'max':
+                        if a.args.model_name == 'UNet_seg' or a.args.model_name == 'LCFCN': #a.args.dmap_type == 'max':
                             density_map += scipy.ndimage.filters.maximum_filter(base_map,size = (a.args.max_filter_size,a.args.max_filter_size))
                         else:
                             density_map += scipy.ndimage.filters.gaussian_filter(base_map, sigma = a.args.sigma, mode='constant')
-                                               
+                
                 labels = np.array(labels) # list into default collate function produces empty tensors
                 
                 # store dmaps/labels/annotations
@@ -977,7 +977,7 @@ class CustToTensor(object):
         
         if 'density' in sample.keys():
             sample['density'] = torch.from_numpy(sample['density']).to(c.device)
-            if a.args.model_name=='LCFCN':
+            if a.args.model_name in ['LCFCN','UNet_seg']:
                 sample['point_map'] = torch.from_numpy(sample['point_map']).to(c.device)
         if 'annotations' in sample.keys():
             sample['annotations'] = torch.from_numpy(sample['annotations']).to(c.device)
@@ -1019,6 +1019,8 @@ class Resize(object):
     """ Resize image according to img sz arg (def:256) (not scale param) """
     def __call__(self, sample):
         
+        print(torch.sum(sample['density']))
+        
         resize = T.Resize(size=(a.args.image_size,a.args.image_size))
         
         # rint = random.randint(int(a.args.min_scaling*a.args.image_size),int(1*a.args.image_size))
@@ -1032,7 +1034,7 @@ class Resize(object):
         sample['image'] = resize(sample['image'].unsqueeze(0))
         
         # scale density up by downscaling amount, so counting still works
-        sample['density'] = resize(sample['density'].unsqueeze(0).unsqueeze(0))*((c.raw_img_size[0]*c.raw_img_size[1])/(a.args.image_size**2))
+        sample['density'] = resize(sample['density'].unsqueeze(0).unsqueeze(0)) #*((c.raw_img_size[0]*c.raw_img_size[1])/(a.args.image_size**2))
             
         if a.args.model_name=='LCFCN':
             sample['point_map'] = resize(sample['point_map'].unsqueeze(0).unsqueeze(0))
@@ -1055,21 +1057,21 @@ class RotateFlip(object):
         sample['image'] = sample['image'].unsqueeze(0)
         sample['density'] = sample['density'].unsqueeze(0).unsqueeze(0)
         
-        if a.args.model_name=='LCFCN':
+        if a.args.model_name in ['LCFCN','UNet_seg']:
             sample['point_map'] = sample['point_map'].unsqueeze(0).unsqueeze(0)
         
         if random.randint(0,1):
             sample['image'] = torch.flip(sample['image'],(3,))
             sample['density'] = torch.flip(sample['density'],(3,))
             
-            if a.args.model_name=='LCFCN':
+            if a.args.model_name in ['LCFCN','UNet_seg']:
                 sample['point_map'] = torch.flip(sample['point_map'],(3,))
             
         if random.randint(0,1):
             sample['image'] = torch.flip(sample['image'],(2,))
             sample['density'] = torch.flip(sample['density'],(2,))
             
-            if a.args.model_name=='LCFCN':
+            if a.args.model_name in ['LCFCN','UNet_seg']:
                 sample['point_map'] = torch.flip(sample['point_map'],(2,))
         
         if a.args.resize:
@@ -1077,13 +1079,13 @@ class RotateFlip(object):
             sample['image'] = TF.rotate(sample['image'],angle=rangle)
             sample['density'] = TF.rotate(sample['density'],angle=rangle)
             
-            if a.args.model_name=='LCFCN':
+            if a.args.model_name in ['LCFCN','UNet_seg']:
                 sample['point_map'] = TF.rotate(sample['point_map'],angle=rangle)
         
         sample['image'] = sample['image'].squeeze()
         sample['density'] = sample['density'].squeeze().squeeze()
         
-        if a.args.model_name=='LCFCN':
+        if a.args.model_name in ['LCFCN','UNet_seg']:
             sample['point_map'] = sample['point_map'].squeeze().squeeze()
         
         return sample    
@@ -1137,7 +1139,7 @@ class CustResize(object):
         if 'density' in sample.keys():
             density = sample['density']
             
-            if a.args.model_name=='LCFCN':
+            if a.args.model_name in ['LCFCN','UNet_seg']:
                 point_map = sample['point_map']
             #sz = list(density.size())
             sz = [c.density_map_h,c.density_map_w]
@@ -1150,7 +1152,7 @@ class CustResize(object):
             if not a.args.resize:
                 pd = 8
                 
-                if a.args.model_name=='LCFCN':
+                if a.args.model_name in ['LCFCN','UNet_seg']:
                     point_map = TF.pad(img=point_map,fill=0,padding=[0,0,0,8],padding_mode='constant')
             
             # point_map = point_map.unsqueeze(0).unsqueeze(0)
@@ -1162,9 +1164,6 @@ class CustResize(object):
                 image = sample['image']
                 image = TF.resize(image,(sz[0]//c.scale,sz[1]//c.scale))
                 sample['image'] =  image
-            
-            if c.debug:
-                print("image scaled down factor by {}".format(c.scale))
             
             sample['density'] = density
             

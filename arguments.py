@@ -64,7 +64,7 @@ host = socket.gethostname()
 
 # defaults for if running interactively
 if any('SPYDER' in name for name in os.environ):
-    args.model_name = "UNet_seg"
+    args.model_name = "CSRNet"
     args.optim = "adam"
     args.scheduler = 'none'
     args.annotations_only = True
@@ -77,7 +77,7 @@ if any('SPYDER' in name for name in os.environ):
     args.tensorboard = True
     args.viz = True
     args.resize = True
-    args.dmap_scaling = 1
+    args.dmap_scaling = 1000
     args.max_filter_size = 3
     
 # checks
@@ -101,6 +101,7 @@ if args.model_name == 'LCFCN':
 
 if args.model_name in ['UNet_seg','LCFCN']:
     assert args.max_filter_size >= 1
+    assert args.max_filter_size == args.sigma
 
 assert not (args.weighted_sampler and args.annotations_only)
 assert args.weighted_sampler or args.annotations_only
