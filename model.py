@@ -544,19 +544,11 @@ class CowFlow(nn.Module):
             if self.gap:
                 feats = feats.unsqueeze(2).unsqueeze(3).expand(-1, -1, (c.density_map_h) // 2,(c.density_map_w) // 2)
         
-        if c.debug and not self.pyramid: 
-            print("reshaped feature size with spatial dims..")
-            print(feats.size(),"\n")
-        
         # mapping density map dims to match feature dims
         # introduces singleton dimension
         # don't want to introduce this dimension when running z -> x
         if not rev:
             labels = labels.unsqueeze(1) #.expand(-1,c.n_feat,-1, -1) 
-        
-        if c.debug:
-            print('label sizes:')
-            print(labels.size(),"\n")
         
         if c.counts and not rev and c.subnet_type == 'conv':
             # expand counts out to spatial dims of feats
@@ -565,13 +557,6 @@ class CowFlow(nn.Module):
         if self.unconditional and not c.downsampling and not self.count and c.subnet_type == 'conv': 
             labels = labels.expand(-1,c.channels,-1,-1) # expand dmap over channel dimension
             
-        if c.debug: 
-            print("expanded label (dmap/counts) map size")
-            print(labels.size(),"\n") 
-        
-        if c.debug and c.pyramid:
-            print("length of feature vec pyramid tensor list")
-            print(len(feats))
         # second argument to NF is the condition - i.e. the features
         # first argument is the 'x' i.e. the data we are mapping to z (NF : x <--> z)
         # is also what we are trying to predict (in a sense we are using 'x' features to predict 'y' density maps)

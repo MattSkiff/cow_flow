@@ -1,4 +1,3 @@
-from torchvision.transforms import Compose
 from torch.cuda import empty_cache
 from torch.utils.data import DataLoader # Dataset                                                                                                                                                                    
 from torch.utils.data.sampler import SubsetRandomSampler # RandomSampling
@@ -12,7 +11,7 @@ from train import train, train_baselines, train_feat_extractor
 from dlr_acd import train_dlr_acd
 from mnist import train_mnist
 
-from data_loader import CowObjectsDataset, CustToTensor, AerialNormalize, DmapAddUniformNoise, train_val_split, Resize, RotateFlip, CustResize
+from data_loader import CustToTensor, AerialNormalize, DmapAddUniformNoise, train_val_split, Resize, RotateFlip, CustResize, prep_transformed_dataset
 
 empty_cache() # free up memory for cuda
 
@@ -39,17 +38,13 @@ if a.args.data == 'cows':
     
     #if a.args.rrc:
     transforms.extend([DmapAddUniformNoise(),RotateFlip(),])
-    dmaps_pre = Compose(transforms)
-                        
-    # instantiate class
-    transformed_dataset = CowObjectsDataset(root_dir=c.proj_dir,transform = dmaps_pre,
-                                            convert_to_points=True,generate_density=True,
-                                            count = c.counts, 
-                                            classification = True,ram=c.ram)
+
+    transformed_dataset = prep_transformed_dataset(transforms)
     
     # check dataloader if running interactively
     if any('SPYDER' in name for name in os.environ):
         transformed_dataset.show_annotations(5895) #
+        #transformed_dataset.show_annotations(0) #
     
     # create test train split
     t_indices, t_weights, v_indices, v_weights  = train_val_split(dataset = transformed_dataset,
