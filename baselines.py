@@ -326,6 +326,7 @@ class CSRNet(nn.Module):
         self.seed = c.seed
         self.dmap_scaling = a.args.dmap_scaling
         self.sigma = a.args.sigma
+        
         self.seen = 0
         self.frontend_feat = [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512]
         self.backend_feat  = [512, 512, 512,256,128,64]

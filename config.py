@@ -15,13 +15,13 @@ gpu = True
 seed = 101 # important to keep this constant between model and servers for evaluaton
 
 ## Dataset Options ------
-load_stored_dmaps = True # speeds up precomputation (with RAM = True)
-store_dmaps = False # this will save dmap objects (numpy arrays) to file
+load_stored_dmaps = False # speeds up precomputation (with RAM = True)
+store_dmaps = True # this will save dmap objects (numpy arrays) to file
 ram = True # load aerial imagery and precompute dmaps and load both into ram before training
 counts = False # must be off for pretraining feature extractor (#TODO)
 
 ## Training Options ------
-train_model = True # (if false, will only prep dataset,dataloaders, store dmaps)
+train_model = False # (if false, will only prep dataset,dataloaders, store dmaps)
 validation = True # whether to run validation data per meta epoch
 eval_n = 10
 data_prop = 1 # proportion of the full dataset to use (ignored in DLR ACD,MNIST)
@@ -49,7 +49,7 @@ n_coupling_blocks = 5 # if pyramid, total blocks will be n_pyramid_blocks x 5
 
 ## Subnet Architecture Options
 subnet_type = 'conv' # options = fc, conv
-batchnorm = True # conv
+batchnorm = False # conv
 width = 400 # fc ('128' recommended min)
 dropout_p = 0.0 # fc only param - 0 for no dropout
 
@@ -223,8 +223,8 @@ assert freq_1x1 != 0
 # set config values for local testing
 if any('SPYDER' in name for name in os.environ):
     train_model = True
-    data_prop = 0.1
+    data_prop = 0.05
     feat_extractor_epochs = 1
-    load_stored_dmaps = False # speeds up precomputation (with RAM = True)
+    load_stored_dmaps = True # speeds up precomputation (with RAM = True)
     store_dmaps = False # this will save dmap objects (numpy arrays) to file
-    ram = False # load aerial imagery and precompute dmaps and load both into ram before training
+    ram = True # load aerial imagery and precompute dmaps and load both into ram before training

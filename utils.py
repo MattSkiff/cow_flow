@@ -27,6 +27,9 @@ from lcfcn import lcfcn_loss
 
 from skimage.feature import peak_local_max # 
 
+from skimage import morphology as morph
+
+
 # TODO - shift below 5 util functions to utils
 def save_cstate(cdir,modelname,config_file):
     ''' saves a snapshot of the config file before running and saving model '''
@@ -376,26 +379,37 @@ def plot_preds_baselines(mdl, loader,mode="",mdl_type='',writer=None,writer_epoc
     
         assert mode in ['train','val']
         assert mdl_type in g.BASELINE_MODEL_NAMES
-        assert mdl.dmap_scaling == a.args.dmap_scaling
         
         lb_idx = random.randint(0,loader.batch_size-1)
-    
+        
+        # todo - fix this mdl.seg stuff
         for i, data in enumerate(tqdm(loader, disable=c.hide_tqdm_bar)):
                 
                 mdl.to(c.device)
                 images,dmaps,labels,binary_labels,annotations, point_maps = data
                 preds = mdl(images)/mdl.dmap_scaling
                 
-                if mdl_type == 'UNet_seg':
-                    preds = preds.sigmoid()
-                
-                if str(type(mdl)) == "<class 'baselines.LCFCN'>":
-                    probs = preds.sigmoid().cpu().numpy()
-                    pred_blobs = lcfcn_loss.get_blobs(probs=probs).squeeze()
-                    pred_points = lcfcn_loss.blobs2points(pred_blobs).squeeze()
-                    y_list, x_list = np.where(pred_points.squeeze())
-                    pred_counts = (np.unique(pred_blobs)!=0).sum()
-                    preds = preds.sigmoid().squeeze(0).permute(1,2,0).cpu().numpy()
+                if str(type(mdl)) == "<class 'baselines.LCFCN'>"  or mdl_type == 'UNet_seg':
+                    
+                        probs = preds.sigmoid().cpu().numpy()
+                        
+                        # if str(type(mdl)) == "<class 'baselines.LCFCN'>" :
+                        pred_blobs = lcfcn_loss.get_blobs(probs=probs).squeeze()
+                        # else:
+                        #     probs = probs.squeeze()
+                        #     h, w = probs.shape
+                         
+                        #     pred_mask = (probs>0.5).astype('uint8')
+                        #     import matplotlib.pyplot as plt
+                        #     plt.hist(probs)
+                        #     blobs = np.zeros((h, w), int)
+    
+                        #     pred_blobs = morph.label(pred_mask == 1).squeeze()
+                        
+                        pred_points = lcfcn_loss.blobs2points(pred_blobs).squeeze()
+                        y_list, x_list = np.where(pred_points.squeeze())
+                        pred_counts = (np.unique(pred_blobs)!=0).sum()
+                        preds = preds.squeeze(0).sigmoid().permute(1,2,0).cpu().numpy() # 
                 else:
                     preds = preds[lb_idx].permute(1,2,0).cpu().numpy()
                 
@@ -428,11 +442,10 @@ def plot_preds_baselines(mdl, loader,mode="",mdl_type='',writer=None,writer_epoc
                 print("Sum GT Density Map: {} ".format(plot_dmap.sum()))
                 print("Label Count: {}".format(len(labels[lb_idx])))
                 
-                if str(type(mdl)) == "<class 'baselines.LCFCN'>":
-                    print("%s predicted (LCFCN)" % (len(y_list)))
-                    print("%s pred_coounts (LCFCN)" % (len(pred_counts)))
+                if str(type(mdl)) =="<class 'baselines.LCFCN'>" or mdl_type == 'UNet_seg':
+                        print("%s predicted (LCFCN/UNet_seg)" % (len(y_list)))
                 
-                return preds, preds.sum(),plot_dmap.sum(),len(labels[lb_idx])
+                return #preds, preds.sum(),plot_dmap.sum(),len(labels[lb_idx])
                 
 # TODO split into minst and non mnist funcs
 @torch.no_grad()

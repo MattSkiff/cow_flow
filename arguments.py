@@ -40,6 +40,8 @@ parser.add_argument("-me","--meta_epochs",help='eval after every meta epoch. tot
 parser.add_argument("-scheduler",help="Learning rate scheduler (exponential,step,none)",default ='')
 parser.add_argument("-step_size",help="step size of stepLR scheduler",type=int,default=10)
 parser.add_argument("-step_gamma",help="gamma of stepLR scheduler",type=float,default=0.1)
+parser.add_argument("-expon_gamma",help="gamma of expon scheduler",type=float,default=0.9)
+
 
 parser.add_argument("-lr","--learning_rate",type=float,default=None)
 parser.add_argument("-bs","--batch_size",type=int,default=0)
@@ -64,21 +66,23 @@ host = socket.gethostname()
 
 # defaults for if running interactively
 if any('SPYDER' in name for name in os.environ):
-    args.model_name = "CSRNet"
+    args.model_name = "UNet"
     args.optim = "adam"
     args.scheduler = 'none'
-    args.annotations_only = True
-    args.weighted_sampler = False
-    args.sub_epochs = 1
+    args.annotations_only = False
+    args.weighted_sampler = True
+    args.sub_epochs = 5
     args.meta_epochs = 1
-    args.batch_size = 1
+    args.batch_size = 8
     args.learning_rate = 1e-3
     args.weight_decay = 1e-5
     args.tensorboard = True
     args.viz = True
+    args.viz_freq = 1
     args.resize = True
     args.dmap_scaling = 1000
-    args.max_filter_size = 3
+    args.max_filter_size = 4.0
+    args.sigma = 4.0
     
 # checks
 assert args.gpu_number > -1

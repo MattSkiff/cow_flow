@@ -13,6 +13,8 @@ from tqdm import tqdm # progress bar
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
+from torchvision.transforms import Compose
+
 # silent warning on (torch.stack(images))
 import warnings
 warnings.filterwarnings("ignore", message=r"Passing", category=FutureWarning)
@@ -483,6 +485,11 @@ class CowObjectsDataset(Dataset):
                 dmap_type = '_max'
             else:
                 dmap_type = '' # _gauss
+                
+            if a.args.resize:
+                dmap_size = '_resized'
+            else:
+                dmap_size = '' # _gauss
             
             """ computes and returns labels for a single annotation file"""
             labels = []
@@ -505,9 +512,15 @@ class CowObjectsDataset(Dataset):
                 if not os.path.exists(dmap_path):
                     ValueError("Dmaps must have been previously stored!")
                 
-                store = load(dmap_path[:-5]+dmap_type+'.npz',allow_pickle=True)
+                store = load(dmap_path[:-5]+dmap_type+dmap_size+'.npz',allow_pickle=True)
                 
                 density_map = store['arr_0']
+                
+                # import matplotlib.pyplot as plt
+                # fig, ax = plt.subplots(1,1)
+                # ax.imshow(density_map)
+                # 1/0
+                
                 labels = store['arr_1']
                 annotations = store['arr_2']
                 point_map = store['arr_3']
@@ -575,28 +588,30 @@ class CowObjectsDataset(Dataset):
                          
                         # add points onto basemap
                         for point in annotations:
-                                
+                            
+                            offset = 1
+                            
                             # subtract 1 to account for 0 indexing
                             # NOTE: this overrides duplicate annotation points (4 out of 22k)
                             if a.args.resize:
-                                base_map[int(round((point[2]-1)*256)),int(round((point[1]-1)*256))] = 1 # +=1
+                                base_map[int(round((point[2])*256)-offset),int(round((point[1])*256)-offset)] = 1 # +=1
                             else:
-                                base_map[int(round((point[2]-1)*c.raw_img_size[1])),int(round((point[1]-1)*c.raw_img_size[0]))] = 1 # +=1
+                                base_map[int(round((point[2])*c.raw_img_size[1])-offset),int(round((point[1])*c.raw_img_size[0])-offset)] = 1 # +=1
                             
                             if not a.args.resize and a.args.model_name in ['LCFCN','UNet_seg']:
-                                point_map[int(round((point[2]-1)*c.raw_img_size[1])),int(round((point[1]-1)*c.raw_img_size[0]))] = 1 # +=1
+                                point_map[int(round((point[2])*c.raw_img_size[1])-offset),int(round((point[1])*c.raw_img_size[0])-offset)] = 1 # +=1
                             elif a.args.model_name in ['LCFCN','UNet_seg']:
-                                point_map[int(round((point[2]-1)*256)),int(round((point[1]-1)*256))] = 1 # +=1
+                                point_map[int(round((point[2])*256)-offset),int(round((point[1])*256)-offset)] = 1 # +=1
                             else:
                                 point_map = None
                                 
                             labels.append(point[0])
                             
-                        if a.args.model_name == 'UNet_seg' or a.args.model_name == 'LCFCN': #a.args.dmap_type == 'max':
+                        if a.args.model_name in ['UNet_seg','LCFCN']: 
                             density_map += scipy.ndimage.filters.maximum_filter(base_map,size = (a.args.max_filter_size,a.args.max_filter_size))
                         else:
                             density_map += scipy.ndimage.filters.gaussian_filter(base_map, sigma = a.args.sigma, mode='constant')
-                
+                        
                 labels = np.array(labels) # list into default collate function produces empty tensors
                 
                 # store dmaps/labels/annotations
@@ -604,7 +619,7 @@ class CowObjectsDataset(Dataset):
                     if not os.path.exists(g.DMAP_DIR):
                         os.makedirs(g.DMAP_DIR)
                     
-                    savez_compressed(dmap_path[:-5]+dmap_type,density_map,labels,annotations,point_map,allow_pickle=True)
+                    savez_compressed(dmap_path[:-5]+dmap_type+dmap_size,density_map,labels,annotations,point_map,allow_pickle=True)
             
             sample = {'image': image}
                 
@@ -640,6 +655,7 @@ class CowObjectsDataset(Dataset):
                 desc = "Computing dmaps, pmaps, annotations and labels and storing into RAM"
             
             for idx in tqdm(range(len(self.train_im_paths)),desc=desc):
+            #for idx in [5895]:
                 
                 sample = compute_labels(idx)
                 
@@ -1019,8 +1035,6 @@ class Resize(object):
     """ Resize image according to img sz arg (def:256) (not scale param) """
     def __call__(self, sample):
         
-        print(torch.sum(sample['density']))
-        
         resize = T.Resize(size=(a.args.image_size,a.args.image_size))
         
         # rint = random.randint(int(a.args.min_scaling*a.args.image_size),int(1*a.args.image_size))
@@ -1274,3 +1288,15 @@ def train_val_split(dataset,train_percent,oversample=False,annotations_only = Fa
         print("Finished creating indicies")
     
     return t_indices, t_weights, v_indices, v_weights
+
+def prep_transformed_dataset(transforms,holdout=False):
+    
+    dmaps_pre = Compose(transforms)
+                       
+    # instantiate class
+    transformed_dataset = CowObjectsDataset(root_dir=c.proj_dir,transform = dmaps_pre,
+                                            convert_to_points=True,generate_density=True,
+                                            count = c.counts, 
+                                            classification = True,ram=c.ram)
+    
+    return transformed_dataset

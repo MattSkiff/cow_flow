@@ -13,15 +13,36 @@ from torch import randn
 import torch.nn.functional as F
 
 import matplotlib.pyplot as plt
-from utils import ft_dims_select, np_split,is_baseline
+from utils import ft_dims_select, np_split,is_baseline, UnNormalize
 import config as c
 import gvars as g
 import arguments as a
+
+from data_loader import CustToTensor, AerialNormalize, DmapAddUniformNoise, train_val_split, Resize, RotateFlip, CustResize, prep_transformed_dataset
+from torch.utils.data import DataLoader # Dataset   
 
 from lcfcn import lcfcn_loss
 
 MAX_DISTANCE = 100
 STEP = 1
+
+def eval_dataloaders(mdl):
+    
+    transforms = [CustToTensor()]
+    transforms.append(AerialNormalize())
+    
+    if mdl.density_map_h == 256:
+        transforms.append(Resize())
+    else:
+        transforms.append(CustResize())
+    
+    transformed_dataset = prep_transformed_dataset(transforms)
+    
+    dataloader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 
+                        num_workers=0,collate_fn=transformed_dataset.custom_collate_aerial,
+                        pin_memory=False)
+    
+    return dataloader
 
 def gen_metrics(dm_mae,dm_mse,dm_ssim,dm_psnr,y_n,y_hat_n,game,gampe,localisation_dict,mode):
     
@@ -39,7 +60,7 @@ def gen_metrics(dm_mae,dm_mse,dm_ssim,dm_psnr,y_n,y_hat_n,game,gampe,localisatio
     y_bar = y_n.mean() 
     ss_res = np.sum((y_n-y_hat_n)**2)
     ss_tot = np.sum((y_n-y_bar)**2) 
-    r2 = round(1 - (ss_res / ss_tot),4)
+    r2 = round(1 - (ss_res / (ss_tot + 1e-8)),4)
     
     # RMSE
     rmse = round(sum(((y_n-y_hat_n)/n)**2)**0.5,4)
@@ -103,14 +124,16 @@ def gen_metrics(dm_mae,dm_mse,dm_ssim,dm_psnr,y_n,y_hat_n,game,gampe,localisatio
     return metric_dict
     
 @torch.no_grad()
-def eval_baselines(mdl,loader,mode):
+def eval_baselines(mdl,loader,mode,is_unet_seg=False):
     
     thres=mdl.sigma*2
     
     assert not mdl.count
     assert mode in ['train','val']
     assert is_baseline(mdl)
-    assert mdl.dmap_scaling == a.args.dmap_scaling
+    if mdl.density_map_h == 608:
+        assert not a.args.resize
+    #assert mdl.dmap_scaling == a.args.dmap_scaling
    
     print("Dmap Evaluation....")
     t1 = time.perf_counter()
@@ -123,7 +146,7 @@ def eval_baselines(mdl,loader,mode):
     
     y_n = []; y_coords = []
     y_hat_n = []; y_hat_coords = []
-    dm_mae = []; dm_mse = []; dm_psnr = []; dm_ssim = [] #;dm_kl = []
+    dm_mae = []; dm_mse = []; dm_psnr = []; dm_ssim = []
     game = []; gampe = []
     
     mdl = mdl.to(c.device)
@@ -131,12 +154,15 @@ def eval_baselines(mdl,loader,mode):
     for i, data in enumerate(tqdm(loader, disable=False)):
         
         images,dmaps,labels, binary_labels , annotations, point_maps = data
-        dmaps = dmaps/mdl.dmap_scaling
+        
+        if not (str(type(mdl)) == "<class 'baselines.LCFCN'>" or is_unet_seg):
+            dmaps = dmaps/mdl.dmap_scaling
+            
         images = images.float().to(c.device)
         
         x = mdl(images)
         
-        if str(type(mdl)) == "<class 'baselines.LCFCN'>": #or hasattr(mdl, 'seg') and mdl.seg:
+        if str(type(mdl)) == "<class 'baselines.LCFCN'>" or is_unet_seg:
             x = x.sigmoid().cpu().numpy() # logits -> probs
             blobs = lcfcn_loss.get_blobs(probs=x)
             blob_counts = (np.unique(blobs)!=0).sum()
@@ -144,7 +170,7 @@ def eval_baselines(mdl,loader,mode):
             
         for idx in range(images.size()[0]):               
             
-            if str(type(mdl)) == "<class 'baselines.LCFCN'>": # or hasattr(mdl, 'seg') and mdl.seg:
+            if str(type(mdl)) == "<class 'baselines.LCFCN'>" or is_unet_seg:
                 dmap_np = x[idx].squeeze()
             else:
                 dmap_np = x[idx].squeeze().cpu().detach().numpy()
@@ -161,7 +187,6 @@ def eval_baselines(mdl,loader,mode):
             # add points onto basemap
             
             # TODO
-            #base_map = np.zeros((mdl.density_map_w, mdl.density_map_h), dtype=np.float32)
             base_map = np.zeros((mdl.density_map_h,mdl.density_map_w), dtype=np.float32)
             
             # TODO- retrieve points from point annotated masks
@@ -182,7 +207,7 @@ def eval_baselines(mdl,loader,mode):
             sum_count -= constant
             gt_count -= loader_noise
             
-            if str(type(mdl)) == "<class 'baselines.LCFCN'>":
+            if str(type(mdl)) == "<class 'baselines.LCFCN'>" or is_unet_seg:
                 coordinates = np.argwhere(pred_points != 0)
             else:
                 coordinates = peak_local_max(dmap_np,min_distance=int(mdl.sigma*2),num_peaks=max(1,int(sum_count)))
@@ -193,10 +218,10 @@ def eval_baselines(mdl,loader,mode):
             if gt_coords is not None:
                 y_coords.append(gt_coords)
                 
-            if str(type(mdl)) != "<class 'baselines.LCFCN'>":
-                y_hat_n.append(sum_count)
-            else:
+            if str(type(mdl)) == "<class 'baselines.LCFCN'>" or is_unet_seg:
                 y_hat_n.append(blob_counts)
+            else:
+                y_hat_n.append(sum_count)
             
             y_hat_coords.append(coordinates) 
             
@@ -204,19 +229,15 @@ def eval_baselines(mdl,loader,mode):
             l = 1 # cell size param - number of cells to split images into: 0 = 1, 1 = 4, 2 = 16, etc
             
             # this splits the density maps into cells for counting per cell
-            # if str(type(mdl)) != "<class 'baselines.CSRNet'>":
             gt_dmap_split_counts = np_split(ground_truth_point_map,nrows=mdl.density_map_w//4**l,ncols=mdl.density_map_h//4**l).sum(axis=(1,2))
             
-            if str(type(mdl)) != "<class 'baselines.CSRNet'>":
-                pred_dmap_split_counts = np_split(dmap_np,nrows=mdl.density_map_w//4**l,ncols=mdl.density_map_h//4**l).sum(axis=(1,2))
-            else:
-                scale = (ground_truth_point_map.shape[0]*ground_truth_point_map.shape[1])/(dmap_np.shape[0]*dmap_np.shape[1])
-                # reshape smaller CSR out to full dmap size, adjust density 
-                dmap_torch = torch.from_numpy(dmap_np).unsqueeze(0).unsqueeze(0)
-                dmap_torch = F.interpolate(dmap_torch,size=ground_truth_point_map.shape,mode='bilinear')/scale
-                dmap_resized = dmap_torch.squeeze(0).squeeze(0).numpy()
-                
-                pred_dmap_split_counts = np_split(dmap_resized,nrows=mdl.density_map_w//4**l,ncols=mdl.density_map_h//4**l).sum(axis=(1,2))
+            scale = (ground_truth_point_map.shape[0]*ground_truth_point_map.shape[1])/(dmap_np.shape[0]*dmap_np.shape[1])
+            # reshape smaller CSR out to full dmap size, adjust density 
+            dmap_torch = torch.from_numpy(dmap_np).unsqueeze(0).unsqueeze(0)
+            dmap_torch = F.interpolate(dmap_torch,size=ground_truth_point_map.shape,mode='bilinear')/scale
+            dmap_resized = dmap_torch.squeeze(0).squeeze(0).numpy()
+            
+            pred_dmap_split_counts = np_split(dmap_resized,nrows=mdl.density_map_w//4**l,ncols=mdl.density_map_h//4**l).sum(axis=(1,2))
 
             game.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)))
             gampe.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)/np.maximum(np.ones(len(gt_dmap_split_counts)),gt_dmap_split_counts)))  
@@ -225,12 +246,9 @@ def eval_baselines(mdl,loader,mode):
             dm_mae.append(sum(abs(dmap_np-ground_truth_dmap)))
             dm_mse.append(sum(np.square(dmap_np-ground_truth_dmap)))
             # TODO - mismatched data type warning here
+            # TODO - need to normalise arrays before passing to PSNR (and define appropriate data range)
             dm_psnr.append(peak_signal_noise_ratio(ground_truth_dmap,dmap_np,data_range=ground_truth_dmap.max()-ground_truth_dmap.min()))
             dm_ssim.append(structural_similarity(ground_truth_dmap,dmap_np))
-            
-            metric_dict = gen_metrics(dm_mae,dm_mse,dm_ssim,dm_psnr,y_n,y_hat_n,game,gampe,localisation_dict,mode)
-            
-            return metric_dict
     
     # localisation metrics (using kernalised dmaps)
     for gt_dmap, pred_dmap in zip(y_coords, y_hat_coords):
@@ -270,10 +288,10 @@ def eval_baselines(mdl,loader,mode):
         localisation_dict['fp'] += pred_dmap.shape[0]-tp
         localisation_dict['fn'] += gt_dmap.shape[0]-tp
             
-        metric_dict = gen_metrics(dm_mae,dm_mse,dm_ssim,dm_psnr,y_n,y_hat_n,game,gampe,localisation_dict,mode)
-        
-        t2 = time.perf_counter()
-        print("Dmap evaluation finished. Wall time: {}".format(round(t2-t1,2)))
+    metric_dict = gen_metrics(dm_mae,dm_mse,dm_ssim,dm_psnr,y_n,y_hat_n,game,gampe,localisation_dict,mode)
+    
+    t2 = time.perf_counter()
+    print("Dmap evaluation finished. Wall time: {}".format(round(t2-t1,2)))
     
     return  metric_dict # localisation_dict
     
@@ -403,6 +421,8 @@ def dmap_metrics(mdl, loader,n=10,mode='',null_filter=False):
     assert not mdl.count
     assert mode in ['train','val']
     assert mdl.subnet_type == 'conv'
+    if mdl.density_map_h == 608:
+        assert not a.args.resize
    
     print("Dmap Evaluation....")
     t1 = time.perf_counter()
