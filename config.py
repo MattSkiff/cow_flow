@@ -223,8 +223,8 @@ assert freq_1x1 != 0
 # set config values for local testing
 if any('SPYDER' in name for name in os.environ):
     train_model = True
-    data_prop = 0.05
+    data_prop = 1
     feat_extractor_epochs = 1
-    load_stored_dmaps = True # speeds up precomputation (with RAM = True)
+    load_stored_dmaps = False # speeds up precomputation (with RAM = True)
     store_dmaps = False # this will save dmap objects (numpy arrays) to file
-    ram = True # load aerial imagery and precompute dmaps and load both into ram before training
+    ram = False # load aerial imagery and precompute dmaps and load both into ram before training

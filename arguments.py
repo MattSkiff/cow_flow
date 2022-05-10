@@ -17,7 +17,7 @@ parser.add_argument('-weighted','--weighted_sampler',help='weight minibatch samp
 parser.add_argument('-normalise',help='normalise aerial imagery supplied to model with img net mean & std dev',action='store_true',default=True)
 parser.add_argument('-resize',help='resize image to the specified img size',action="store_true",default=False)
 parser.add_argument('-rrc',help='perform random resize cropping',action="store_true",default=False)
-parser.add_argument('-sigma',help='Variance of gaussian kernels used to create density maps',type=float,default=4)  # ignored for DLR ACD which uses gsd correspondence
+parser.add_argument('-sigma',help='Variance of gaussian kernels used to create density maps',type=float,default=4.0)  # ignored for DLR ACD which uses gsd correspondence
 parser.add_argument('-dmap_scaling',help='Scale up density map to ensure gaussianed density is not too close to zero per pixel',type=int,default=1)
 parser.add_argument('-min_scaling',help='Minimum scaling bound (0-1) for random resized crop transform',type=float,default=-1)
 parser.add_argument('-img_sz','--image_size',help='Size of the random crops taken from the original data patches [Cows 800x600, DLR 320x320] - must be divisble by 8 for CSRNet',type=int,default=256)
@@ -66,14 +66,14 @@ host = socket.gethostname()
 
 # defaults for if running interactively
 if any('SPYDER' in name for name in os.environ):
-    args.model_name = "UNet"
+    args.model_name = "LCFCN"
     args.optim = "adam"
     args.scheduler = 'none'
     args.annotations_only = False
     args.weighted_sampler = True
     args.sub_epochs = 5
     args.meta_epochs = 1
-    args.batch_size = 8
+    args.batch_size = 1
     args.learning_rate = 1e-3
     args.weight_decay = 1e-5
     args.tensorboard = True
@@ -99,7 +99,7 @@ if (args.adam_b1 != 0 or args.adam_b2 != 0 or args.adam_e != 0) and args.optim !
 if args.sgd_mom != 0 and args.optim != 'sgd':
     ValueError
 
-if args.model_name == 'LCFCN':
+if args.model_name == 'LCFCN': #  in ['UNet_seg','LCFCN']:
     assert args.batch_size == 1 # https://github.com/ElementAI/LCFCN/issues/9
     # LCFCN only supports batch size of 1
 
