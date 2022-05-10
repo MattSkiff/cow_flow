@@ -278,9 +278,6 @@ def predict_image(mdl_path,nf=False,geo=True,nf_n=10,mdl_type='',
         patch = patch.float().div(255).to(c.device)
         patch = TF.normalize(patch,mean = c.norm_mean,std= c.norm_std)
         
-        if not dlr and not mdl_type == 'CSRNet':
-            patch = TF.resize(patch, (mdl.density_map_h,mdl.density_map_w))
-        
         if nf:
             
             x_list = []
@@ -389,9 +386,9 @@ def plot_preds_baselines(mdl, loader,mode="",mdl_type='',writer=None,writer_epoc
                 images,dmaps,labels,binary_labels,annotations, point_maps = data
                 preds = mdl(images)/mdl.dmap_scaling
                 
-                print(preds)
-                coords = peak_local_max(preds.squeeze().cpu().numpy(),min_distance=1,
-                                        num_peaks=np.inf,threshold_abs=0,threshold_rel=0.5)
+                if mdl_type == 'UNet_seg':
+                    coords = peak_local_max(preds.squeeze().cpu().numpy(),min_distance=1,
+                                            num_peaks=np.inf,threshold_abs=0,threshold_rel=0.5)
 
                 
                 if str(type(mdl)) == "<class 'baselines.LCFCN'>":#  or mdl_type == 'UNet_seg':
@@ -442,7 +439,6 @@ def plot_preds_baselines(mdl, loader,mode="",mdl_type='',writer=None,writer_epoc
                 ax[2].imshow(plot_dmap.cpu().numpy())
                 
                 add_plot_tb(writer,fig,writer_mode,writer_epoch)
-                print(coords)
                 
                 print("\n Sum Pred Density Map: {} ".format(preds.sum()))
                 print("Sum GT Density Map: {} ".format(plot_dmap.sum()))

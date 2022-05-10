@@ -66,10 +66,10 @@ host = socket.gethostname()
 
 # defaults for if running interactively
 if any('SPYDER' in name for name in os.environ):
-    args.model_name = "LCFCN"
+    args.model_name = "UNet_seg"
     args.optim = "adam"
     args.scheduler = 'none'
-    args.annotations_only = False
+    args.annotations_only = False 
     args.weighted_sampler = True
     args.sub_epochs = 5
     args.meta_epochs = 1
@@ -77,7 +77,7 @@ if any('SPYDER' in name for name in os.environ):
     args.learning_rate = 1e-3
     args.weight_decay = 1e-5
     args.tensorboard = True
-    args.viz = True
+    args.viz =True
     args.viz_freq = 1
     args.resize = True
     args.dmap_scaling = 1000

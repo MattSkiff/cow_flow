@@ -216,10 +216,14 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False):
             if str(type(mdl)) == "<class 'baselines.LCFCN'>":
                 coordinates = np.argwhere(pred_points != 0)
             elif is_unet_seg:
-                        coords = peak_local_max(dmap_np.squeeze().cpu().numpy(),min_distance=1,
-                                                num_peaks=np.inf,threshold_abs=0,threshold_rel=0.5)
+                coordinates = peak_local_max(dmap_np.squeeze(),min_distance=1,
+                                             num_peaks=np.inf,threshold_abs=0,threshold_rel=0.5)
+                sum_count = len(coordinates)
+            elif str(type(mdl))  in ["<class 'baselines.CSRNet'>"]:
+                coordinates = np.array([[0,0]])
             else:
                 coordinates = peak_local_max(dmap_np,min_distance=int(mdl.sigma*2),num_peaks=n_peaks)
+            
 
             #y.append(labels[idx].cpu().detach().numpy())
             y_n.append(len(labels[idx]))
@@ -227,7 +231,7 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False):
             if gt_coords is not None:
                 y_coords.append(gt_coords)
                 
-            if str(type(mdl)) == "<class 'baselines.LCFCN'>" or is_unet_seg:
+            if str(type(mdl)) == "<class 'baselines.LCFCN'>":# or is_unet_seg:
                 y_hat_n.append(blob_counts)
             else:
                 y_hat_n.append(sum_count)
@@ -240,14 +244,8 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False):
             # this splits the density maps into cells for counting per cell
             gt_dmap_split_counts = np_split(ground_truth_point_map,nrows=mdl.density_map_w//4**l,ncols=mdl.density_map_h//4**l).sum(axis=(1,2))
             
-            scale = (ground_truth_point_map.shape[0]*ground_truth_point_map.shape[1])/(dmap_np.shape[0]*dmap_np.shape[1])
-            # reshape smaller CSR out to full dmap size, adjust density 
-            dmap_torch = torch.from_numpy(dmap_np).unsqueeze(0).unsqueeze(0)
-            dmap_torch = F.interpolate(dmap_torch,size=ground_truth_point_map.shape,mode='bilinear')/scale
-            dmap_resized = dmap_torch.squeeze(0).squeeze(0).numpy()
-            
-            pred_dmap_split_counts = np_split(dmap_resized,nrows=mdl.density_map_w//4**l,ncols=mdl.density_map_h//4**l).sum(axis=(1,2))
-
+            pred_dmap_split_counts = np_split(dmap_np,nrows=mdl.density_map_w//4**l,ncols=mdl.density_map_h//4**l).sum(axis=(1,2))
+            pred_dmap_split_counts = 0
             game.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)))
             gampe.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)/np.maximum(np.ones(len(gt_dmap_split_counts)),gt_dmap_split_counts)))  
             
