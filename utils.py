@@ -389,7 +389,12 @@ def plot_preds_baselines(mdl, loader,mode="",mdl_type='',writer=None,writer_epoc
                 images,dmaps,labels,binary_labels,annotations, point_maps = data
                 preds = mdl(images)/mdl.dmap_scaling
                 
-                if str(type(mdl)) == "<class 'baselines.LCFCN'>"  or mdl_type == 'UNet_seg':
+                print(preds)
+                coords = peak_local_max(preds.squeeze().cpu().numpy(),min_distance=1,
+                                        num_peaks=np.inf,threshold_abs=0,threshold_rel=0.5)
+
+                
+                if str(type(mdl)) == "<class 'baselines.LCFCN'>":#  or mdl_type == 'UNet_seg':
                     
                         probs = preds.sigmoid().cpu().numpy()
                         
@@ -437,13 +442,19 @@ def plot_preds_baselines(mdl, loader,mode="",mdl_type='',writer=None,writer_epoc
                 ax[2].imshow(plot_dmap.cpu().numpy())
                 
                 add_plot_tb(writer,fig,writer_mode,writer_epoch)
+                print(coords)
                 
                 print("\n Sum Pred Density Map: {} ".format(preds.sum()))
                 print("Sum GT Density Map: {} ".format(plot_dmap.sum()))
                 print("Label Count: {}".format(len(labels[lb_idx])))
                 
-                if str(type(mdl)) =="<class 'baselines.LCFCN'>" or mdl_type == 'UNet_seg':
-                        print("%s predicted (LCFCN/UNet_seg)" % (len(y_list)))
+                if str(type(mdl)) =="<class 'baselines.LCFCN'>":# or mdl_type == 'UNet_seg':
+                        print("%s predicted (LCFCN)" % (len(y_list)))
+                
+                if mdl_type == 'UNet_seg':
+                        print("%s predicted (UNet_seg)" % (len(coords)))
+                        
+                    
                 
                 return #preds, preds.sum(),plot_dmap.sum(),len(labels[lb_idx])
                 

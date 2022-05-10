@@ -158,7 +158,7 @@ class DLRACD(Dataset):
                                 print('Anno path is {}'.format(anno_path))
                                 print('GSD is {}'.format(gsd_sigma))
                             
-                            if a.args.model_name == 'UNet_seg' or a.args.model_name == 'LCFCN' : 
+                            if a.args.model_name in ['UNet_seg','LCFCN']: 
                                 p_d = scipy.ndimage.filters.maximum_filter(pm,size = (a.args.max_filter_size,a.args.max_filter_size))
                             else:
                                 p_d = scipy.ndimage.filters.gaussian_filter(pm, sigma = gsd_sigma, mode='constant')
@@ -253,13 +253,13 @@ class DLRACD(Dataset):
             sample['patch_density'] = self.patch_densities[idx]
             sample['counts'] = self.counts[idx]
             sample['density_counts'] = self.density_counts[idx]
-            sample['point_maps'] = self.point_maps[idx] 
+            sample['point_map'] = self.point_maps[idx] 
         
         else:
             sample['patch_density'] = None
             sample['counts'] = None
             sample['density_counts'] = None
-            sample['point_maps'] = None
+            sample['point_map'] = None
             
         if self.transform:
              sample = self.transform(sample)
@@ -276,7 +276,7 @@ class DLRACD(Dataset):
         print((self.patch_path[idx]+" | "+self.point_map_path[idx]))
         
         patch = sample['patch'].permute((1, 2, 0)).cpu().numpy()
-        point_map = sample['point_maps'].cpu().numpy()
+        point_map = sample['point_map'] .cpu().numpy()
         gt_coords = np.argwhere(point_map == 1)
         patch_densities = sample['patch_density'].cpu().numpy()
 
@@ -341,7 +341,7 @@ class DLRACDToTensor(object):
         if 'counts' in sample.keys():
             sample['counts'] = torch.from_numpy(np.array(sample['counts']).astype(float)).to(c.device)
         if 'point_maps' in sample.keys():
-            sample['point_maps'] = torch.from_numpy(sample['point_maps']).to(c.device)
+            sample['point_map']  = torch.from_numpy(sample['point_map'] ).to(c.device)
 
         return sample
     
@@ -376,30 +376,30 @@ class DLRACDCropRotateFlipScaling(object):
         # i, j, h, w = T.RandomCrop.get_params(sample['patch'], output_size=(a.args.image_size, a.args.image_size))
         # sample['patch'] = TF.crop(sample['patch'].unsqueeze(0), i, j, h, w)
         # sample['patch_density'] = TF.crop(sample['patch_density'].unsqueeze(0).unsqueeze(0), i, j, h, w)
-        # sample['point_maps'] = TF.crop(sample['point_maps'].unsqueeze(0).unsqueeze(0), i, j, h, w)
+        # sample['point_map']  = TF.crop(sample['point_map'] .unsqueeze(0).unsqueeze(0), i, j, h, w)
         
         # sample['patch'] = resize(sample['patch'])
         # sample['patch_density'] = resize(sample['patch_density'])
-        # sample['point_maps'] = resize(sample['point_maps'])
+        # sample['point_map']  = resize(sample['point_map'] )
         
         if random.randint(0,1):
             sample['patch'] = torch.flip(sample['patch'],(3,))
             sample['patch_density'] = torch.flip(sample['patch_density'],(3,))
-            sample['point_maps'] = torch.flip(sample['point_maps'],(3,))
+            sample['point_map']  = torch.flip(sample['point_map'] ,(3,))
             
         if random.randint(0,1):
             sample['patch'] = torch.flip(sample['patch'],(2,))
             sample['patch_density'] = torch.flip(sample['patch_density'],(2,))
-            sample['point_maps'] = torch.flip(sample['point_maps'],(2,))
+            sample['point_map']  = torch.flip(sample['point_map'] ,(2,))
             
         rangle = float(random.randint(0,3)*90)
         sample['patch'] = TF.rotate(sample['patch'],angle=rangle)
         sample['patch_density'] = TF.rotate(sample['patch_density'],angle=rangle)
-        sample['point_maps'] = TF.rotate(sample['point_maps'],angle=rangle)
+        sample['point_map']  = TF.rotate(sample['point_map'] ,angle=rangle)
         
         sample['patch'] = sample['patch'].squeeze()
         sample['patch_density'] = sample['patch_density'].squeeze().squeeze()
-        sample['point_maps'] = sample['point_maps'].squeeze().squeeze()
+        sample['point_map']  = sample['point_map'] .squeeze().squeeze()
 
         return sample
     
@@ -538,7 +538,7 @@ class CowObjectsDataset(Dataset):
                     
                     if not a.args.resize and a.args.model_name in ['UNet_seg','LCFCN']:
                         point_map = np.zeros((c.raw_img_size[1], c.raw_img_size[0]), dtype=np.float32) # c.raw_img_size
-                    elif a.args.model_name == ['UNet_seg','LCFCN']:
+                    elif a.args.model_name in ['UNet_seg','LCFCN']:
                         point_map = np.zeros((256,256), dtype=np.float32) # c.raw_img_size
                     else:
                         point_map = None
@@ -579,7 +579,7 @@ class CowObjectsDataset(Dataset):
                             point_map = np.zeros((256,256), dtype=np.float32) # c.raw_img_size
                         else:
                             point_map = None
-                         
+                        
                         # error introduced here as float position annotation centre converted to int
                         if a.args.resize:
                             base_map = np.zeros((256,256), dtype=np.float32) # c.raw_img_size
@@ -611,6 +611,11 @@ class CowObjectsDataset(Dataset):
                             density_map += scipy.ndimage.filters.maximum_filter(base_map,size = (a.args.max_filter_size,a.args.max_filter_size))
                         else:
                             density_map += scipy.ndimage.filters.gaussian_filter(base_map, sigma = a.args.sigma, mode='constant')
+                
+                            # import matplotlib.pyplot as plt
+                            # fig, ax = plt.subplots(1,1)
+                            # ax.imshow(density_map)
+                            # 1/0
                         
                 labels = np.array(labels) # list into default collate function produces empty tensors
                 
@@ -626,7 +631,7 @@ class CowObjectsDataset(Dataset):
             if self.density and not self.count:
 
                 sample['density'] = density_map; sample['labels'] = labels
-                sample['point_map'] = point_map
+                sample['point_map']  = point_map
                 
             if self.count:
                 sample['counts'] = torch.as_tensor(count).float().to(c.device)
@@ -699,7 +704,7 @@ class CowObjectsDataset(Dataset):
             
             if self.density and not self.count:  
                 sample['density'] = self.density_list[idx]
-                sample['point_map'] = self.point_maps[idx]
+                sample['point_map']  = self.point_maps[idx]
                 sample['labels'] = self.labels_list[idx]
             if self.count:
                 sample['counts'] = self.count_list[idx]
@@ -932,7 +937,7 @@ class CowObjectsDataset(Dataset):
         if 'density' in b.keys():
             density = torch.stack(density,dim = 0)
             
-        if 'point_map' in b.keys() and a.args.model_name=='LCFCN':
+        if 'point_map' in b.keys() and a.args.model_name in ['LCFCN','UNet_seg']:
             point_map = torch.stack(point_map,dim = 0)
           
         if 'labels' in b.keys():
@@ -994,7 +999,7 @@ class CustToTensor(object):
         if 'density' in sample.keys():
             sample['density'] = torch.from_numpy(sample['density']).to(c.device)
             if a.args.model_name in ['LCFCN','UNet_seg']:
-                sample['point_map'] = torch.from_numpy(sample['point_map']).to(c.device)
+                sample['point_map']  = torch.from_numpy(sample['point_map']).to(c.device)
         if 'annotations' in sample.keys():
             sample['annotations'] = torch.from_numpy(sample['annotations']).to(c.device)
         if 'labels' in sample.keys():
@@ -1043,16 +1048,16 @@ class Resize(object):
         # i, j, h, w = T.RandomCrop.get_params(sample['image'], output_size=(rint,rint2))
         # sample['image'] = TF.crop(sample['image'].unsqueeze(0), i, j, h, w)
         # sample['density'] = TF.crop(sample['density'].unsqueeze(0).unsqueeze(0), i, j, h, w)
-        # sample['point_map'] = TF.crop(sample['point_map'].unsqueeze(0).unsqueeze(0), i, j, h, w) 
+        # sample['point_map']  = TF.crop(sample['point_map'].unsqueeze(0).unsqueeze(0), i, j, h, w) 
         
         sample['image'] = resize(sample['image'].unsqueeze(0))
         
         # scale density up by downscaling amount, so counting still works
         sample['density'] = resize(sample['density'].unsqueeze(0).unsqueeze(0)) #*((c.raw_img_size[0]*c.raw_img_size[1])/(a.args.image_size**2))
             
-        if a.args.model_name=='LCFCN':
-            sample['point_map'] = resize(sample['point_map'].unsqueeze(0).unsqueeze(0))
-            sample['point_map'] = sample['point_map'].squeeze().squeeze()
+        if a.args.model_name in ['LCFCN','UNet_seg']:
+            sample['point_map']  = resize(sample['point_map'].unsqueeze(0).unsqueeze(0))
+            sample['point_map']  = sample['point_map'].squeeze().squeeze()
             
         sample['image'] = sample['image'].squeeze()
         sample['density'] = sample['density'].squeeze().squeeze()
@@ -1181,7 +1186,7 @@ class CustResize(object):
             
             sample['density'] = density
             
-            if a.args.model_name=='LCFCN':
+            if a.args.model_name in ['LCFCN','UNet_seg']:
                 sample['point_map'] = point_map
         
         return sample

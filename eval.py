@@ -129,6 +129,7 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False):
     thres=mdl.sigma*2
     
     assert not mdl.count
+    assert c.data_prop == 1
     assert mode in ['train','val']
     assert is_baseline(mdl)
     if mdl.density_map_h == 608:
@@ -162,7 +163,7 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False):
         
         x = mdl(images)
         
-        if str(type(mdl)) == "<class 'baselines.LCFCN'>" or is_unet_seg:
+        if str(type(mdl)) == "<class 'baselines.LCFCN'>":# or is_unet_seg:
             x = x.sigmoid().cpu().numpy() # logits -> probs
             blobs = lcfcn_loss.get_blobs(probs=x)
             blob_counts = (np.unique(blobs)!=0).sum()
@@ -170,7 +171,7 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False):
             
         for idx in range(images.size()[0]):               
             
-            if str(type(mdl)) == "<class 'baselines.LCFCN'>" or is_unet_seg:
+            if str(type(mdl)) == "<class 'baselines.LCFCN'>":# or is_unet_seg:
                 dmap_np = x[idx].squeeze()
             else:
                 dmap_np = x[idx].squeeze().cpu().detach().numpy()
@@ -207,10 +208,18 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False):
             sum_count -= constant
             gt_count -= loader_noise
             
-            if str(type(mdl)) == "<class 'baselines.LCFCN'>" or is_unet_seg:
-                coordinates = np.argwhere(pred_points != 0)
+            if is_unet_seg:
+                n_peaks=np.inf
             else:
-                coordinates = peak_local_max(dmap_np,min_distance=int(mdl.sigma*2),num_peaks=max(1,int(sum_count)))
+                n_peaks=max(1,int(sum_count))
+            
+            if str(type(mdl)) == "<class 'baselines.LCFCN'>":
+                coordinates = np.argwhere(pred_points != 0)
+            elif is_unet_seg:
+                        coords = peak_local_max(dmap_np.squeeze().cpu().numpy(),min_distance=1,
+                                                num_peaks=np.inf,threshold_abs=0,threshold_rel=0.5)
+            else:
+                coordinates = peak_local_max(dmap_np,min_distance=int(mdl.sigma*2),num_peaks=n_peaks)
 
             #y.append(labels[idx].cpu().detach().numpy())
             y_n.append(len(labels[idx]))
@@ -419,6 +428,7 @@ def dmap_metrics(mdl, loader,n=10,mode='',null_filter=False):
     thres=mdl.sigma*2
     
     assert not mdl.count
+    assert c.data_prop == 1
     assert mode in ['train','val']
     assert mdl.subnet_type == 'conv'
     if mdl.density_map_h == 608:
@@ -690,6 +700,7 @@ def dmap_pr_curve(mdl, loader,n = 10,mode = ''):
             
             gt_count -= loader_noise
             sum_count -= constant
+            
             
             y_hat_coords['div2'].append(peak_local_max(dmap_rev_np,min_distance=int(mdl.sigma//2),num_peaks=max(1,int(sum_count))))
             y_hat_coords['same'].append(peak_local_max(dmap_rev_np,min_distance=int(mdl.sigma),num_peaks=max(1,int(sum_count))))
