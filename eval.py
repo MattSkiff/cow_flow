@@ -339,7 +339,6 @@ def dlr_acd_whole_image_eval(mdl,loader):
 def eval_mnist(mdl, valloader, trainloader,samples = 1,confusion = False, preds = False): 
     ''' currently the confusion matrix is calculated across both train and val splits'''
     
-    mdl.eval()
     accuracies = []
     p = []
     l = []
@@ -426,17 +425,17 @@ def eval_mnist(mdl, valloader, trainloader,samples = 1,confusion = False, preds 
     return  out # train, val
 
 @torch.no_grad()
-def dmap_metrics(mdl, loader,n=10,mode='',null_filter=False):
+def dmap_metrics(mdl, loader,n=10,mode='',null_filter=(a.args.sampler == 'weighted')):
     '''DMAP,COUNT,LOCALIZATION metrics'''
     
     thres=mdl.sigma*2
+    
+    loader_check(mdl=mdl,loader=loader)
     
     assert not mdl.count
     assert c.data_prop == 1
     assert mode in ['train','val']
     assert mdl.subnet_type == 'conv'
-    if mdl.density_map_h == 608:
-        assert not a.args.resize
    
     print("Dmap Evaluation....")
     t1 = time.perf_counter()
@@ -450,7 +449,7 @@ def dmap_metrics(mdl, loader,n=10,mode='',null_filter=False):
     y_n = []; y_coords = []
     y_hat_n = [];  y_hat_n_dists = []; y_hat_coords = []
     dm_mae = []; dm_mse = []; dm_psnr = []; dm_ssim = [] #;dm_kl = []
-    game = []; gampe = []
+    game = []; gampe = []; correct = 0; total = 0
     
     mdl = mdl.to(c.device)
     
@@ -459,7 +458,7 @@ def dmap_metrics(mdl, loader,n=10,mode='',null_filter=False):
         if not mdl.dlr_acd and not loader.dataset.classification:
             images,dmaps,labels,annotations, point_maps  = data
         elif not mdl.dlr_acd:
-            images,dmaps,labels, _ , annotations, point_maps  = data # binary labels
+            images,dmaps,labels,binary_labels , annotations, point_maps  = data 
         else:
             images,dmaps,counts,point_maps = data
 
@@ -480,15 +479,9 @@ def dmap_metrics(mdl, loader,n=10,mode='',null_filter=False):
         ## sample from model per aerial image ---
         for i in range(n):
             dummy_z = (randn(images.size()[0], in_channels,ft_dims[0],ft_dims[1])).to(c.device)
-            
+        
             # feature extractor pre filtering
             # currently only on cow dataset
-            if not mdl.dlr_acd:
-                #features = mdl.feat_extractor(images)
-                #outputs = mdl.classification_head(features)
-                if null_filter:
-                    outputs = mdl.classification_head(images)  
-                    _, preds = torch.max(outputs, 1)  
                 
             # TODO - classification head for DLR ACD (if null filtering needed)
             # else: 
@@ -496,17 +489,24 @@ def dmap_metrics(mdl, loader,n=10,mode='',null_filter=False):
             #     _, preds = torch.max(outputs, 1)   
         
             x, _ = mdl(images,dummy_z,rev=True)
-            
-            # replace predicted densities with null predictions if not +ve pred from feature extractor
-            if null_filter:
-                if not mdl.dlr_acd:
-                    x[(preds == 1).bool(),:,:,:] = torch.zeros(1,mdl.density_map_h,mdl.density_map_w).to(c.device)
-            
             x_list.append(x)
+            x_agg = torch.stack(x_list,dim=1)
+            x = x_agg.mean(dim=1) # take average of samples from models for mean reconstruction
+            
+        if not mdl.dlr_acd:
+            #features = mdl.feat_extractor(images)
+            #outputs = mdl.classification_head(features)
+            if null_filter:
+                outputs = mdl.classification_head(images)  
+                _, preds = torch.max(outputs, 1)  
         
-        x_agg = torch.stack(x_list,dim=1)
-        x = x_agg.mean(dim=1) # take average of samples from models for mean reconstruction
-
+        # replace predicted densities with null predictions if not +ve pred from feature extractor
+        if null_filter:
+            if not mdl.dlr_acd:
+                correct += sum(preds == binary_labels)
+                total += len(binary_labels)
+                x[(preds == 1).bool(),:,:,:] = torch.zeros(1,mdl.density_map_h,mdl.density_map_w).to(c.device)
+            
         for idx in range(images.size()[0]):               
                 
             dmap_rev_np = x[idx].squeeze().cpu().detach().numpy()
@@ -626,6 +626,8 @@ def dmap_metrics(mdl, loader,n=10,mode='',null_filter=False):
     
     t2 = time.perf_counter()
     print("Dmap evaluation finished. Wall time: {}".format(round(t2-t1,2)))
+    
+    print('correct binary classifier preds: {}/{}'.format(correct,total))
     
     return  metric_dict # localisation_dict
 

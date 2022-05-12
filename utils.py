@@ -56,7 +56,14 @@ def load_model(filename,loc=g.MODEL_DIR):
     path = os.path.join(loc, filename)
     mdl = torch.load(path, pickle_module=dill)
     
+    bc_path = os.path.join(g.FEAT_MOD_DIR, a.args.bin_classifier_path)
+    
+    if a.args.bin_classifier_path != '' and a.args.model_name == 'NF':
+        mdl.classification_head = torch.load(bc_path, pickle_module=dill)
+    
     print("model {} loaded from {}".format(filename,loc))
+    mdl.eval()
+    
     return mdl
     
 def save_weights(mdl,filename,loc=g.WEIGHT_DIR):
@@ -649,6 +656,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
             # replace predicted densities with null predictions if not +ve pred from feature extractor
             constant = ((mdl.noise)/2)*dmaps[lb_idx].shape[0]*dmaps[lb_idx].shape[1]
             loader_noise = ((a.args.noise)/2)*dmaps[lb_idx].shape[0]*dmaps[lb_idx].shape[1]
+
             if not mdl.mnist and not mdl.count and null_filter==True:
                 # subtract constrant for uniform noise
                 if not mdl.dlr_acd:
@@ -1437,6 +1445,7 @@ def create_point_map(mdl,annotations):
 def loader_check(mdl,loader):
     
     assert mdl.sigma == a.args.sigma
+    assert mdl.noise == a.args.noise
     assert mdl.dmap_scaling == a.args.dmap_scaling
     
     if str(type(mdl))=="<class 'baselines.UNet'>":
