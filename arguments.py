@@ -5,19 +5,21 @@ import os
 parser = argparse.ArgumentParser(description='Create dataloaders and train a model on MNIST, DLRACD or cow dataset.')
 
 parser.add_argument('-mode',help="Specify mode (train,eval,store).",default='')
+
 parser.add_argument('-mdl_path',help="Specify mdl for eval",default='')
+parser.add_argument('-bin_classifier_path', default='')
 parser.add_argument('-ram',help='Load images/dmaps/point maps into ram for faster trainig',action="store_true",default=False)
 
 parser.add_argument('-mod',"--model_name",help="Specify model to train (NF,CSRNet, UNet, UCSRNetNet_seg, FCRN, LCFCN, MCNN).",default='')
-parser.add_argument("-fe_only", "--feat_extract_only", help="Trains the feature extractor component only.", action="store_true",default=False)
+parser.add_argument("-fe_only", help="Trains the feature extractor only.", action="store_true",default=False)
+parser.add_argument("-bc_only", help="Trains the binary classifier only.", action="store_true",default=False)
 parser.add_argument("-uc", "--unconditional", help="Trains the model without labels.", action="store_true")
 parser.add_argument("-gn", "--gpu_number", help="Selects which GPU to train on.", type=int, default=0)
 
 # Choose Dataset
 parser.add_argument('-d','--data',help='Run the architecture on the [dlr,cows,mnist] dataset.',default='cows')
 
-parser.add_argument('-anno','--annotations_only',help='only use image patches that have annotations',action="store_true",default=False)
-parser.add_argument('-weighted','--weighted_sampler',help='weight minibatch samples such that sampling distribution is 50/50 null/annotated', action="store_true",default=False)
+parser.add_argument('-sampler',help='type of sampler to use [anno,weighted]',default='')
 parser.add_argument('-normalise',help='normalise aerial imagery supplied to model with img net mean & std dev',action='store_true',default=True)
 parser.add_argument('-resize',help='resize image to the specified img size',action="store_true",default=False)
 parser.add_argument('-rrc',help='perform random resize cropping',action="store_true",default=False)
@@ -60,6 +62,9 @@ parser.add_argument('-nse',"--noise",help='amount of uniform noise (sample evenl
 parser.add_argument('-f','--filters',help='width of conv subnetworks',type=int,default=32)
 parser.add_argument('-wd','--weight_decay',type=float,default=None) # differnet: 1e-5
 
+# weighted: weight minibatch samples such that sampling distribution is 50/50 null/annotated
+# anno: use only annotated samples
+
 # to implement functions
 # parser.add_argument("-eval_image",'--img',help="Run the model on the image specified (requires model loaded)",type=str,default='')
 # parser.add_argument("-load_model",'--load',help="load the model (from path) for evaluation, inference, or visualisation",type=str,default='')
@@ -73,8 +78,8 @@ if any('SPYDER' in name for name in os.environ):
     args.model_name = "NF"
     args.optim = "adam"
     args.scheduler = 'none'
-    args.annotations_only = True 
-    args.weighted_sampler = False
+    args.sampler = 'weighted'
+    args.mode = 'eval'
     args.sub_epochs = 5
     args.meta_epochs = 1
     args.batch_size = 1
@@ -87,7 +92,8 @@ if any('SPYDER' in name for name in os.environ):
     args.dmap_scaling = 1
     args.max_filter_size = 4.0
     args.sigma = 4.0
-    args.noise = 0
+    args.noise = 0.001
+    args.mdl_path = 'final_9Z5_NF_quatern_BS64_LR_I0.0002_E10000_DIM256_OPTIMadam_FE_resnet18_NC5_anno_step_JO_PY_1_1x1_WD_0.001_10_05_2022_17_37_42'
     
 # checks
 assert args.mode in ['train','eval','store']
@@ -95,6 +101,8 @@ assert args.gpu_number > -1
 
 if args.mode == 'eval':
     assert args.mdl_path != ''
+
+assert args.sampler in ['weighted','anno']
 
 if args.rrc:
     assert args.min_scaling > 0 and args.min_scaling < 1
@@ -108,6 +116,9 @@ if (args.adam_b1 != 0 or args.adam_b2 != 0 or args.adam_e != 0) and args.optim !
 if args.sgd_mom != 0 and args.optim != 'sgd':
     ValueError
 
+if args.model_name != 'NF':
+    assert args.bin == ''
+
 if args.model_name == 'LCFCN': #  in ['UNet_seg','LCFCN']:
     assert args.batch_size == 1 # https://github.com/ElementAI/LCFCN/issues/9
 else:
@@ -118,10 +129,9 @@ if args.model_name in ['UNet_seg','LCFCN']:
     assert args.max_filter_size >= 1
     assert args.max_filter_size == args.sigma
 
-assert not (args.weighted_sampler and args.annotations_only)
-assert args.weighted_sampler or args.annotations_only
-assert args.scheduler in ['exponential','step','none']
-assert args.optim in ['sgd','adam']
+if args.mode == 'train':
+    assert args.scheduler in ['exponential','step','none']
+    assert args.optim in ['sgd','adam']
 
 # todo - find better way of checking NF only argument
 

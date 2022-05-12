@@ -1,18 +1,22 @@
+# external
 from torch.cuda import empty_cache
 from torch.utils.data import DataLoader # Dataset                                                                                                                                                                    
 from torch.utils.data.sampler import SubsetRandomSampler # RandomSampling
+import torch.nn as nn
+import os
 
+# internal
 import config as c
 import arguments as a
 import model
-import os
-from train import train, train_baselines, train_feat_extractor
+from data_loader import CustToTensor, AerialNormalize, DmapAddUniformNoise, train_val_split, Resize, RotateFlip, CustResize, prep_transformed_dataset
+from train import train, train_baselines, train_feat_extractor, train_classification_head
 from utils import load_model
 from eval import dmap_metrics, eval_baselines
 from dlr_acd import dlr_acd
 from mnist import mnist
 
-from data_loader import CustToTensor, AerialNormalize, DmapAddUniformNoise, train_val_split, Resize, RotateFlip, CustResize, prep_transformed_dataset
+
 
 empty_cache() # free up memory for cuda
 
@@ -50,9 +54,9 @@ if a.args.data == 'cows':
     # create test train split
     t_indices, t_weights, v_indices, v_weights  = train_val_split(dataset = transformed_dataset,
                                                       train_percent = c.test_train_split,
-                                                      annotations_only = a.args.annotations_only,
+                                                      annotations_only = (a.args.sampler == 'anno'),
                                                       seed = c.seed,
-                                                      oversample=a.args.weighted_sampler)
+                                                      oversample= (a.args.sampler == 'weighted'))
     
     f_t_indices, f_t_weights, f_v_indices, f_v_weights  = train_val_split(dataset = transformed_dataset,
                                                       train_percent = c.test_train_split,
@@ -88,13 +92,16 @@ if a.args.data == 'cows':
         mdl = load_model(a.args.mdl_path)
         
         if a.args.model_name == 'NF':
-            dmap_metrics(mdl,val_loader,mode='val')
+            dmap_metrics(mdl,val_loader,mode='val',n=50)
         else:
             eval_baselines(mdl,val_loader,mode='val',is_unet_seg=(a.args.model_name=='UNet_seg'))
         
     if a.args.mode == 'train':
         
-        if a.args.feat_extract_only:
+        if a.args.bc_only:
+            train_classification_head(None,train_loader,val_loader,criterion = nn.CrossEntropyLoss())
+        
+        if a.args.fe_only:
             feat_extractor = model.select_feat_extractor(c.feat_extractor,train_loader,val_loader)
             train_feat_extractor(feat_extractor,train_loader,val_loader)
         else:

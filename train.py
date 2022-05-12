@@ -9,9 +9,11 @@ from tqdm import tqdm # progress bar
 import time 
 import copy
 import os
+import types
 from datetime import datetime 
 
 from eval import eval_mnist, dmap_metrics, dmap_pr_curve, eval_baselines
+from torchvision.models import resnet18, efficientnet_b3 
 from utils import get_loss, plot_preds,plot_preds_baselines, counts_preds_vs_actual, t2np, torch_r2, make_model_name, make_hparam_dict, load_model, save_model
 from lcfcn  import lcfcn_loss # lcfcn
 import model # importing entire file fixes 'cyclical import' issues
@@ -26,7 +28,7 @@ import baselines as b
 from torch.utils.tensorboard import SummaryWriter
                
 def train_baselines(model_name,train_loader,val_loader):
-    assert c.train_model
+
     model_metric_dict = {}
     modelname = make_model_name(train_loader)
     model_hparam_dict = make_hparam_dict(val_loader)
@@ -180,8 +182,6 @@ def train_baselines(model_name,train_loader,val_loader):
     return mdl    
 
 def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,writer=None):
-    
-            assert c.train_model
             
             if c.debug:
                 torch.autograd.set_detect_anomaly(True)
@@ -549,10 +549,17 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
 
 # train classification head to predict empty patches
 def train_classification_head(mdl,full_trainloader,full_valloader,criterion = nn.CrossEntropyLoss()):
-    assert c.train_model
+
     if c.verbose:
         print("Optimizing classification head for null filtering...")
-        
+    
+    if mdl != None:
+        mdl.to(c.device) 
+    else:
+        mdl = types.SimpleNamespace()
+        mdl.classification_head = resnet18(pretrained=c.pretrained,progress=False)
+        mdl.classification_head.to(c.device)
+    
     now = datetime.now() 
     filename = "_".join([
                 c.feat_extractor,
@@ -577,9 +584,7 @@ def train_classification_head(mdl,full_trainloader,full_valloader,criterion = nn
     minibatch_count = 0 
     
     dataset_sizes = {'train': t_sz,'val': v_sz}
-   
-    mdl.to(c.device)        
-    
+
     for epoch in range(c.feat_extractor_epochs):
         
         for phase in ['train', 'val']:
@@ -631,12 +636,6 @@ def train_classification_head(mdl,full_trainloader,full_valloader,criterion = nn
                 # statistics
                 running_loss += loss.item() * images.size(0)
                 running_corrects += torch.sum(preds == binary_labels.data)
-                
-                if c.debug:
-                    print('minibatch: ',minibatch_count)
-                    print('binary_labels.data: ',binary_labels.data)
-                    print('preds: ',preds)
-                    print('running corrects: ',running_corrects)
                       
             epoch_loss = running_loss / dataset_sizes[phase]
             epoch_acc = running_corrects.double() / dataset_sizes[phase]
@@ -657,7 +656,7 @@ def train_classification_head(mdl,full_trainloader,full_valloader,criterion = nn
                 
     if c.verbose:
         print("Finetuning finished.")
-        
+    
     mdl.classification_head.load_state_dict(best_model_wts)
     save_model(mdl.classification_head,filename=filename,loc=g.FEAT_MOD_DIR)
     
@@ -665,7 +664,7 @@ def train_classification_head(mdl,full_trainloader,full_valloader,criterion = nn
         
 # from pytorch tutorial...           
 def train_feat_extractor(feat_extractor,trainloader,valloader,criterion = nn.CrossEntropyLoss()):
-    assert c.train_model
+
     if c.verbose:
         print("Finetuning feature extractor...")
     

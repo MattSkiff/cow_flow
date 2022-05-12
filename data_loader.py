@@ -640,7 +640,7 @@ class CowObjectsDataset(Dataset):
                 
                 sample = compute_labels(idx)
                 
-                if not c.store_dmaps:
+                if not a.args.mode == 'store':
                 
                     self.images.append(sample['image'])
                                       
