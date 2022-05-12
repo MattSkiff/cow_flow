@@ -7,19 +7,20 @@ import arguments as a
 import model
 import os
 from train import train, train_baselines, train_feat_extractor
-
-from dlr_acd import train_dlr_acd
-from mnist import train_mnist
+from utils import load_model
+from eval import dmap_metrics, eval_baselines
+from dlr_acd import dlr_acd
+from mnist import mnist
 
 from data_loader import CustToTensor, AerialNormalize, DmapAddUniformNoise, train_val_split, Resize, RotateFlip, CustResize, prep_transformed_dataset
 
 empty_cache() # free up memory for cuda
 
 if a.args.data == 'dlr':
-    mdl, train_loader, val_loader = train_dlr_acd()
+    mdl, train_loader, val_loader = dlr_acd()
 
 if a.args.data == 'mnist':
-    mdl, train_loader, val_loader = train_mnist()
+    mdl, train_loader, val_loader = mnist()
 
 if a.args.data == 'cows':
     # torchivsion inputs are 3x227x227, mnist_resnet 1x227...
@@ -82,12 +83,22 @@ if a.args.data == 'cows':
                         num_workers=0,collate_fn=transformed_dataset.custom_collate_aerial,
                         pin_memory=False,sampler=val_sampler)
     
-    if a.args.feat_extract_only:
-        feat_extractor = model.select_feat_extractor(c.feat_extractor,train_loader,val_loader)
-        train_feat_extractor(feat_extractor,train_loader,val_loader)
-    else:
-        if a.args.model_name != 'NF':
-            mdl = train_baselines(a.args.model_name,train_loader,val_loader)
+    if a.args.mode == 'eval':
+        
+        mdl = load_model(a.args.mdl_path)
+        
+        if a.args.model_name == 'NF':
+            dmap_metrics(mdl,val_loader,mode='val')
         else:
-            mdl = train(train_loader,val_loader,full_train_loader,full_val_loader)
-                
+            eval_baselines(mdl,val_loader,mode='val',is_unet_seg=(a.args.model_name=='UNet_seg'))
+        
+    if a.args.mode == 'train':
+        
+        if a.args.feat_extract_only:
+            feat_extractor = model.select_feat_extractor(c.feat_extractor,train_loader,val_loader)
+            train_feat_extractor(feat_extractor,train_loader,val_loader)
+        else:
+            if a.args.model_name == 'NF':
+                mdl = train(train_loader,val_loader,full_train_loader,full_val_loader)
+            else:
+                mdl = train_baselines(a.args.model_name,train_loader,val_loader)

@@ -4,6 +4,10 @@ import os
 # command line params
 parser = argparse.ArgumentParser(description='Create dataloaders and train a model on MNIST, DLRACD or cow dataset.')
 
+parser.add_argument('-mode',help="Specify mode (train,eval,store).",default='')
+parser.add_argument('-mdl_path',help="Specify mdl for eval",default='')
+parser.add_argument('-ram',help='Load images/dmaps/point maps into ram for faster trainig',action="store_true",default=False)
+
 parser.add_argument('-mod',"--model_name",help="Specify model to train (NF,CSRNet, UNet, UCSRNetNet_seg, FCRN, LCFCN, MCNN).",default='')
 parser.add_argument("-fe_only", "--feat_extract_only", help="Trains the feature extractor component only.", action="store_true",default=False)
 parser.add_argument("-uc", "--unconditional", help="Trains the model without labels.", action="store_true")
@@ -66,26 +70,31 @@ host = socket.gethostname()
 
 # defaults for if running interactively
 if any('SPYDER' in name for name in os.environ):
-    args.model_name = "UNet_seg"
+    args.model_name = "NF"
     args.optim = "adam"
     args.scheduler = 'none'
-    args.annotations_only = False 
-    args.weighted_sampler = True
+    args.annotations_only = True 
+    args.weighted_sampler = False
     args.sub_epochs = 5
     args.meta_epochs = 1
     args.batch_size = 1
     args.learning_rate = 1e-3
     args.weight_decay = 1e-5
     args.tensorboard = True
-    args.viz =True
+    args.viz = True
     args.viz_freq = 1
     args.resize = True
-    args.dmap_scaling = 1000
+    args.dmap_scaling = 1
     args.max_filter_size = 4.0
     args.sigma = 4.0
+    args.noise = 0
     
 # checks
+assert args.mode in ['train','eval','store']
 assert args.gpu_number > -1
+
+if args.mode == 'eval':
+    assert args.mdl_path != ''
 
 if args.rrc:
     assert args.min_scaling > 0 and args.min_scaling < 1
@@ -101,6 +110,8 @@ if args.sgd_mom != 0 and args.optim != 'sgd':
 
 if args.model_name == 'LCFCN': #  in ['UNet_seg','LCFCN']:
     assert args.batch_size == 1 # https://github.com/ElementAI/LCFCN/issues/9
+else:
+    assert args.batch_size >= 1
     # LCFCN only supports batch size of 1
 
 if args.model_name in ['UNet_seg','LCFCN']:

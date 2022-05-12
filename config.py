@@ -15,13 +15,9 @@ gpu = True
 seed = 101 # important to keep this constant between model and servers for evaluaton
 
 ## Dataset Options ------
-load_stored_dmaps = False # speeds up precomputation (with RAM = True)
-store_dmaps = True # this will save dmap objects (numpy arrays) to file
-ram = True # load aerial imagery and precompute dmaps and load both into ram before training
 counts = False # must be off for pretraining feature extractor (#TODO)
 
 ## Training Options ------
-train_model = False # (if false, will only prep dataset,dataloaders, store dmaps)
 validation = True # whether to run validation data per meta epoch
 eval_n = 10
 data_prop = 1 # proportion of the full dataset to use (ignored in DLR ACD,MNIST)
@@ -192,14 +188,6 @@ if subnet_type == 'fc':
     assert a.args.data == 'mnist' or counts
     assert not fixed1x1conv
 
-assert not (load_stored_dmaps and store_dmaps)
-
-if load_stored_dmaps or store_dmaps:
-    assert ram
- 
-if store_dmaps:
-    assert not train_model 
-
 if subnet_type == 'conv':
     assert dropout_p == 0
     
@@ -225,6 +213,3 @@ if any('SPYDER' in name for name in os.environ):
     train_model = True
     data_prop = 1
     feat_extractor_epochs = 1
-    load_stored_dmaps = False # speeds up precomputation (with RAM = True)
-    store_dmaps = False # this will save dmap objects (numpy arrays) to file
-    ram = False # load aerial imagery and precompute dmaps and load both into ram before training
