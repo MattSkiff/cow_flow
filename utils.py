@@ -274,6 +274,9 @@ def predict_image(mdl_path,nf=False,geo=True,nf_n=10,mdl_type='',
         # normalise image patches
         # raw_patch = im_patches[i]
         patch = torch.from_numpy(im_patches[i]).float().to(c.device)
+        
+        # double check processing lines up w/data loader
+        1/0
         patch = patch.permute(2,0,1)
         patch = patch.float().div(255).to(c.device)
         patch = TF.normalize(patch,mean = c.norm_mean,std= c.norm_std)
@@ -1395,10 +1398,64 @@ def make_hparam_dict(val_loader):
                         'subnet_type?':c.subnet_type,
                         'prop. of data':c.data_prop,
                         'clamp alpha':c.clamp_alpha,
-                        'weight decay':a.args.weight_decay,
                         'epochs':a.args.meta_epochs*a.args.sub_epochs,
                         'no. of coupling blocks':c.n_coupling_blocks,
                         'dmap sigma':a.args.sigma,
                         'feat vec length':c.n_feat}
     
     return hparam_dict
+
+def create_point_map(mdl,annotations):
+    # add points onto basemap
+
+    if mdl == None:
+        # error introduced here as float position annotation centre converted to int
+        if a.args.resize:
+            base_map = np.zeros((256,256), dtype=np.float32) # c.raw_img_size
+        else:
+            base_map = np.zeros((c.raw_img_size[1], c.raw_img_size[0]), dtype=np.float32)
+    else:
+        base_map = np.zeros((mdl.density_map_h,mdl.density_map_w), dtype=np.float32)    
+
+    point_flags = []
+    
+    for point in annotations:
+        
+        offset = 1
+        
+        point_flags.append(point[0])
+        
+        # subtract 1 to account for 0 indexing
+        # NOTE: this overrides duplicate annotation points (4 out of 22k)
+        if a.args.resize:
+            base_map[int(round((point[2])*256)-offset),int(round((point[1])*256)-offset)] = 1 # +=1
+        else:
+            base_map[int(round((point[2])*c.raw_img_size[1])-offset),int(round((point[1])*c.raw_img_size[0])-offset)] = 1 # +=1
+            
+    return base_map, point_flags
+
+def loader_check(mdl,loader):
+    
+    assert mdl.sigma == a.args.sigma
+    assert mdl.dmap_scaling == a.args.dmap_scaling
+    
+    if str(type(mdl))=="<class 'baselines.UNet'>":
+        if mdl.seg:
+            assert a.args.model_name == 'UNet_seg'
+        else:
+            assert a.args.model_name == 'UNet'
+    if str(type(mdl))=="<class 'baselines.CSRNet'>":
+        assert a.args.model_name == 'CSRNet'
+    if str(type(mdl))=="<class 'baselines.LCFCN'>":
+        assert a.args.model_name == 'LCFCN'
+    if str(type(mdl))=="<class 'baselines.FCRN_A'>":
+        assert a.args.model_name == 'FCRN'
+    if str(type(mdl))=="<class 'baselines.MCNN'>":
+        assert a.args.model_name == 'MCNN'
+    if str(type(mdl))=="<class 'baselines.Res50'>":
+        assert a.args.model_name == 'Res50'
+        
+    if mdl.density_map_h == 608:
+        assert not a.args.resize
+    
+    

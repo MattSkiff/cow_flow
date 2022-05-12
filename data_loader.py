@@ -21,28 +21,21 @@ warnings.filterwarnings("ignore", message=r"Passing", category=FutureWarning)
 
 # https://docs.opencv.org/4.5.2/d4/d13/tutorial_py_filtering.html
 import scipy
-#from skimage import restoration
-#from scipy.signal import convolve2d as conv2
 
-from torch.utils.data import Dataset, DataLoader
-
+from torch.utils.data import Dataset
 import torchvision.transforms.functional as TF
 import torchvision.transforms as T
-#import torch.nn.functional as F
-
 from torchvision import utils
 from skimage import io
-from PIL import Image
 
 import config as c
 import gvars as g
 import arguments as a
 
-from utils import UnNormalize
-from utils import split_image
+from utils import UnNormalize, split_image, create_point_map
 
 # save numpy array as npz file
-from numpy import savez_compressed, save, load
+from numpy import savez_compressed, load
 
 proj_dir = c.proj_dir
 random_flag = False
@@ -508,7 +501,7 @@ class CowObjectsDataset(Dataset):
             
             dmap_path = g.DMAP_DIR+self.im_names[idx]
             
-            if c.load_stored_dmaps:
+            if a.args.ram:
                 if not os.path.exists(dmap_path):
                     ValueError("Dmaps must have been previously stored!")
                 
@@ -580,32 +573,15 @@ class CowObjectsDataset(Dataset):
                         else:
                             point_map = None
                         
-                        # error introduced here as float position annotation centre converted to int
-                        if a.args.resize:
-                            base_map = np.zeros((256,256), dtype=np.float32) # c.raw_img_size
-                        else:
-                            base_map = np.zeros((c.raw_img_size[1], c.raw_img_size[0]), dtype=np.float32)
-                         
                         # add points onto basemap
-                        for point in annotations:
+                        base_map, point_flag = create_point_map(mdl=None,annotations=annotations)
                             
-                            offset = 1
-                            
-                            # subtract 1 to account for 0 indexing
-                            # NOTE: this overrides duplicate annotation points (4 out of 22k)
-                            if a.args.resize:
-                                base_map[int(round((point[2])*256)-offset),int(round((point[1])*256)-offset)] = 1 # +=1
-                            else:
-                                base_map[int(round((point[2])*c.raw_img_size[1])-offset),int(round((point[1])*c.raw_img_size[0])-offset)] = 1 # +=1
-                            
-                            if not a.args.resize and a.args.model_name in ['LCFCN','UNet_seg']:
-                                point_map[int(round((point[2])*c.raw_img_size[1])-offset),int(round((point[1])*c.raw_img_size[0])-offset)] = 1 # +=1
-                            elif a.args.model_name in ['LCFCN','UNet_seg']:
-                                point_map[int(round((point[2])*256)-offset),int(round((point[1])*256)-offset)] = 1 # +=1
-                            else:
-                                point_map = None
+                        if a.args.model_name in ['LCFCN','UNet_seg']:
+                            point_map = base_map
+                        else:
+                            point_map = None
                                 
-                            labels.append(point[0])
+                        labels.extend(point_flag) 
                             
                         if a.args.model_name in ['UNet_seg','LCFCN']: 
                             density_map += scipy.ndimage.filters.maximum_filter(base_map,size = (a.args.max_filter_size,a.args.max_filter_size))
@@ -620,10 +596,10 @@ class CowObjectsDataset(Dataset):
                 labels = np.array(labels) # list into default collate function produces empty tensors
                 
                 # store dmaps/labels/annotations
-                if c.store_dmaps:
+                if a.args.mode == 'store':
                     if not os.path.exists(g.DMAP_DIR):
                         os.makedirs(g.DMAP_DIR)
-                    
+                        
                     savez_compressed(dmap_path[:-5]+dmap_type+dmap_size,density_map,labels,annotations,point_map,allow_pickle=True)
             
             sample = {'image': image}
@@ -652,9 +628,9 @@ class CowObjectsDataset(Dataset):
                 
             #     self.images.append(io.imread(img_path))
             
-            if ram and c.load_stored_dmaps:
+            if ram and a.args.ram:
                 desc = "Loading images, annotations, dmaps and labels into RAM"
-            elif ram and c.store_dmaps:
+            elif ram and a.args.mode == 'store':
                 desc = "Storing dmaps, pmaps, annotations and labels to file"
             elif ram:
                 desc = "Computing dmaps, pmaps, annotations and labels and storing into RAM"
@@ -794,9 +770,6 @@ class CowObjectsDataset(Dataset):
                     an = an.numpy()
                     if not self.points:
                         for j in range(0,len(an)):
-                            
-                            if c.debug:
-                                print(an)
                             
                             x = an[j,0]*c.img_size[0]-0.5*an[j,2]*c.img_size[0]
                             y = an[j,1]*c.img_size[1]-0.5*an[j,3]*c.img_size[1]
@@ -1302,6 +1275,6 @@ def prep_transformed_dataset(transforms,holdout=False):
     transformed_dataset = CowObjectsDataset(root_dir=c.proj_dir,transform = dmaps_pre,
                                             convert_to_points=True,generate_density=True,
                                             count = c.counts, 
-                                            classification = True,ram=c.ram)
+                                            classification = True,ram=a.args.ram)
     
     return transformed_dataset

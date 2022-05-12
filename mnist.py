@@ -13,7 +13,7 @@ from torch.utils.data.sampler import SubsetRandomSampler # RandomSampling
 
 empty_cache() # free up memory for cuda
 
-def train_mnist(load_only=False):
+def mnist(load_only=False):
 
     mnist_pre = Compose([
         ToTensor(),

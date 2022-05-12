@@ -13,7 +13,7 @@ from torch import randn
 import torch.nn.functional as F
 
 import matplotlib.pyplot as plt
-from utils import ft_dims_select, np_split,is_baseline, UnNormalize
+from utils import ft_dims_select, np_split,is_baseline, UnNormalize, create_point_map,loader_check
 import config as c
 import gvars as g
 import arguments as a
@@ -58,6 +58,7 @@ def gen_metrics(dm_mae,dm_mse,dm_ssim,dm_psnr,y_n,y_hat_n,game,gampe,localisatio
     y_n = np.array(y_n)
     
     y_bar = y_n.mean() 
+    
     ss_res = np.sum((y_n-y_hat_n)**2)
     ss_tot = np.sum((y_n-y_bar)**2) 
     r2 = round(1 - (ss_res / (ss_tot + 1e-8)),4)
@@ -121,6 +122,9 @@ def gen_metrics(dm_mae,dm_mse,dm_ssim,dm_psnr,y_n,y_hat_n,game,gampe,localisatio
         
         }
     
+    if a.args.mode == 'eval':
+        print(metric_dict)
+    
     return metric_dict
     
 @torch.no_grad()
@@ -128,13 +132,12 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False):
     
     thres=mdl.sigma*2
     
+    loader_check(mdl=mdl,loader=loader)
+    
     assert not mdl.count
     assert c.data_prop == 1
     assert mode in ['train','val']
     assert is_baseline(mdl)
-    if mdl.density_map_h == 608:
-        assert not a.args.resize
-    #assert mdl.dmap_scaling == a.args.dmap_scaling
    
     print("Dmap Evaluation....")
     t1 = time.perf_counter()
@@ -187,19 +190,18 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False):
                        
             # add points onto basemap
             
-            # TODO
-            base_map = np.zeros((mdl.density_map_h,mdl.density_map_w), dtype=np.float32)
-            
             # TODO- retrieve points from point annotated masks
             # anno = annotations[idx].cpu().detach().numpy()
-            ground_truth_point_map = base_map
-            gt_count = ground_truth_point_map.sum().round()
+            
             gt_coords = annotations[idx]
             
             if gt_coords.nelement() != 0:
-                gt_coords = torch.stack([gt_coords[:,2]*mdl.density_map_h,gt_coords[:,1]*mdl.density_map_w]).cpu().detach().numpy()
+                gt_coords = torch.stack([gt_coords[:,2],gt_coords[:,1]]).cpu().detach().numpy()
             else:
                 gt_coords = None
+                
+            ground_truth_point_map, _ = create_point_map(mdl=mdl,annotations=annotations[idx].cpu().detach().numpy()) 
+            gt_count = ground_truth_point_map.sum() #.round()
             
             # subtract constrant for uniform noise
             constant = ((mdl.noise)/2)*ground_truth_dmap.shape[0]*ground_truth_dmap.shape[1] 
@@ -223,8 +225,7 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False):
                 coordinates = np.array([[0,0]])
             else:
                 coordinates = peak_local_max(dmap_np,min_distance=int(mdl.sigma*2),num_peaks=n_peaks)
-            
-
+                
             #y.append(labels[idx].cpu().detach().numpy())
             y_n.append(len(labels[idx]))
             
@@ -239,22 +240,24 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False):
             y_hat_coords.append(coordinates) 
             
             # local-count metrics # TODO
-            l = 1 # cell size param - number of cells to split images into: 0 = 1, 1 = 4, 2 = 16, etc
+            l = 1 # cell size param - number of cells to split images into: 1 = 16 
             
             # this splits the density maps into cells for counting per cell
             gt_dmap_split_counts = np_split(ground_truth_point_map,nrows=mdl.density_map_w//4**l,ncols=mdl.density_map_h//4**l).sum(axis=(1,2))
-            
             pred_dmap_split_counts = np_split(dmap_np,nrows=mdl.density_map_w//4**l,ncols=mdl.density_map_h//4**l).sum(axis=(1,2))
-            pred_dmap_split_counts = 0
+            
             game.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)))
             gampe.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)/np.maximum(np.ones(len(gt_dmap_split_counts)),gt_dmap_split_counts)))  
             
             # dmap metrics (kernalised dmap   
             dm_mae.append(sum(abs(dmap_np-ground_truth_dmap)))
             dm_mse.append(sum(np.square(dmap_np-ground_truth_dmap)))
-            # TODO - mismatched data type warning here
-            # TODO - need to normalise arrays before passing to PSNR (and define appropriate data range)
-            dm_psnr.append(peak_signal_noise_ratio(ground_truth_dmap,dmap_np,data_range=ground_truth_dmap.max()-ground_truth_dmap.min()))
+            
+            #pdmap_divisor = (np.max(dmap_np)-np.min(dmap_np))
+            #if pdmap_divisor == 0:
+            #    normalised_pdmap = (dmap_np - np.min(dmap_np)) / pdmap_divisor
+            #normalised_gdmap = (ground_truth_dmap - np.min(ground_truth_dmap)) / (np.max(ground_truth_dmap)-np.min(ground_truth_dmap))
+            dm_psnr.append(peak_signal_noise_ratio(ground_truth_dmap,dmap_np))
             dm_ssim.append(structural_similarity(ground_truth_dmap,dmap_np))
     
     # localisation metrics (using kernalised dmaps)
@@ -286,8 +289,11 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False):
             # fig, ax = plt.subplots(1,1, figsize=(10, 10))
             # ax.scatter(pred_dmap[:,0], pred_dmap[:,1],label='Predicted coordinates')
             # ax.scatter(gt_dmap[:,0], gt_dmap[:,1],c='red',marker='1',label='Ground truth coordinates')
+            # 1/0
     
+            # check me!
             tp = np.count_nonzero(dists<=thres)
+
         else:
             tp = 0 # set tp to zero for null annotations
         
@@ -512,11 +518,7 @@ def dmap_metrics(mdl, loader,n=10,mode='',null_filter=False):
             
             # if sum_count > 0:
             #     thres = int(sum_count)
-                       
-            # add points onto basemap
-            #base_map = np.zeros((mdl.density_map_w, mdl.density_map_h), dtype=np.float32)
-            base_map = np.zeros((mdl.density_map_h, mdl.density_map_w), dtype=np.float32)
-            
+
             # TODO- retrieve points from point annotated masks
             if mdl.dlr_acd:
                 pm = point_maps[idx].squeeze().cpu().detach().numpy()
@@ -529,7 +531,7 @@ def dmap_metrics(mdl, loader,n=10,mode='',null_filter=False):
                 ground_truth_point_map = point_maps[idx].cpu().detach().numpy()
                 gt_count = ground_truth_point_map.sum() / 3
             else:
-                ground_truth_point_map = base_map
+                ground_truth_point_map, _ = create_point_map(mdl=mdl,annotations=annotations[idx].cpu().detach().numpy()) 
                 gt_count = ground_truth_point_map.sum().round()
                 gt_coords = annotations[idx]
                 
@@ -557,6 +559,7 @@ def dmap_metrics(mdl, loader,n=10,mode='',null_filter=False):
             
             if gt_coords is not None:
                 y_coords.append(gt_coords)
+                
             y_hat_n.append(sum_count)
             y_hat_n_dists.append(dist_counts)
             y_hat_coords.append(coordinates) 
@@ -564,8 +567,8 @@ def dmap_metrics(mdl, loader,n=10,mode='',null_filter=False):
             # dmap metrics (we do use the kernalised dmap for this)
             dm_mae.append(sum(abs(dmap_rev_np-ground_truth_dmap)))
             dm_mse.append(sum(np.square(dmap_rev_np-ground_truth_dmap)))
-            # TODO - mismatched data type warning here
-            dm_psnr.append(peak_signal_noise_ratio(ground_truth_dmap,dmap_rev_np,data_range=ground_truth_dmap.max()-ground_truth_dmap.min()))
+            
+            dm_psnr.append(peak_signal_noise_ratio(ground_truth_dmap,dmap_rev_np)) #data_range=ground_truth_dmap.max()-ground_truth_dmap.min()))
             dm_ssim.append(structural_similarity(ground_truth_dmap,dmap_rev_np))
                         
             # local-count metrics # TODO
@@ -573,6 +576,9 @@ def dmap_metrics(mdl, loader,n=10,mode='',null_filter=False):
             
             # this splits the density maps into cells for counting per cell
             gt_dmap_split_counts = np_split(ground_truth_point_map,nrows=mdl.density_map_w//4**l,ncols=mdl.density_map_h//4**l).sum(axis=(1,2))
+            
+            #zambingo
+            
             pred_dmap_split_counts = np_split(dmap_rev_np,nrows=mdl.density_map_w//4**l,ncols=mdl.density_map_h//4**l).sum(axis=(1,2))
 
             game.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)))

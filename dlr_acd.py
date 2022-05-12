@@ -14,7 +14,7 @@ import arguments as a
 #from utils import load_datasets, make_dataloaders
 from data_loader import DLRACD, DLRACDToTensor, DLRACDAddUniformNoise,DLRACDCropRotateFlipScaling
 
-def train_dlr_acd(load_only=False):    
+def dlr_acd(load_only=False):    
     empty_cache() # free up memory for cuda
     
     dlracd_pre = Compose([
