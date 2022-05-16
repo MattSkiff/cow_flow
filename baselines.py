@@ -145,96 +145,7 @@ class FCRN_A(nn.Module):
         """Forward pass."""
         return self.model(input)
 
-# delete 
-class UNet(nn.Module):
-    """
-    U-Net implementation.
-    Ref. O. Ronneberger et al. "U-net: Convolutional networks for biomedical
-    image segmentation."
-    """
-
-    def __init__(self,modelname,filters: int=64, input_filters: int=3, **kwargs):
-        """
-        Create U-Net model with:
-            * fixed kernel size = (3, 3)
-            * fixed max pooling kernel size = (2, 2) and upsampling factor = 2
-            * fixed no. of convolutional layers per block = 2 (see conv_block)
-            * constant no. of filters for convolutional layers
-        Args:
-            filters: no. of filters for convolutional layers
-            input_filters: no. of input channels
-        """
-        
-        
-        # these attr's are needed to make the model object independant of the config file
-        self.dlr_acd = a.args.dlr_acd
-        self.modelname = modelname
-        self.unconditional = False
-        self.count = False
-        self.subnet_type = None
-        self.mnist = False
-        self.gap = c.gap
-        self.n_coupling_blocks = 0
-        self.joint_optim = False
-        self.pretrained = False
-        self.finetuned = False
-        self.scheduler = a.args.scheduler
-        self.scale = c.scale
-        self.density_map_h = c.density_map_h
-        self.density_map_w = c.density_map_w
-        self.downsampling = c.downsampling
-        self.scale = c.scale
-        self.noise = a.args.noise
-        self.seed = c.seed
-        self.dmap_scaling = a.args.dmap_scaling
-        
-        super(UNet, self).__init__()
-        # first block channels size
-        initial_filters = (input_filters, filters)
-        # channels size for downsampling
-        down_filters = (filters, filters)
-        # channels size for upsampling (input doubled because of concatenate)
-        up_filters = (2 * filters, filters)
-
-        # downsampling
-        self.block1 = conv_block(channels=initial_filters, size=(3, 3), N=2)
-        self.block2 = conv_block(channels=down_filters, size=(3, 3), N=2)
-        self.block3 = conv_block(channels=down_filters, size=(3, 3), N=2)
-
-        # upsampling
-        self.block4 = ConvCat(channels=down_filters, size=(3, 3), N=2)
-        self.block5 = ConvCat(channels=up_filters, size=(3, 3), N=2)
-        self.block6 = ConvCat(channels=up_filters, size=(3, 3), N=2)
-
-        # density prediction
-        self.block7 = conv_block(channels=up_filters, size=(3, 3), N=2)
-        self.density_pred = nn.Conv2d(in_channels=filters, out_channels=1,
-                                      kernel_size=(1, 1), bias=False)
-
-    def forward(self, input: torch.Tensor):
-        """Forward pass."""
-        # use the same max pooling kernel size (2, 2) across the network
-        pool = nn.MaxPool2d(2)
-
-        # downsampling
-        block1 = self.block1(input)
-        pool1 = pool(block1)
-        block2 = self.block2(pool1)
-        pool2 = pool(block2)
-        block3 = self.block3(pool2)
-        pool3 = pool(block3)
-
-        # upsampling
-        block4 = self.block4(pool3, block3)
-        block5 = self.block5(block4, block2)
-        block6 = self.block6(block5, block1)
-
-        # density prediction
-        block7 = self.block7(block6)
-        return self.density_pred(block7)
-
-# implementation from: https://github.com/milesial/Pytorch-UNet
-# density modification from: https://github.com/NeuroSYS-pl/objects_counting_dmap 
+# # delete 
 # class UNet(nn.Module):
 #     """
 #     U-Net implementation.
@@ -242,7 +153,7 @@ class UNet(nn.Module):
 #     image segmentation."
 #     """
 
-#     def __init__(self, modelname, n_channels = 3, bilinear=False,seg=False):
+#     def __init__(self,modelname,filters: int=64, input_filters: int=3, **kwargs):
 #         """
 #         Create U-Net model with:
 #             * fixed kernel size = (3, 3)
@@ -256,7 +167,7 @@ class UNet(nn.Module):
         
         
 #         # these attr's are needed to make the model object independant of the config file
-#         self.dlr_acd = a.args.data == 'dlr'
+#         self.dlr_acd = a.args.dlr_acd
 #         self.modelname = modelname
 #         self.unconditional = False
 #         self.count = False
@@ -273,55 +184,143 @@ class UNet(nn.Module):
 #         self.density_map_w = c.density_map_w
 #         self.downsampling = c.downsampling
 #         self.scale = c.scale
-#         self.sigma = a.args.sigma
 #         self.noise = a.args.noise
 #         self.seed = c.seed
 #         self.dmap_scaling = a.args.dmap_scaling
-#         self.seg = seg
         
 #         super(UNet, self).__init__()
-#         self.n_channels = n_channels
-#         self.bilinear = bilinear
+#         # first block channels size
+#         initial_filters = (input_filters, filters)
+#         # channels size for downsampling
+#         down_filters = (filters, filters)
+#         # channels size for upsampling (input doubled because of concatenate)
+#         up_filters = (2 * filters, filters)
 
-#         self.inc = DoubleConv(n_channels, 64)
-#         self.down1 = Down(64, 128)
-#         self.down2 = Down(128, 256)
-#         self.down3 = Down(256, 512)
-#         factor = 2 if bilinear else 1
-#         self.down4 = Down(512, 1024 // factor)
-#         self.up1 = Up(1024, 512 // factor, bilinear)
-#         self.up2 = Up(512, 256 // factor, bilinear)
-#         self.up3 = Up(256, 128 // factor, bilinear)
-#         self.up4 = Up(128, 64, bilinear)
-        
-#         if self.seg:
-#             self.outc = nn.Conv2d(64, 1, kernel_size=1)
-#         else:
-#             # adapt for density map estimation
-#             # https://github.com/NeuroSYS-pl/objects_counting_dmap/blob/master/model.py
-#             self.density_pred = nn.Conv2d(in_channels=64, out_channels=1,
-#                                           kernel_size=(1, 1), bias=False)
+#         # downsampling
+#         self.block1 = conv_block(channels=initial_filters, size=(3, 3), N=2)
+#         self.block2 = conv_block(channels=down_filters, size=(3, 3), N=2)
+#         self.block3 = conv_block(channels=down_filters, size=(3, 3), N=2)
 
-#     def forward(self, x):
+#         # upsampling
+#         self.block4 = ConvCat(channels=down_filters, size=(3, 3), N=2)
+#         self.block5 = ConvCat(channels=up_filters, size=(3, 3), N=2)
+#         self.block6 = ConvCat(channels=up_filters, size=(3, 3), N=2)
+
+#         # density prediction
+#         self.block7 = conv_block(channels=up_filters, size=(3, 3), N=2)
+#         self.density_pred = nn.Conv2d(in_channels=filters, out_channels=1,
+#                                       kernel_size=(1, 1), bias=False)
+
+#     def forward(self, input: torch.Tensor):
+#         """Forward pass."""
+#         # use the same max pooling kernel size (2, 2) across the network
+#         pool = nn.MaxPool2d(2)
+
+#         # downsampling
+#         block1 = self.block1(input)
+#         pool1 = pool(block1)
+#         block2 = self.block2(pool1)
+#         pool2 = pool(block2)
+#         block3 = self.block3(pool2)
+#         pool3 = pool(block3)
+
+#         # upsampling
+#         block4 = self.block4(pool3, block3)
+#         block5 = self.block5(block4, block2)
+#         block6 = self.block6(block5, block1)
+
+#         # density prediction
+#         block7 = self.block7(block6)
+#         return self.density_pred(block7)
+
+# implementation from: https://github.com/milesial/Pytorch-UNet
+# density modification from: https://github.com/NeuroSYS-pl/objects_counting_dmap 
+class UNet(nn.Module):
+    """
+    U-Net implementation.
+    Ref. O. Ronneberger et al. "U-net: Convolutional networks for biomedical
+    image segmentation."
+    """
+
+    def __init__(self, modelname, n_channels = 3, bilinear=False,seg=False):
+        """
+        Create U-Net model with:
+            * fixed kernel size = (3, 3)
+            * fixed max pooling kernel size = (2, 2) and upsampling factor = 2
+            * fixed no. of convolutional layers per block = 2 (see conv_block)
+            * constant no. of filters for convolutional layers
+        Args:
+            filters: no. of filters for convolutional layers
+            input_filters: no. of input channels
+        """
         
-#         x1 = self.inc(x)
-#         x2 = self.down1(x1)
-#         x3 = self.down2(x2)
-#         x4 = self.down3(x3)
-#         x5 = self.down4(x4)
-#         x6 = self.up1(x5, x4)
-#         x7 = self.up2(x6, x3)
-#         x8 = self.up3(x7, x2)
-#         x9 = self.up4(x8, x1)
+        
+        # these attr's are needed to make the model object independant of the config file
+        self.dlr_acd = a.args.data == 'dlr'
+        self.modelname = modelname
+        self.unconditional = False
+        self.count = False
+        self.subnet_type = None
+        self.mnist = False
+        self.gap = c.gap
+        self.n_coupling_blocks = 0
+        self.joint_optim = False
+        self.pretrained = False
+        self.finetuned = False
+        self.scheduler = a.args.scheduler
+        self.scale = c.scale
+        self.density_map_h = c.density_map_h
+        self.density_map_w = c.density_map_w
+        self.downsampling = c.downsampling
+        self.scale = c.scale
+        self.sigma = a.args.sigma
+        self.noise = a.args.noise
+        self.seed = c.seed
+        self.dmap_scaling = a.args.dmap_scaling
+        self.seg = seg
+        
+        super(UNet, self).__init__()
+        self.n_channels = n_channels
+        self.bilinear = bilinear
+
+        self.inc = DoubleConv(n_channels, 64)
+        self.down1 = Down(64, 128)
+        self.down2 = Down(128, 256)
+        self.down3 = Down(256, 512)
+        factor = 2 if bilinear else 1
+        self.down4 = Down(512, 1024 // factor)
+        self.up1 = Up(1024, 512 // factor, bilinear)
+        self.up2 = Up(512, 256 // factor, bilinear)
+        self.up3 = Up(256, 128 // factor, bilinear)
+        self.up4 = Up(128, 64, bilinear)
+        
+        if self.seg:
+            self.outc = nn.Conv2d(64, 1, kernel_size=1)
+        else:
+            # adapt for density map estimation
+            # https://github.com/NeuroSYS-pl/objects_counting_dmap/blob/master/model.py
+            self.density_pred = nn.Conv2d(in_channels=64, out_channels=1,
+                                          kernel_size=(1, 1), bias=False)
+
+    def forward(self, x):
+        
+        x1 = self.inc(x)
+        x2 = self.down1(x1)
+        x3 = self.down2(x2)
+        x4 = self.down3(x3)
+        x5 = self.down4(x4)
+        x6 = self.up1(x5, x4)
+        x7 = self.up2(x6, x3)
+        x8 = self.up3(x7, x2)
+        x9 = self.up4(x8, x1)
     
-#         if self.seg:
-#             x10 = self.outc(x9)
-#         else:
-#             x10 = self.density_pred(x9)
+        if self.seg:
+            x10 = self.outc(x9)
+        else:
+            x10 = self.density_pred(x9)
         
-#         return x10
+        return x10
 
-    
 class DoubleConv(nn.Module):
     """(convolution => [BN] => ReLU) * 2"""
 
