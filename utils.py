@@ -5,6 +5,7 @@ from tqdm import tqdm
 import os
 import torch
 import torchvision.transforms.functional as TF
+import torchvision.transforms as T
 import torch.nn.functional as F
 import numpy as np
 import random
@@ -53,6 +54,7 @@ def save_model(mdl,filename,loc=g.MODEL_DIR):
     save_cstate(cdir=g.C_DIR,modelname="",config_file="config.py")
     
 def load_model(filename,loc=g.MODEL_DIR):
+    
     path = os.path.join(loc, filename)
     mdl = torch.load(path, pickle_module=dill)
     
@@ -265,8 +267,9 @@ def plot_preds_multi(UNet_path,CSRNet_path,FCRN_path,NF_path,mode,loader,sample_
 @torch.no_grad()
 def predict_image(mdl_path,nf=False,geo=True,nf_n=10,mdl_type='',
                   image_path='/home/mks29/6-6-2018_Ortho_ColorBalance.tif',dlr=False):
+    #'/home/mks29/6-6-2018_Ortho_ColorBalance.tif'
     
-    assert mdl_type in g.BASELINE_MODEL_NAMES
+    assert mdl_type in g.BASELINE_MODEL_NAMES + ['NF']
     print('Patch sizes hardcoded to 800x600 (cow dataset)')
     
     mdl = load_model(mdl_path).to(c.device)
@@ -279,14 +282,17 @@ def predict_image(mdl_path,nf=False,geo=True,nf_n=10,mdl_type='',
     for i in tqdm(range(len(im_patches)),desc="Predicting patches"):
         
         # normalise image patches
-        # raw_patch = im_patches[i]
+        raw_patch = im_patches[i] # debug
         patch = torch.from_numpy(im_patches[i]).float().to(c.device)
         
         # double check processing lines up w/data loader
-        1/0
         patch = patch.permute(2,0,1)
         patch = patch.float().div(255).to(c.device)
         patch = TF.normalize(patch,mean = c.norm_mean,std= c.norm_std)
+        
+        resize = T.Resize(size=(a.args.image_size,a.args.image_size))
+        patch = resize(patch.unsqueeze(0))
+        patch = patch.squeeze()
         
         if nf:
             
@@ -318,25 +324,43 @@ def predict_image(mdl_path,nf=False,geo=True,nf_n=10,mdl_type='',
             # x[(preds == 1).bool(),:,:] = torch.zeros(1,mdl.density_map_h,mdl.density_map_w).to(c.device)
             
             # constant = ((mdl.noise)/2)*patch_size*patch_size
-            im_patches[i] = x.squeeze(0).permute(1,2,0).cpu().numpy()
-            im_patches[i] = im_patches[i] * mdl.dmap_scaling
+            im_patches[i] = x.squeeze(0) #.permute(1,2,0)
+            #DEBUG - model seems to be working?
+            if i>0:
+                fig, ax = plt.subplots(2)
+                plt.subplots_adjust(left=0.1, right=0.9, top=0.9, bottom=0.1)
+                fig.set_size_inches(35*1,7*1)
+                fig.set_dpi(100)
+                im_patches[i] = im_patches[i].permute(1,2,0)
+                ax[0].imshow(im_patches[i].cpu().numpy()) 
+                ax[1].imshow(raw_patch) 
+            if i == 300:
+                pass
             
         else:
-            im_patches[i] = mdl(patch.unsqueeze(0)).squeeze(0) * mdl.dmap_scaling #.astype(np.uint8)
-            #print(torch.max(im_patches[i]))
-            # DEBUG - model seems to be working?
-            # fig, ax = plt.subplots(2)
-            # plt.subplots_adjust(left=0.1, right=0.9, top=0.9, bottom=0.1)
-            # fig.set_size_inches(35*1,7*1)
-            # fig.set_dpi(100)
-            # ax[0].imshow(im_patches[i].cpu().numpy()) 
-            # ax[1].imshow(raw_patch) 
-            
-            if not dlr:
-                im_patches[i] = F.interpolate(im_patches[i].unsqueeze(0),(608,800), mode='bicubic', align_corners=False)
-                im_patches[i] = im_patches[i].squeeze(0).permute(1,2,0).cpu().numpy() # 
-            else:
-                im_patches[i] = im_patches[i].cpu().numpy()
+            im_patches[i] = mdl(patch.unsqueeze(0)).squeeze(0) / mdl.dmap_scaling #.astype(np.uint8)
+            print(torch.max(im_patches[i]))
+            #DEBUG - model seems to be working?
+            if i>0:
+                fig, ax = plt.subplots(2)
+                plt.subplots_adjust(left=0.1, right=0.9, top=0.9, bottom=0.1)
+                fig.set_size_inches(35*1,7*1)
+                fig.set_dpi(100)
+                im_patches[i] = im_patches[i].permute(1,2,0)
+                ax[0].imshow(im_patches[i].cpu().numpy()) 
+                ax[1].imshow(raw_patch) 
+            if i == 300:
+                pass
+    1/0
+        
+    for i in tqdm(range(len(im_patches)),desc="Interpolating"):
+        
+       if not dlr:
+           im_patches[i] = F.interpolate(im_patches[i].unsqueeze(0),(608,800), mode='bicubic', align_corners=False)
+           im_patches[i] = im_patches[i].squeeze(0).permute(1,2,0).cpu().numpy() # 
+       else:
+           im_patches[i] = F.interpolate(im_patches[i].unsqueeze(0),(320,320), mode='bicubic', align_corners=False)
+           im_patches[i] = im_patches[i].squeeze(0).permute(1,2,0).cpu().numpy()
     
     shape = im.shape
     del im
@@ -346,15 +370,15 @@ def predict_image(mdl_path,nf=False,geo=True,nf_n=10,mdl_type='',
     predicted = stich_image(shape, im_patches, name=name,save=True,path=path,
                             frmt=frmt,geo=geo,mdl_type=mdl_type,dlr=dlr)
     
-    x_scaler = StandardScaler()
-    predicted[0,:,:] = x_scaler.fit_transform(predicted[0,:,:])
-    
-    del im_patches
-    
-    print('whole pred image max')
-    print(np.max(predicted))
-    
     if geo:
+        
+        x_scaler = StandardScaler()
+        predicted[0,:,:] = x_scaler.fit_transform(predicted[0,:,:])
+        
+        del im_patches
+        
+        print('whole pred image max')
+        print(np.max(predicted))
         
         src = rasterio.open(image_path)
         predicted = reshape_as_raster(predicted)
@@ -379,6 +403,9 @@ def predict_image(mdl_path,nf=False,geo=True,nf_n=10,mdl_type='',
             dst.write(predicted.astype(rasterio.float32))
             dst.close()
             print('{}{}{}"."{} saved to file.'.format(path,mdl_type,name,frmt))
+    # else:
+    #     cv2.imwrite(format(path,mdl_type,name,'jpg'),img=predicted)
+        
     
 
 @torch.no_grad()
@@ -1222,8 +1249,17 @@ def stich_image(img_size,image_patches,name,save=True,overlap=0,path=None,frmt=N
     
     if save and not geo:
         print('Saving image...')
-        img_name = 'pred_{}_{}.{}'.format(mdl_type,name,frmt)
-        im = Image.fromarray(predicted) 
+        img_name = 'pred_{}_{}.{}'.format(mdl_type,name,'jpg') #'jpg'
+        predicted = predicted.transpose(2,0,1)
+        
+        x_scaler = StandardScaler()
+        predicted[0,:,:] = x_scaler.fit_transform(predicted[0,:,:])
+        
+        print('whole pred image max')
+        print(np.max(predicted))
+        
+        im = Image.fromarray((predicted[0]).astype(np.uint8))
+        print(path+img_name)
         im.save(path+img_name)
         print("Done.")
         #cv2.imwrite(path+img_name,predicted.astype(np.uint8))
@@ -1319,10 +1355,7 @@ def make_model_name(train_loader):
      if a.args.model_name == 'NF':
          parts.append('NC'+str(c.n_coupling_blocks))
 
-     if a.args.weighted_sampler:
-         parts.append('weight')
-     else:
-         parts.append('anno')
+     parts.append(a.args.sampler)
      
      if a.args.model_name in ['UNet_seg','LCFCN']:
          parts.append('MX_SZ_'+str(a.args.max_filter_size))
@@ -1443,7 +1476,7 @@ def create_point_map(mdl,annotations):
     return base_map, point_flags
 
 def loader_check(mdl,loader):
-    
+    return    
     assert mdl.sigma == a.args.sigma
     assert mdl.noise == a.args.noise
     assert mdl.dmap_scaling == a.args.dmap_scaling
@@ -1466,5 +1499,8 @@ def loader_check(mdl,loader):
         
     if mdl.density_map_h == 608:
         assert not a.args.resize
+        
+    if mdl.density_map_h == 256:
+        assert a.args.resize
     
     

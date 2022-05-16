@@ -1,17 +1,15 @@
-# This file starts the training on the DLR ACD dataset
+# External
 from torch.cuda import empty_cache
 from torchvision.transforms import Compose
 from torch.utils.data.sampler import SubsetRandomSampler
 from torch.utils.data import DataLoader # Dataset   
+
+# Internal
 from train import train     
 import os                                                                                                                                                            
 import config as c
-
-
 from utils import plot_preds, plot_peaks
 import arguments as a
-
-#from utils import load_datasets, make_dataloaders
 from data_loader import DLRACD, DLRACDToTensor, DLRACDAddUniformNoise,DLRACDCropRotateFlipScaling
 
 def dlr_acd(load_only=False):    

@@ -130,7 +130,7 @@ def gen_metrics(dm_mae,dm_mse,dm_ssim,dm_psnr,y_n,y_hat_n,game,gampe,localisatio
 @torch.no_grad()
 def eval_baselines(mdl,loader,mode,is_unet_seg=False):
     
-    thres=mdl.sigma*2
+    thres=4*2 #mdl.sigma*2
     
     loader_check(mdl=mdl,loader=loader)
     
@@ -158,10 +158,6 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False):
     for i, data in enumerate(tqdm(loader, disable=False)):
         
         images,dmaps,labels, binary_labels , annotations, point_maps = data
-        
-        if not (str(type(mdl)) == "<class 'baselines.LCFCN'>" or is_unet_seg):
-            dmaps = dmaps/mdl.dmap_scaling
-            
         images = images.float().to(c.device)
         
         x = mdl(images)
@@ -180,13 +176,13 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False):
                 dmap_np = x[idx].squeeze().cpu().detach().numpy()
                 
             dmap_np = dmap_np/mdl.dmap_scaling
-            sum_count = dmap_np.sum() # sum across channel, spatial dims for counts
+            pred_count = dmap_np.sum() # sum across channel, spatial dims for counts
             
             # We 'DONT' evaluate using the GT dmap
             ground_truth_dmap = dmaps[idx].squeeze().cpu().detach().numpy()
             
-            # if sum_count > 0:
-            #     thres = int(sum_count)
+            # if pred_count > 0:
+            #     thres = int(pred_count)
                        
             # add points onto basemap
             
@@ -201,26 +197,26 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False):
                 gt_coords = None
                 
             ground_truth_point_map, _ = create_point_map(mdl=mdl,annotations=annotations[idx].cpu().detach().numpy()) 
-            gt_count = ground_truth_point_map.sum() #.round()
+            gt_count = ground_truth_dmap.sum() #.round()
             
             # subtract constrant for uniform noise
             constant = ((mdl.noise)/2)*ground_truth_dmap.shape[0]*ground_truth_dmap.shape[1] 
             loader_noise = ((a.args.noise)/2)*ground_truth_dmap.shape[0]*ground_truth_dmap.shape[1] 
             
-            sum_count -= constant
+            pred_count -= constant
             gt_count -= loader_noise
-            
+		
             if is_unet_seg:
                 n_peaks=np.inf
             else:
-                n_peaks=max(1,int(sum_count))
+                n_peaks=max(1,int(pred_count))
             
             if str(type(mdl)) == "<class 'baselines.LCFCN'>":
                 coordinates = np.argwhere(pred_points != 0)
             elif is_unet_seg:
                 coordinates = peak_local_max(dmap_np.squeeze(),min_distance=1,
                                              num_peaks=np.inf,threshold_abs=0,threshold_rel=0.5)
-                sum_count = len(coordinates)
+                pred_count = len(coordinates)
             elif str(type(mdl))  in ["<class 'baselines.CSRNet'>"]:
                 coordinates = np.array([[0,0]])
             else:
@@ -235,7 +231,7 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False):
             if str(type(mdl)) == "<class 'baselines.LCFCN'>":# or is_unet_seg:
                 y_hat_n.append(blob_counts)
             else:
-                y_hat_n.append(sum_count)
+                y_hat_n.append(pred_count)
             
             y_hat_coords.append(coordinates) 
             
@@ -510,14 +506,14 @@ def dmap_metrics(mdl, loader,n=10,mode='',null_filter=(a.args.sampler == 'weight
         for idx in range(images.size()[0]):               
                 
             dmap_rev_np = x[idx].squeeze().cpu().detach().numpy()
-            sum_count = dmap_rev_np.sum() # sum across channel, spatial dims for counts
+            pred_count = dmap_rev_np.sum() # sum across channel, spatial dims for counts
             dist_counts  = x_agg[idx].sum((1,2,3)) 
             
             # We 'DONT' evaluate using the GT dmap
             ground_truth_dmap = dmaps[idx].squeeze().cpu().detach().numpy()
             
-            # if sum_count > 0:
-            #     thres = int(sum_count)
+            # if pred_count > 0:
+            #     thres = int(pred_count)
 
             # TODO- retrieve points from point annotated masks
             if mdl.dlr_acd:
@@ -544,11 +540,11 @@ def dmap_metrics(mdl, loader,n=10,mode='',null_filter=(a.args.sampler == 'weight
             constant = ((mdl.noise)/2)*ground_truth_dmap.shape[0]*ground_truth_dmap.shape[1] 
             loader_noise = ((a.args.noise)/2)*ground_truth_dmap.shape[0]*ground_truth_dmap.shape[1] 
             
-            sum_count -= constant
+            pred_count -= constant
             dist_counts -= constant
             gt_count -= loader_noise
             
-            coordinates = peak_local_max(dmap_rev_np,min_distance=int(mdl.sigma*2),num_peaks=max(1,int(sum_count)))
+            coordinates = peak_local_max(dmap_rev_np,min_distance=int(mdl.sigma*2),num_peaks=max(1,int(pred_count)))
             
             if mdl.dlr_acd:
                 #y.append()
@@ -560,7 +556,7 @@ def dmap_metrics(mdl, loader,n=10,mode='',null_filter=(a.args.sampler == 'weight
             if gt_coords is not None:
                 y_coords.append(gt_coords)
                 
-            y_hat_n.append(sum_count)
+            y_hat_n.append(pred_count)
             y_hat_n_dists.append(dist_counts)
             y_hat_coords.append(coordinates) 
             
@@ -687,7 +683,7 @@ def dmap_pr_curve(mdl, loader,n = 10,mode = ''):
             idx = random.randint(0,images.size()[0]-1)
                 
             dmap_rev_np = x[idx].squeeze().cpu().detach().numpy()
-            sum_count = dmap_rev_np.sum()
+            pred_count = dmap_rev_np.sum()
             
             ground_truth_dmap = dmaps[idx].squeeze().cpu().detach().numpy()
             gt_count = ground_truth_dmap.sum().round()
@@ -705,13 +701,13 @@ def dmap_pr_curve(mdl, loader,n = 10,mode = ''):
             loader_noise = ((a.args.noise)/2)*ground_truth_dmap.shape[0]*ground_truth_dmap.shape[1] 
             
             gt_count -= loader_noise
-            sum_count -= constant
+            pred_count -= constant
             
             
-            y_hat_coords['div2'].append(peak_local_max(dmap_rev_np,min_distance=int(mdl.sigma//2),num_peaks=max(1,int(sum_count))))
-            y_hat_coords['same'].append(peak_local_max(dmap_rev_np,min_distance=int(mdl.sigma),num_peaks=max(1,int(sum_count))))
-            y_hat_coords['mult2'].append(peak_local_max(dmap_rev_np,min_distance=int(mdl.sigma*2),num_peaks=max(1,int(sum_count))))
-            y_hat_coords['mult4'].append(peak_local_max(dmap_rev_np,min_distance=int(mdl.sigma*4),num_peaks=max(1,int(sum_count))))
+            y_hat_coords['div2'].append(peak_local_max(dmap_rev_np,min_distance=int(mdl.sigma//2),num_peaks=max(1,int(pred_count))))
+            y_hat_coords['same'].append(peak_local_max(dmap_rev_np,min_distance=int(mdl.sigma),num_peaks=max(1,int(pred_count))))
+            y_hat_coords['mult2'].append(peak_local_max(dmap_rev_np,min_distance=int(mdl.sigma*2),num_peaks=max(1,int(pred_count))))
+            y_hat_coords['mult4'].append(peak_local_max(dmap_rev_np,min_distance=int(mdl.sigma*4),num_peaks=max(1,int(pred_count))))
             
             #y.append(labels[idx].cpu().detach().numpy()) # TODO - rm?
             
@@ -721,7 +717,7 @@ def dmap_pr_curve(mdl, loader,n = 10,mode = ''):
                 y_n.append(len(labels[idx]))
                 
             y_coords.append(gt_coords)
-            y_hat_n.append(sum_count)    
+            y_hat_n.append(pred_count)    
     
     # localisation metrics 
     # it turns out this is actually an instance of the assignment problem

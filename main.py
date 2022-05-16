@@ -16,8 +16,6 @@ from eval import dmap_metrics, eval_baselines
 from dlr_acd import dlr_acd
 from mnist import mnist
 
-
-
 empty_cache() # free up memory for cuda
 
 if a.args.data == 'dlr':
@@ -63,7 +61,6 @@ if a.args.data == 'cows':
                                                       annotations_only = False,
                                                       seed = c.seed,
                                                       oversample=False)
-    
     train_sampler = SubsetRandomSampler(t_indices)
     val_sampler = SubsetRandomSampler(v_indices)
   
@@ -95,6 +92,7 @@ if a.args.data == 'cows':
             dmap_metrics(mdl,val_loader,mode='val',n=50)
         else:
             eval_baselines(mdl,val_loader,mode='val',is_unet_seg=(a.args.model_name=='UNet_seg'))
+            #eval_baselines(mdl,train_loader,mode='train',is_unet_seg=(a.args.model_name=='UNet_seg'))
         
     if a.args.mode == 'train':
         
