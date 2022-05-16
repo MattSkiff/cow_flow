@@ -110,7 +110,7 @@ class DLRACD(Dataset):
                 # create image patches
                 for img_path in tqdm(images_list, desc="Loading and splitting {} images...".format(mode)):
                     im = cv2.imread(os.path.join(self.root_dir,mode+"/Images/"+img_path))
-                    im_patches = split_image(im, save = patch_save ,patch_size = 320, overlap=overlap,name = img_path[:-4],path = im_patch_path,frmt = 'jpg')
+                    im_patches = split_image(im, save = patch_save, overlap=overlap,name = img_path[:-4],path = im_patch_path,frmt = 'jpg',dlr=True)
         
                 patches_list = sorted(os.listdir(os.path.join(self.root_dir,mode+"/Images/Patches/")))
                 
@@ -170,7 +170,7 @@ class DLRACD(Dataset):
                     # create annotation patches
                     for anno_path in tqdm(annotation_list, desc="Loading and splitting images..."):
                         anno = cv2.imread(os.path.join(self.root_dir,mode+"/Annotation/"+anno_path))
-                        anno_patches = split_image(anno,save=patch_save, patch_size = 320, overlap=overlap,name = anno_path[:-4],path = anno_patch_path,frmt = 'png')
+                        anno_patches = split_image(anno,save=patch_save, overlap=overlap,name = anno_path[:-4],path = anno_patch_path,frmt = 'png',dlr=True)
                         self.anno_path[mode].extend([anno_path]*len(anno_patches))
                     
                     anno_patches_list = sorted(os.listdir(os.path.join(self.root_dir,mode+"/Annotation/Patches/")))
