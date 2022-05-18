@@ -1,4 +1,5 @@
 # external
+import torch
 from torch.cuda import empty_cache
 from torch.utils.data import DataLoader # Dataset                                                                                                                                                                    
 from torch.utils.data.sampler import SubsetRandomSampler # RandomSampling
@@ -40,7 +41,10 @@ if a.args.data == 'cows':
         transforms.append(CustResize())
     
     #if a.args.rrc:
-    transforms.extend([DmapAddUniformNoise(),RotateFlip(),])
+    if not a.args.mode == 'eval':
+        transforms.append(RotateFlip())
+        
+    transforms.append(DmapAddUniformNoise())
 
     transformed_dataset = prep_transformed_dataset(transforms)
     
@@ -61,11 +65,11 @@ if a.args.data == 'cows':
                                                       annotations_only = False,
                                                       seed = c.seed,
                                                       oversample=False)
-    train_sampler = SubsetRandomSampler(t_indices)
-    val_sampler = SubsetRandomSampler(v_indices)
+    train_sampler = SubsetRandomSampler(t_indices,generator=torch.Generator().manual_seed(c.seed))
+    val_sampler = SubsetRandomSampler(v_indices,generator=torch.Generator().manual_seed(c.seed))
   
-    full_train_sampler = SubsetRandomSampler(f_t_indices)
-    full_val_sampler = SubsetRandomSampler(f_v_indices) 
+    full_train_sampler = SubsetRandomSampler(f_t_indices,generator=torch.Generator().manual_seed(c.seed))
+    full_val_sampler = SubsetRandomSampler(f_v_indices,generator=torch.Generator().manual_seed(c.seed)) 
     
     # leave shuffle off for use of any samplers
     full_train_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 

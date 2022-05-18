@@ -282,7 +282,7 @@ def predict_image(mdl_path,nf=False,geo=True,nf_n=10,mdl_type='',
     for i in tqdm(range(len(im_patches)),desc="Predicting patches"):
         
         # normalise image patches
-        raw_patch = im_patches[i] # debug
+        #raw_patch = im_patches[i] # debug
         patch = torch.from_numpy(im_patches[i]).float().to(c.device)
         
         # double check processing lines up w/data loader
@@ -326,32 +326,31 @@ def predict_image(mdl_path,nf=False,geo=True,nf_n=10,mdl_type='',
             # constant = ((mdl.noise)/2)*patch_size*patch_size
             im_patches[i] = x.squeeze(0) #.permute(1,2,0)
             #DEBUG - model seems to be working?
-            if i>0:
-                fig, ax = plt.subplots(2)
-                plt.subplots_adjust(left=0.1, right=0.9, top=0.9, bottom=0.1)
-                fig.set_size_inches(35*1,7*1)
-                fig.set_dpi(100)
-                im_patches[i] = im_patches[i].permute(1,2,0)
-                ax[0].imshow(im_patches[i].cpu().numpy()) 
-                ax[1].imshow(raw_patch) 
-            if i == 300:
-                pass
+            # if i>0:
+            #     fig, ax = plt.subplots(2)
+            #     plt.subplots_adjust(left=0.1, right=0.9, top=0.9, bottom=0.1)
+            #     fig.set_size_inches(35*1,7*1)
+            #     fig.set_dpi(100)
+            #     im_patches[i] = im_patches[i].permute(1,2,0)
+            #     ax[0].imshow(im_patches[i].cpu().numpy()) 
+            #     ax[1].imshow(raw_patch) 
+            # if i == 300:
+            #     pass
             
         else:
             im_patches[i] = mdl(patch.unsqueeze(0)).squeeze(0) / mdl.dmap_scaling #.astype(np.uint8)
-            print(torch.max(im_patches[i]))
             #DEBUG - model seems to be working?
-            if i>0:
-                fig, ax = plt.subplots(2)
-                plt.subplots_adjust(left=0.1, right=0.9, top=0.9, bottom=0.1)
-                fig.set_size_inches(35*1,7*1)
-                fig.set_dpi(100)
-                im_patches[i] = im_patches[i].permute(1,2,0)
-                ax[0].imshow(im_patches[i].cpu().numpy()) 
-                ax[1].imshow(raw_patch) 
-            if i == 300:
-                pass
-    1/0
+    #         if i>0:
+    #             fig, ax = plt.subplots(2)
+    #             plt.subplots_adjust(left=0.1, right=0.9, top=0.9, bottom=0.1)
+    #             fig.set_size_inches(35*1,7*1)
+    #             fig.set_dpi(100)
+    #             im_patches[i] = im_patches[i].permute(1,2,0)
+    #             ax[0].imshow(im_patches[i].cpu().numpy()) 
+    #             ax[1].imshow(raw_patch) 
+    #         if i == 300:
+    #             pass
+    # 1/0
         
     for i in tqdm(range(len(im_patches)),desc="Interpolating"):
         
@@ -1169,7 +1168,12 @@ def count_parameters(mdl):
     print(f"Total Trainable Params: {total_params}")
     return total_params
 
-
+def slice_directory(dir_path):
+    img_names = os.listdir(dir_path)
+    for img in img_names:
+        if img.endswith(".jpg"):        
+            split_image(img,save=True,overlap=0,name=None,path=dir_path,frmt=None,dlr=False)
+        
 # https://github.com/Devyanshu/image-split-with-overlap/blob/master/split_image_with_overlap.py
 # minor edits to function, remove non-square opt, grey scale
 def split_image(img,save=True,overlap=0,name=None,path=None,frmt=None,dlr=False):
@@ -1254,9 +1258,6 @@ def stich_image(img_size,image_patches,name,save=True,overlap=0,path=None,frmt=N
         
         x_scaler = StandardScaler()
         predicted[0,:,:] = x_scaler.fit_transform(predicted[0,:,:])
-        
-        print('whole pred image max')
-        print(np.max(predicted))
         
         im = Image.fromarray((predicted[0]).astype(np.uint8))
         print(path+img_name)
@@ -1425,7 +1426,7 @@ def make_hparam_dict(val_loader):
                         'joint optimisation?':c.joint_optim,
                         'global average pooling?':c.gap,
                         'scale:':c.scale,
-                        'annotations only?':a.args.annotations_only,
+                        'annotations only?':a.args.sampler == 'anno',
                         'pretrained?':c.pretrained,
                         'feature pyramid?':c.pyramid,
                         'feature extractor?':c.feat_extractor,

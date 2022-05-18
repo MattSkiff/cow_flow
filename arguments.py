@@ -79,7 +79,7 @@ if any('SPYDER' in name for name in os.environ):
     args.data = 'cows'
     args.optim = "adam"
     args.scheduler = 'none'
-    args.sampler = 'anno'
+    args.sampler = 'weighted'
     args.mode = 'eval'
     args.sub_epochs = 5
     args.meta_epochs = 1
@@ -89,7 +89,7 @@ if any('SPYDER' in name for name in os.environ):
     args.tensorboard = True
     args.viz = True
     args.viz_freq = 1
-    args.resize = False
+    args.resize = True
     args.dmap_scaling = 1
     args.max_filter_size = 4.0
     args.sigma = 4.0

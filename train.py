@@ -78,6 +78,8 @@ def train_baselines(model_name,train_loader,val_loader):
             
             t_e1 = time.perf_counter()
             
+            mdl.train()
+            
             for i, data in enumerate(tqdm(train_loader, disable=c.hide_tqdm_bar)):
                 
                 optimizer.zero_grad()
@@ -113,6 +115,9 @@ def train_baselines(model_name,train_loader,val_loader):
                 
                 if a.args.scheduler != "none":
                     scheduler.step()
+            
+            # Validation Loop -----
+            mdl.eval()
             
             with torch.no_grad():
                 
@@ -252,9 +257,10 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
             
             for meta_epoch in range(a.args.meta_epochs):
                 
-                mdl.train()
-                
+                ### Train Loop ------
                 for sub_epoch in range(a.args.sub_epochs):
+                    
+                    mdl.train()
                     
                     if c.verbose:
                         t_e1 = time.perf_counter()
@@ -356,6 +362,8 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                     
                     if writer != None:
                         writer.add_scalar('loss/epoch_train',mean_train_loss, meta_epoch)
+                    
+                    mdl.eval()
                     
                     ### Validation Loop ------
                     if c.validation: 
