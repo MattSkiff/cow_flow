@@ -1,41 +1,36 @@
-# we are following the YOLO format for data formatting and bounding box annotations
+# we are (loosely) following the YOLO format for data formatting and bounding box annotations
 # see here: https://github.com/AlexeyAB/Yolo_mark/issues/60 for a description
 
-# edit tutorial to work for object annotations and YOLO format
+# external imports
 import os 
-import torch 
-import pandas as pd
-import numpy as np
 import random
 import time
-import cv2 # imread
 from tqdm import tqdm # progress bar
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
 
-from torchvision.transforms import Compose
-
-# silent warning on (torch.stack(images))
-import warnings
-warnings.filterwarnings("ignore", message=r"Passing", category=FutureWarning)
-
-# https://docs.opencv.org/4.5.2/d4/d13/tutorial_py_filtering.html
-import scipy
-
+import torch 
+from torch.utils.data.sampler import SubsetRandomSampler # RandomSampling
+from torch.utils.data import DataLoader # Dataset  
 from torch.utils.data import Dataset
 import torchvision.transforms.functional as TF
 import torchvision.transforms as T
 from torchvision import utils
+
+import pandas as pd
+import numpy as np
+import cv2 # imread
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+import warnings # silent warning on (torch.stack(images))
+import scipy # https://docs.opencv.org/4.5.2/d4/d13/tutorial_py_filtering.html
 from skimage import io
 
+# internal imports
 import config as c
 import gvars as g
 import arguments as a
-
 from utils import UnNormalize, split_image, create_point_map
 
-# save numpy array as npz file
-from numpy import savez_compressed, load
+warnings.filterwarnings("ignore", message=r"Passing", category=FutureWarning)
 
 proj_dir = c.proj_dir
 random_flag = False
@@ -403,7 +398,7 @@ class DLRACDCropRotateFlipScaling(object):
 class CowObjectsDataset(Dataset):
     """Cow Objects dataset."""
     
-    def __init__(self, root_dir,transform=None,convert_to_points=False,generate_density=False,count=False,classification=False,ram=False):
+    def __init__(self, root_dir,transform=None,convert_to_points=False,generate_density=False,count=False,classification=False,ram=False,holdout=False):
         """
         Args:
             root_dir (string): Directory with the following structure:
@@ -425,6 +420,7 @@ class CowObjectsDataset(Dataset):
         self.count = count
         self.classification = classification
         self.ram = ram
+        self.holdout = holdout
         
         if not self.density:
             self.sigma = 0
@@ -457,20 +453,24 @@ class CowObjectsDataset(Dataset):
         self.names = names
         self.data = data
         self.train_path = os.path.join(self.root_dir,os.path.split(self.data["train"])[1])
-        self.test_path = os.path.join(self.root_dir,os.path.split(self.data["valid"])[1])
+        self.holdout_path = os.path.join(self.root_dir,os.path.split(self.data["holdout"])[1])
         
-        train_im_paths = [] 
-        with open(os.path.join(self.root_dir,self.train_path)) as f:
+        im_paths = [] 
+           
+        if self.holdout:
+            path = self.holdout_path 
+        else:
+            path = self.train_path
+    
+        with open(os.path.join(self.root_dir,path)) as f:
             im_names_input = f.readlines()
         
         for line in im_names_input:
-            # don't start relative string with slash, or they are considered absolute 
-            # and everything prior will be discarded
-            # https://stackoverflow.com/questions/1945920/why-doesnt-os-path-join-work-in-this-case
-            train_im_paths.append(os.path.join(self.root_dir,'obj/',line.strip()))
+
+            im_paths.append(os.path.join(self.root_dir,'obj/',line.strip()))
             self.im_names.append(line)
             
-        self.train_im_paths = train_im_paths
+        self.im_paths = im_paths
         
         def compute_labels(idx):
             
@@ -488,7 +488,7 @@ class CowObjectsDataset(Dataset):
             labels = []
             
             img_path = os.path.join(self.root_dir,
-                                    self.train_im_paths[idx])
+                                    self.im_paths[idx])
             
             txt_path = img_path[:-3]+'txt'
             image = io.imread(img_path)
@@ -505,7 +505,7 @@ class CowObjectsDataset(Dataset):
                 if not os.path.exists(dmap_path):
                     ValueError("Dmaps must have been previously stored!")
                 
-                store = load(dmap_path[:-5]+dmap_type+dmap_size+'.npz',allow_pickle=True)
+                store = np.load(dmap_path[:-5]+dmap_type+dmap_size+'.npz',allow_pickle=True)
                 
                 density_map = store['arr_0']
                 
@@ -600,7 +600,7 @@ class CowObjectsDataset(Dataset):
                     if not os.path.exists(g.DMAP_DIR):
                         os.makedirs(g.DMAP_DIR)
                         
-                    savez_compressed(dmap_path[:-5]+dmap_type+dmap_size,density_map,labels,annotations,point_map,allow_pickle=True)
+                    np.savez_compressed(dmap_path[:-5]+dmap_type+dmap_size,density_map,labels,annotations,point_map,allow_pickle=True)
             
             sample = {'image': image}
                 
@@ -624,7 +624,7 @@ class CowObjectsDataset(Dataset):
         
         if self.ram:
 
-            # for img_path in tqdm(self.train_im_paths,desc="Loading aerial images into RAM"): 
+            # for img_path in tqdm(self.im_paths,desc="Loading aerial images into RAM"): 
                 
             #     self.images.append(io.imread(img_path))
             
@@ -635,7 +635,7 @@ class CowObjectsDataset(Dataset):
             elif ram:
                 desc = "Computing dmaps, pmaps, annotations and labels and storing into RAM"
             
-            for idx in tqdm(range(len(self.train_im_paths)),desc=desc):
+            for idx in tqdm(range(len(self.im_paths)),desc=desc):
             #for idx in [5895]:
                 
                 sample = compute_labels(idx)
@@ -703,7 +703,7 @@ class CowObjectsDataset(Dataset):
             idx = idx.tolist()
 
         img_path = os.path.join(self.root_dir,
-                                self.train_im_paths[idx])
+                                self.im_paths[idx])
         
         txt_path = img_path[:-3]+'txt'
 
@@ -811,7 +811,7 @@ class CowObjectsDataset(Dataset):
                 
                 fig, ax = plt.subplots(1,2)
                 # TODO - bug here! mismatch impaths and data
-                #fig.suptitle(os.path.basename(os.path.normpath(self.train_im_paths[sample_no])))
+                #fig.suptitle(os.path.basename(os.path.normpath(self.im_paths[sample_no])))
                 ax[0].imshow(dmap, cmap='viridis', interpolation='nearest')
                 ax[1].imshow((im * 255).astype(np.uint8))
         else:
@@ -1186,6 +1186,7 @@ def train_val_split(dataset,train_percent,oversample=False,annotations_only = Fa
     
     assert not (annotations_only and oversample)
     assert type(seed) == int
+    assert 0 < c.test_train_split < 100
     
     if seed != -1:
         random.seed(seed)
@@ -1267,14 +1268,70 @@ def train_val_split(dataset,train_percent,oversample=False,annotations_only = Fa
     
     return t_indices, t_weights, v_indices, v_weights
 
-def prep_transformed_dataset(transforms,holdout=False):
+def prep_transformed_dataset():
     
-    dmaps_pre = Compose(transforms)
+    transforms = [CustToTensor()]
+    
+    if a.args.normalise:
+        transforms.append(AerialNormalize())
+    
+    if a.args.resize:
+        transforms.append(Resize())
+    
+    if not a.args.resize:
+        transforms.append(CustResize())
+    
+    #if a.args.rrc:
+    if not a.args.mode == 'eval' and not a.args.holdout:
+        transforms.append(RotateFlip())
+        
+    transforms.append(DmapAddUniformNoise())
+    
+    dmaps_pre = T.Compose(transforms)
                        
     # instantiate class
     transformed_dataset = CowObjectsDataset(root_dir=c.proj_dir,transform = dmaps_pre,
                                             convert_to_points=True,generate_density=True,
                                             count = c.counts, 
-                                            classification = True,ram=a.args.ram)
+                                            classification = True,ram=a.args.ram, holdout=a.args.holdout)
     
     return transformed_dataset
+
+def make_loaders(transformed_dataset):
+
+    t_indices, t_weights, v_indices, v_weights  = train_val_split(dataset = transformed_dataset,
+                                                      train_percent = c.test_train_split,
+                                                      annotations_only = (a.args.sampler == 'anno'),
+                                                      seed = c.seed,
+                                                      oversample= (a.args.sampler == 'weighted'))
+    
+    f_t_indices, f_t_weights, f_v_indices, f_v_weights  = train_val_split(dataset = transformed_dataset,
+                                                      train_percent = c.test_train_split,
+                                                      annotations_only = False,
+                                                      seed = c.seed,
+                                                      oversample=False)
+    
+    train_sampler = SubsetRandomSampler(t_indices,generator=torch.Generator().manual_seed(c.seed))
+    val_sampler = SubsetRandomSampler(v_indices,generator=torch.Generator().manual_seed(c.seed))
+  
+    full_train_sampler = SubsetRandomSampler(f_t_indices,generator=torch.Generator().manual_seed(c.seed))
+    full_val_sampler = SubsetRandomSampler(f_v_indices,generator=torch.Generator().manual_seed(c.seed)) 
+    
+    # leave shuffle off for use of any samplers
+    full_train_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 
+                        num_workers=0,collate_fn=transformed_dataset.custom_collate_aerial,
+                        pin_memory=False,sampler=full_train_sampler)
+
+    full_val_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 
+                        num_workers=0,collate_fn=transformed_dataset.custom_collate_aerial,
+                        pin_memory=False,sampler=full_val_sampler)
+    
+    train_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 
+                        num_workers=0,collate_fn=transformed_dataset.custom_collate_aerial,
+                        pin_memory=False,sampler=train_sampler)
+
+    val_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 
+                        num_workers=0,collate_fn=transformed_dataset.custom_collate_aerial,
+                        pin_memory=False,sampler=val_sampler)
+    
+    return full_train_loader, full_val_loader, train_loader, val_loader

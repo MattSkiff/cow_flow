@@ -265,9 +265,11 @@ def plot_preds_multi(UNet_path,CSRNet_path,FCRN_path,NF_path,mode,loader,sample_
     # TODO - show pred counts
 
 @torch.no_grad()
-def predict_image(mdl_path,nf=False,geo=True,nf_n=10,mdl_type='',
+def predict_image(mdl_path,nf=False,geo=True,nf_n=500,mdl_type='',
                   image_path='/home/mks29/6-6-2018_Ortho_ColorBalance.tif',dlr=False):
+    
     #'/home/mks29/6-6-2018_Ortho_ColorBalance.tif'
+    #'/home/mks29/Desktop/BB34_5000_1006.jpg'
     
     assert mdl_type in g.BASELINE_MODEL_NAMES + ['NF']
     print('Patch sizes hardcoded to 800x600 (cow dataset)')
@@ -309,7 +311,7 @@ def predict_image(mdl_path,nf=False,geo=True,nf_n=10,mdl_type='',
                 x, log_det_jac = mdl(patch.unsqueeze(0),dummy_z,rev=True)
                 
                 if not dlr:
-                    x = TF.resize(x, (1,mdl.density_map_h,mdl.density_map_w))
+                    x = TF.resize(x, (mdl.density_map_h,mdl.density_map_w))
                     
                 x_list.append(x)
                         
@@ -319,9 +321,10 @@ def predict_image(mdl_path,nf=False,geo=True,nf_n=10,mdl_type='',
             # replace predicted densities with null predictions if not +ve pred from feature extractor
             # subtract constant for uniform noise
             
-            # outputs = mdl.classification_head(patch.unsqueeze(0))
-            # _, preds = torch.max(outputs, 1)  
-            # x[(preds == 1).bool(),:,:] = torch.zeros(1,mdl.density_map_h,mdl.density_map_w).to(c.device)
+            if a.args.bin_classifier_path != '' :
+                outputs = mdl.classification_head(patch.unsqueeze(0))
+                _, preds = torch.max(outputs, 1)
+                x[(preds == 1).bool(),:,:] = torch.zeros(1,mdl.density_map_h,mdl.density_map_w).to(c.device)
             
             # constant = ((mdl.noise)/2)*patch_size*patch_size
             im_patches[i] = x.squeeze(0) #.permute(1,2,0)
@@ -1168,11 +1171,16 @@ def count_parameters(mdl):
     print(f"Total Trainable Params: {total_params}")
     return total_params
 
-def slice_directory(dir_path):
+def slice_directory(dir_path,frmt="jpg"):
     img_names = os.listdir(dir_path)
+    
+    if not os.path.exists(dir_path+'/out/'):
+        os.makedirs(dir_path+'/out/')
+    
     for img in img_names:
-        if img.endswith(".jpg"):        
-            split_image(img,save=True,overlap=0,name=None,path=dir_path,frmt=None,dlr=False)
+        if img.endswith(frmt):   
+            im = cv2.imread(dir_path+img)
+            split_image(img=im,save=True,overlap=0,name=img[:-4],path=dir_path+'/out/',frmt=frmt,dlr=False)
         
 # https://github.com/Devyanshu/image-split-with-overlap/blob/master/split_image_with_overlap.py
 # minor edits to function, remove non-square opt, grey scale
@@ -1253,15 +1261,19 @@ def stich_image(img_size,image_patches,name,save=True,overlap=0,path=None,frmt=N
     
     if save and not geo:
         print('Saving image...')
-        img_name = 'pred_{}_{}.{}'.format(mdl_type,name,'jpg') #'jpg'
+        img_name = 'pred_{}_{}.{}'.format(mdl_type,name,'png') #'jpg'
         predicted = predicted.transpose(2,0,1)
         
         x_scaler = StandardScaler()
         predicted[0,:,:] = x_scaler.fit_transform(predicted[0,:,:])
         
-        im = Image.fromarray((predicted[0]).astype(np.uint8))
-        print(path+img_name)
-        im.save(path+img_name)
+        cmap = plt.cm.jet
+        norm = plt.Normalize(vmin=predicted[0].min(), vmax=predicted[0].max())
+        image = cmap(norm(predicted[0]))
+        plt.imsave('{}'.format(img_name), image)
+                
+        #im = Image.fromarray((predicted[0]).astype(np.uint8))
+        #im.save(path+img_name)
         print("Done.")
         #cv2.imwrite(path+img_name,predicted.astype(np.uint8))
        
@@ -1503,5 +1515,3 @@ def loader_check(mdl,loader):
         
     if mdl.density_map_h == 256:
         assert a.args.resize
-    
-    

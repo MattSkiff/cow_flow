@@ -44,7 +44,7 @@ def eval_dataloaders(mdl):
     
     return dataloader
 
-def localisation_metrics(dlr,thres, y_coords,y_hat_coords):
+def gen_localisation_metrics(dlr,thres, y_coords,y_hat_coords):
     # localisation metrics (using kernalised dmaps)
     localisation_dict = {
         'tp':0,
@@ -108,7 +108,7 @@ def localisation_metrics(dlr,thres, y_coords,y_hat_coords):
         
         # print('tp {} | fp {} | fn {}'.format(tp,fp,fn))
     
-    return localisation_metrics
+    return localisation_dict
 
 def gen_metrics(dm_mae,dm_mse,dm_ssim,dm_psnr,y_n,y_hat_n,game,gampe,localisation_dict,mode):
     
@@ -332,7 +332,7 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False):
             dm_psnr.append(peak_signal_noise_ratio(ground_truth_dmap,dmap_np))
             dm_ssim.append(structural_similarity(ground_truth_dmap,dmap_np))
     
-    localisation_dict = localisation_metrics(dlr=mdl.dlr,thres=thres,y_coords=y_coords,y_hat_coords=y_hat_coords)
+    localisation_dict = gen_localisation_metrics(dlr=False,thres=thres,y_coords=y_coords,y_hat_coords=y_hat_coords)
     metric_dict = gen_metrics(dm_mae,dm_mse,dm_ssim,dm_psnr,y_n,y_hat_n,game,gampe,localisation_dict,mode)
     
     t2 = time.perf_counter()
@@ -611,7 +611,7 @@ def dmap_metrics(mdl, loader,n=10,mode='',null_filter=(a.args.sampler == 'weight
             game.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)))
             gampe.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)/np.maximum(np.ones(len(gt_dmap_split_counts)),gt_dmap_split_counts)))     
     
-    localisation_dict = localisation_metrics(dlr=mdl.dlr,thres=thres,y_coords=y_coords,y_hat_coords=y_hat_coords)
+    localisation_dict = gen_localisation_metrics(dlr=mdl.dlr,thres=thres,y_coords=y_coords,y_hat_coords=y_hat_coords)
     metric_dict = gen_metrics(dm_mae,dm_mse,dm_ssim,dm_psnr,y_n,y_hat_n,game,gampe,localisation_dict,mode)
     
     t2 = time.perf_counter()

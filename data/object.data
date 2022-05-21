@@ -1,5 +1,5 @@
 classes= 2
 train  = data/train.txt
-valid  = data/test.txt
+holdout = data/holdout.txt
 names = data/obj.names
 backup = backup/

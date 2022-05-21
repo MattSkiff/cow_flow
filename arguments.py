@@ -5,6 +5,7 @@ import os
 parser = argparse.ArgumentParser(description='Create dataloaders and train a model on MNIST, DLRACD or cow dataset.')
 
 parser.add_argument('-mode',help="Specify mode (train,eval,store).",default='')
+parser.add_argument('-holdout',help="Use holdout data",action="store_true",default=False)
 
 parser.add_argument('-mdl_path',help="Specify mdl for eval",default='')
 parser.add_argument('-bin_classifier_path', default='')
@@ -95,6 +96,7 @@ if any('SPYDER' in name for name in os.environ):
     args.sigma = 4.0
     args.noise = 0
     args.mdl_path = 'final_9Z5_NF_quatern_BS64_LR_I0.0002_E10000_DIM256_OPTIMadam_FE_resnet18_NC5_anno_step_JO_PY_1_1x1_WD_0.001_10_05_2022_17_37_42'
+    args.holdout = True
     
 # checks
 assert args.mode in ['train','eval','store']
@@ -102,6 +104,9 @@ assert args.gpu_number > -1
 
 if args.mode == 'eval':
     assert args.mdl_path != ''
+
+if args.holdout:
+    assert args.data == 'cows'
 
 assert args.sampler in ['weighted','anno']
 

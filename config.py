@@ -5,7 +5,7 @@ import torch
 import arguments as a
 import os
 
-# this file configures opts that are changed infrequnetly or were used for development
+# this file configures opts that are changed infrequnetly or were used for development 
 if os.uname().nodename == 'weka-13':
     proj_dir = "/home/matthew/Desktop/laptop_desktop/clones/cow_flow/data"
 else:
