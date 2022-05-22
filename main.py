@@ -39,7 +39,7 @@ if a.args.data == 'cows':
         full_train_loader, full_val_loader, train_loader, val_loader = make_loaders(transformed_dataset)
     else:
         val_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=True, 
-                            num_workers=0,collate_fn=transformed_dataset.custom_collate_aerial,
+                            num_workers=1,collate_fn=transformed_dataset.custom_collate_aerial,
                             pin_memory=False)
     
     if a.args.mode == 'eval':

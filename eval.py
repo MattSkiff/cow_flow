@@ -611,7 +611,7 @@ def dmap_metrics(mdl, loader,n=10,mode='',null_filter=(a.args.sampler == 'weight
             game.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)))
             gampe.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)/np.maximum(np.ones(len(gt_dmap_split_counts)),gt_dmap_split_counts)))     
     
-    localisation_dict = gen_localisation_metrics(dlr=mdl.dlr,thres=thres,y_coords=y_coords,y_hat_coords=y_hat_coords)
+    localisation_dict = gen_localisation_metrics(dlr=mdl.dlr_acd,thres=thres,y_coords=y_coords,y_hat_coords=y_hat_coords)
     metric_dict = gen_metrics(dm_mae,dm_mse,dm_ssim,dm_psnr,y_n,y_hat_n,game,gampe,localisation_dict,mode)
     
     t2 = time.perf_counter()

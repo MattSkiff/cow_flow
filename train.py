@@ -1,31 +1,34 @@
+# External
 import numpy as np
 import torch
 import torch.nn as nn
 from torch.nn.utils import clip_grad_value_
+from torch.utils.tensorboard import SummaryWriter
 from torch.optim.lr_scheduler import ExponentialLR, StepLR
 import torch.nn.functional as TF
-from tqdm import tqdm # progress bar
+from torchvision.models import resnet18, efficientnet_b3 
 
+# tensorboard
+from tqdm import tqdm # progress bar
+from lcfcn  import lcfcn_loss # lcfcn
 import time 
 import copy
 import os
 import types
 from datetime import datetime 
 
-from eval import eval_mnist, dmap_metrics, dmap_pr_curve, eval_baselines
-from torchvision.models import resnet18, efficientnet_b3 
-from utils import get_loss, plot_preds,plot_preds_baselines, counts_preds_vs_actual, t2np, torch_r2, make_model_name, make_hparam_dict, load_model, save_model
-from lcfcn  import lcfcn_loss # lcfcn
-import model # importing entire file fixes 'cyclical import' issues
-#from model import CowFlow, MNISTFlow, select_feat_extractor, save_model #, save_weights
 
+# Internal
+from utils import get_loss, plot_preds,plot_preds_baselines, counts_preds_vs_actual, t2np, torch_r2, make_model_name, make_hparam_dict, save_model
+import model # importing entire file fixes 'cyclical import' issues
 import config as c
 import gvars as g
 import arguments as a
 import baselines as b
+from data_loader import preprocess_batch
+from eval import eval_mnist, dmap_metrics, dmap_pr_curve, eval_baselines
 
-# tensorboard
-from torch.utils.tensorboard import SummaryWriter
+
                
 def train_baselines(model_name,train_loader,val_loader):
 
@@ -84,7 +87,7 @@ def train_baselines(model_name,train_loader,val_loader):
                 
                 optimizer.zero_grad()
                 
-                images,dmaps,labels, binary_labels, annotations,point_maps = data
+                images,dmaps,labels, binary_labels, annotations,point_maps = data #preprocess_batch(data)
                 images = images.float().to(c.device)
                 results = mdl(images)
                 
@@ -123,8 +126,7 @@ def train_baselines(model_name,train_loader,val_loader):
                 
                 for i, data in enumerate(tqdm(val_loader, disable=c.hide_tqdm_bar)):
                     
-                    images,dmaps,labels, binary_labels, annotations,point_maps = data 
-                    images = images.float().to(c.device)
+                    images,dmaps,labels, binary_labels, annotations,point_maps = preprocess_batch(data)
                     results = mdl(images)
                     
                     if a.args.model_name == 'LCFCN':
@@ -282,6 +284,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                         elif not a.args.data == 'mnist' and not c.counts and not train_loader.dataset.classification:
                             images,dmaps,labels,annotations, point_maps = data 
                         elif not a.args.data == 'mnist' and not c.counts:
+                            #images,dmaps,labels, binary_labels, annotations,point_maps = preprocess_batch(data)
                             images,dmaps,labels,annotations,binary_labels,point_maps  = data 
                         elif not a.args.data == 'mnist':
                             images,dmaps,labels,counts, point_maps = data
@@ -382,6 +385,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                                 elif not a.args.data == 'mnist' and not c.counts and not train_loader.dataset.classification:
                                     images,dmaps,labels, annotations,point_maps = data 
                                 elif not a.args.data == 'mnist' and not c.counts:
+                                    #images,dmaps,labels, binary_labels, annotations,point_maps = preprocess_batch(data)
                                     images,dmaps,labels,annotations,binary_labels,point_maps  = data 
                                 elif not a.args.data == 'mnist':
                                     images,dmaps,labels,counts = data

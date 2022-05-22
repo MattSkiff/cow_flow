@@ -308,7 +308,7 @@ class DLRACD(Dataset):
         return collated_batch
 
 class DLRACDToTensor(object):
-    """Convert ndarrays in sample to Tensors."""
+    """Convert ndarrays in sample to Tensors, move to GPU."""
 
     def __call__(self, sample):
         
@@ -610,11 +610,11 @@ class CowObjectsDataset(Dataset):
                 sample['point_map']  = point_map
                 
             if self.count:
-                sample['counts'] = torch.as_tensor(count).float().to(c.device)
+                sample['counts'] = torch.as_tensor(count).float()
             
             if self.classification:
                 positive = (len(annotations) == 0)
-                sample['binary_labels'] = torch.tensor(positive).type(torch.LongTensor).to(c.device)
+                sample['binary_labels'] = torch.tensor(positive).type(torch.LongTensor)
                 
             sample['annotations'] = annotations
                 
@@ -977,6 +977,10 @@ class CustToTensor(object):
             sample['annotations'] = torch.from_numpy(sample['annotations']).to(c.device)
         if 'labels' in sample.keys():
             sample['labels'] = torch.from_numpy(sample['labels']).to(c.device)
+        if 'counts' in sample.keys():
+            sample['counts'] = sample['counts'].to(c.device)
+        if 'binary_labels' in sample.keys():
+            sample['binary_labels'] = sample['binary_labels'].to(c.device)
 
         return sample
     
@@ -1108,7 +1112,7 @@ class RotateFlip(object):
 #                 print("image padded by {}".format(pd))
             
 #             'remove padding and scale instead (CustResize) to prevent artifacts occuring from model'
-#             if c.pyramid and not a.args.resize:
+#             if a.args.pyramid and not a.args.resize:
 #                 # adding padding so high level features match dmap dims after downsampling (37,38)
 #                 image = sample['image']
 #                 image = TF.pad(img=image,fill=0, padding=[0,0,pd,0],padding_mode='constant')
@@ -1151,7 +1155,7 @@ class CustResize(object):
             # point_map = TF.resize(point_map,(sz[0]//c.scale,sz[1]//c.scale))
             # point_map = point_map.squeeze().squeeze()
             
-            if c.pyramid:
+            if a.args.pyramid:
                 # adding padding so high level features match dmap dims after downsampling (37,38)
                 image = sample['image']
                 image = TF.resize(image,(sz[0]//c.scale,sz[1]//c.scale))
@@ -1335,3 +1339,12 @@ def make_loaders(transformed_dataset):
                         pin_memory=False,sampler=val_sampler)
     
     return full_train_loader, full_val_loader, train_loader, val_loader
+
+def preprocess_batch(data):
+    '''move data to device and reshape image'''
+    images,dmaps,labels, binary_labels, annotations,point_maps = data
+    images,dmaps,labels, binary_labels, annotations,point_maps = images,dmaps,labels, binary_labels, annotations,point_maps
+    
+    images = images.float()
+    
+    return images,dmaps,labels, binary_labels, annotations,point_maps
