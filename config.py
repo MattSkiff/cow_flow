@@ -35,9 +35,6 @@ load_feat_extractor_str = '' # '' to train from scratch, loads FE  #
 # nb: pretraining FE saves regardless of save flag
 
 ## Architecture Options ------
-fixed1x1conv = True 
-freq_1x1 = 2 # 1 for always | how many x coupling blocks to have a 1x1 conv permutation layer
-pyramid = True # only implemented for resnet18
 n_splits = 4 # number of splits
 gap = False # global average pooling
 downsampling = True # whether to downsample (5 ds layers) dmaps by converting spatial dims to channel dims
@@ -186,7 +183,7 @@ assert feat_extractor in ['none' ,'alexnet','vgg16_bn','resnet18']
 if subnet_type == 'fc':
     assert gap
     assert a.args.data == 'mnist' or counts
-    assert not fixed1x1conv
+    assert not a.args.fixed1x1conv
 
 if subnet_type == 'conv':
     assert dropout_p == 0
@@ -197,7 +194,7 @@ if a.args.data == 'mnist':
 if counts:
     assert subnet_type == 'fc' and gap or subnet_type == 'conv' and not gap
 
-if pyramid:
+if a.args.pyramid:
     assert n_coupling_blocks == 5 # for recording purposes
     assert feat_extractor == 'resnet18'
     assert downsampling # pyramid nf head has  downsmapling
@@ -206,7 +203,7 @@ if pyramid:
     assert scale == 1
 
 assert scale in (1,2,4)
-assert freq_1x1 != 0
+assert a.args.freq_1x1 != 0
 
 # set config values for local testing
 if any('SPYDER' in name for name in os.environ):

@@ -32,7 +32,6 @@ parser.add_argument('-max_filter_size',help='Size of max filters for unet seg an
 
 
 parser.add_argument('-test','--test_run',help='use only a small fraction of data to check everything works',action='store_true')
-parser.add_argument("-split", "--split_dimensions", help="split off half the dimensions after each block of coupling layers.", type=int, default=0)
 # parser.add_argument("-cfile", "--config_file", help="Specify a config file that will determine training options.", type=int, default=0)
 # parser.add_argument("-c", "--counts", help="Train a model that predicts only counts.", action="store_true")
 
@@ -44,24 +43,29 @@ parser.add_argument("-viz_freq",help='how many epochs per viz',type=int,default=
 # Key params
 parser.add_argument("-se","--sub_epochs",help='evaluation is not performed in sub epochs',type=int,default=0)
 parser.add_argument("-me","--meta_epochs",help='eval after every meta epoch. total epochs = meta*sub',type=int,default=0)
-parser.add_argument("-scheduler",help="Learning rate scheduler (exponential,step,none)",default ='')
-parser.add_argument("-step_size",help="step size of stepLR scheduler",type=int,default=10)
-parser.add_argument("-step_gamma",help="gamma of stepLR scheduler",type=float,default=0.1)
-parser.add_argument("-expon_gamma",help="gamma of expon scheduler",type=float,default=0.9)
-
-
-parser.add_argument("-lr","--learning_rate",type=float,default=None)
 parser.add_argument("-bs","--batch_size",type=int,default=0)
+
+# Optimiser options
+parser.add_argument("-lr","--learning_rate",type=float,default=None)
 parser.add_argument('-optim',help='optimizer [sgd,adam]',type=str,default='')
 parser.add_argument('-adam_b1',help='adam beta1',type=float,default=0.9)
 parser.add_argument('-adam_b2',help='adam beta2',type=float,default=0.999)
 parser.add_argument('-adam_e',help='adam episilon',type=float,default=1e-8)
 parser.add_argument('-sgd_mom',help='sgd momentum',type=float,default=0.9)
+parser.add_argument("-scheduler",help="Learning rate scheduler (exponential,step,none)",default ='')
+parser.add_argument("-step_size",help="step size of stepLR scheduler",type=int,default=10)
+parser.add_argument("-step_gamma",help="gamma of stepLR scheduler",type=float,default=0.1)
+parser.add_argument("-expon_gamma",help="gamma of expon scheduler",type=float,default=0.9)
 
+# NF only options
+parser.add_argument("-pyramid",action='store_true',default=True) # whether to a feature pyramid for conditioning - only implemented for resnet18
+parser.add_argument("-fixed1x1conv",action='store_true',default=False) # whether to use 1x1 convs
+parser.add_argument("-freq_1x1",type=int,default=1) # 1 for always | how many x coupling blocks to have a 1x1 conv permutation layer
 parser.add_argument("-npb","--n_pyramid_blocks",type=int,default=3)
 parser.add_argument('-nse',"--noise",help='amount of uniform noise (sample evenly from 0-x) | 0 for none',type=float,default=0)
 parser.add_argument('-f','--filters',help='width of conv subnetworks',type=int,default=32)
 parser.add_argument('-wd','--weight_decay',type=float,default=None) # differnet: 1e-5
+parser.add_argument("-split", "--split_dimensions", help="split off half the dimensions after each block of coupling layers.", type=int, default=0)
 
 # weighted: weight minibatch samples such that sampling distribution is 50/50 null/annotated
 # anno: use only annotated samples
@@ -81,7 +85,7 @@ if any('SPYDER' in name for name in os.environ):
     args.optim = "adam"
     args.scheduler = 'none'
     args.sampler = 'weighted'
-    args.mode = 'eval'
+    args.mode = 'train' #'eval'
     args.sub_epochs = 5
     args.meta_epochs = 1
     args.batch_size = 1
@@ -95,8 +99,8 @@ if any('SPYDER' in name for name in os.environ):
     args.max_filter_size = 4.0
     args.sigma = 4.0
     args.noise = 0
-    args.mdl_path = 'final_9Z5_NF_quatern_BS64_LR_I0.0002_E10000_DIM256_OPTIMadam_FE_resnet18_NC5_anno_step_JO_PY_1_1x1_WD_0.001_10_05_2022_17_37_42'
-    args.holdout = True
+    args.mdl_path = ''#'final_9Z5_NF_quatern_BS64_LR_I0.0002_E10000_DIM256_OPTIMadam_FE_resnet18_NC5_anno_step_JO_PY_1_1x1_WD_0.001_10_05_2022_17_37_42'
+    args.holdout = False
     
 # checks
 assert args.mode in ['train','eval','store']
@@ -124,6 +128,9 @@ if args.sgd_mom != 0 and args.optim != 'sgd':
 
 if args.model_name != 'NF':
     assert args.bin_classifier_path == ''
+    
+if args.fixed1x1conv and args.pyramid:
+    assert args.freq_1x1 == 1
 
 if args.model_name == 'LCFCN': #  in ['UNet_seg','LCFCN']:
     assert args.batch_size == 1 # https://github.com/ElementAI/LCFCN/issues/9

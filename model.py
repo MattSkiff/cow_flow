@@ -114,10 +114,10 @@ def random_orthog(n):
 
 def select_feat_extractor(feat_extractor,train_loader=None,valid_loader=None):
     
-    if c.load_feat_extractor_str and not c.pyramid:
+    if c.load_feat_extractor_str and not a.args.pyramid:
         feat_extractor = u.load_model(filename=c.load_feat_extractor_str,loc=g.FEAT_MOD_DIR)
     
-    if not c.pyramid:
+    if not a.args.pyramid:
         if c.feat_extractor == "alexnet":
             feat_extractor = alexnet(pretrained=c.pretrained,progress=False).to(c.device)
         elif c.feat_extractor == "resnet18":
@@ -230,7 +230,7 @@ def nf_pyramid(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_fea
     for k in range(c.levels):
         conditions.append(Ff.ConditionNode(p_dims[k][1],p_dims[k][2],p_dims[k][3],name = 'Condition{}'.format(k)))
         
-        if c.fixed1x1conv and k != 0: # c.channels*4**k
+        if a.args.fixed1x1conv and k != 0: # c.channels*4**k
             nodes.append(Ff.Node(nodes[-1].out0, Fm.Fixed1x1Conv,{'M': random_orthog(c.channels*4**k).to(c.device) }, name='1x1_Conv_{}'.format(k)))
         else:
             nodes.append(Ff.Node(nodes[-1].out0, Fm.PermuteRandom, {'seed': k}, name='Permute_{}'.format(k)))
@@ -270,7 +270,7 @@ def nf_pyramid_split(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c
     for k in range(c.levels):
         conditions.append(Ff.ConditionNode(p_dims[k][1],p_dims[k][2],p_dims[k][3],name = 'Condition{}'.format(k)))
         
-        if c.fixed1x1conv and k != 0: # c.channels*4**k
+        if a.args.fixed1x1conv and k != 0: # c.channels*4**k
             nodes.append(Ff.Node(nodes[-1].out0, Fm.Fixed1x1Conv,{'M': random_orthog(c.channels*4**k).to(c.device) }, name='1x1_Conv_{}'.format(k)))
         else:
             nodes.append(Ff.Node(nodes[-1].out0, Fm.PermuteRandom, {'seed': k}, name='Permute_{}'.format(k)))
@@ -414,7 +414,7 @@ def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,m
         else:
             multiplier = 4**c.levels
         
-        if not (c.counts and c.subnet_type == 'fc') and c.fixed1x1conv and k % c.freq_1x1 == 0:
+        if not (c.counts and c.subnet_type == 'fc') and a.args.fixed1x1conv and k % a.args.freq_1x1 == 0:
             nodes.append(Ff.Node(nodes[-1], Fm.Fixed1x1Conv,{'M': random_orthog(c.channels*multiplier).to(c.device) }, name='1x1_conv_{}'.format(k)))
         else:
             nodes.append(Ff.Node(nodes[-1], Fm.PermuteRandom, {'seed': k}, name='permute_{}'.format(k)))
@@ -445,13 +445,13 @@ class CowFlow(nn.Module):
     def __init__(self,modelname,feat_extractor):
         super(CowFlow,self).__init__()
         
-        if c.feat_extractor == 'resnet18' and not c.pyramid:
+        if c.feat_extractor == 'resnet18' and not a.args.pyramid:
             modules = list(feat_extractor.children())[:-2]
             self.feat_extractor = nn.Sequential(*modules)
         else:
             self.feat_extractor = feat_extractor
         
-        if c.pyramid:
+        if a.args.pyramid:
             if a.args.split_dimensions:
                 self.nf = nf_pyramid_split() 
             else:
@@ -478,8 +478,8 @@ class CowFlow(nn.Module):
         self.pretrained = c.pretrained
         self.finetuned = c.train_feat_extractor
         self.scheduler = a.args.scheduler
-        self.pyramid = c.pyramid
-        self.fixed1x1conv = c.fixed1x1conv
+        self.pyramid = a.args.pyramid
+        self.fixed1x1conv = a.args.fixed1x1conv
         self.scale = c.scale
         self.density_map_h = c.density_map_h
         self.density_map_w = c.density_map_w
@@ -533,7 +533,7 @@ class CowFlow(nn.Module):
              
             feats = torch.cat(feat_cat) # concatenation (does nothing at single scale feature extraction)
 
-        if c.debug and not c.pyramid: 
+        if c.debug and not a.args.pyramid: 
             print("concatenated and pooled:{} feature size..".format(c.gap))
             print(feats.size(),"\n")
         
@@ -562,7 +562,7 @@ class CowFlow(nn.Module):
         # is also what we are trying to predict (in a sense we are using 'x' features to predict 'y' density maps)
         # hence ambiguity in notation
         
-        if c.pyramid:
+        if a.args.pyramid:
             # feats = list of 5 tensors
             z = self.nf(x_or_z = labels,c = feats,rev=rev) # [-c.levels:]
         elif self.unconditional:
@@ -590,7 +590,7 @@ class MNISTFlow(nn.Module):
         self.modelname = modelname
         self.gap = c.gap
         self.n_coupling_blocks = c.n_coupling_blocks
-        self.fixed1x1conv = c.fixed1x1conv
+        self.fixed1x1conv = a.args.fixed1x1conv
         self.joint_optim = c.joint_optim
         self.pretrained = c.pretrained
         self.scheduler = a.args.scheduler

@@ -1387,13 +1387,13 @@ def make_model_name(train_loader):
      if a.args.model_name == 'NF' and c.pretrained:
          parts.append('PT')
          
-     if a.args.model_name == 'NF' and c.pyramid:
+     if a.args.model_name == 'NF' and a.args.pyramid:
          parts.append('PY_{}'.format(a.args.n_pyramid_blocks))
          
      if c.counts and not a.args.data == 'mnist':
          parts.append('CT')
      
-     if a.args.model_name == 'NF' and c.fixed1x1conv:
+     if a.args.model_name == 'NF' and a.args.fixed1x1conv:
          parts.append('1x1')
          
      if c.scale != 1:
@@ -1440,9 +1440,9 @@ def make_hparam_dict(val_loader):
                         'scale:':c.scale,
                         'annotations only?':a.args.sampler == 'anno',
                         'pretrained?':c.pretrained,
-                        'feature pyramid?':c.pyramid,
+                        'feature pyramid?':a.args.pyramid,
                         'feature extractor?':c.feat_extractor,
-                        '1x1convs?':c.fixed1x1conv,
+                        '1x1convs?':a.args.fixed1x1conv,
                         'conv filters':a.args.filters,
                         'fc_width':c.width,
                         'finetuned?':c.train_feat_extractor,
