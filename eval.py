@@ -16,12 +16,12 @@ import time
 import matplotlib.pyplot as plt
 
 # Internal
-from utils import ft_dims_select, np_split,is_baseline, UnNormalize, create_point_map,loader_check
+from utils import ft_dims_select, np_split,is_baseline, create_point_map,loader_check
 import config as c
 import gvars as g
 import arguments as a
-
-from data_loader import CustToTensor, AerialNormalize, DmapAddUniformNoise, train_val_split, Resize, RotateFlip, CustResize, prep_transformed_dataset, preprocess_batch
+from data_loader import CustToTensor, AerialNormalize, Resize
+from data_loader import RotateFlip, CustResize, prep_transformed_dataset, preprocess_batch, UnNormalize
  
 
 from lcfcn import lcfcn_loss
