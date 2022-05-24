@@ -86,9 +86,8 @@ def train_baselines(model_name,train_loader,val_loader):
             for i, data in enumerate(tqdm(train_loader, disable=c.hide_tqdm_bar)):
                 
                 optimizer.zero_grad()
-                
-                images,dmaps,labels, binary_labels, annotations,point_maps = data #preprocess_batch(data)
-                images = images.float().to(c.device)
+                images,dmaps,labels, binary_labels, annotations,point_maps = preprocess_batch(data)
+                #images = images.float().to(c.device)
                 results = mdl(images)
                 
                 # import matplotlib.pyplot as plt
@@ -162,9 +161,11 @@ def train_baselines(model_name,train_loader,val_loader):
             
             writer.add_scalar('loss/epoch_train',mean_train_loss, l)
             writer.add_scalar('loss/epoch_val',mean_val_loss, l)
-    
-        val_metric_dict = eval_baselines(mdl,val_loader,mode='val')
-        model_metric_dict.update(val_metric_dict)
+        
+        if not a.args.skip_final_eval:
+            val_metric_dict = eval_baselines(mdl,val_loader,mode='val')
+            model_metric_dict.update(val_metric_dict)
+            print(val_metric_dict)
     
     writer.add_hparams(
               hparam_dict = model_hparam_dict,
@@ -280,12 +281,12 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                         
                         # TODO - can this section
                         if a.args.data == 'dlr':
-                            images,dmaps,counts,point_maps = data
+                            images,dmaps,counts,point_maps = data = preprocess_batch(data,dlr=True)
                         elif not a.args.data == 'mnist' and not c.counts and not train_loader.dataset.classification:
                             images,dmaps,labels,annotations, point_maps = data 
                         elif not a.args.data == 'mnist' and not c.counts:
-                            #images,dmaps,labels, binary_labels, annotations,point_maps = preprocess_batch(data)
-                            images,dmaps,labels,annotations,binary_labels,point_maps  = data 
+                            images,dmaps,labels, binary_labels, annotations,point_maps = preprocess_batch(data)
+                            #images,dmaps,labels,annotations,binary_labels,point_maps  = data 
                         elif not a.args.data == 'mnist':
                             images,dmaps,labels,counts, point_maps = data
                         else:
@@ -428,7 +429,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                 #### Meta epoch code (metrics) ------
                 
                 # train classification head to filter out null patches
-                if not a.args.data == 'dlr' and not mdl.mnist and not c_head_trained:
+                if not a.args.data == 'dlr' and not mdl.mnist and not c_head_trained and a.args.train_classification_head:
                     c_head_trained = True
                     mdl.classification_head = train_classification_head(mdl,head_train_loader,head_val_loader)
                 
@@ -550,8 +551,9 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
             
             if not a.args.data == 'dlr':
                 print("Performing final evaluation without trained null classifier...")
-                final_metrics = dmap_metrics(mdl, train_loader,n=1,mode='train',null_filter = False)
-                print(final_metrics)
+                if not a.args.skip_final_eval:
+                    final_metrics = dmap_metrics(mdl, train_loader,n=1,mode='train',null_filter = False)
+                    print(final_metrics)
             
             run_end = time.perf_counter()
             print("Finished Model: ",modelname)

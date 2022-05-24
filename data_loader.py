@@ -965,22 +965,22 @@ class CustToTensor(object):
         # issue: https://discuss.pytorch.org/t/how-to-preprocess-input-for-pre-trained-networks/683/3
         # code: https://discuss.pytorch.org/t/how-to-efficiently-normalize-a-batch-of-tensor-to-0-1/65122/5
         
-        image = image.float().div(255).to(c.device)
+        image = image.float().div(255)#.to(c.device)
         
         sample['image'] =  image.float()
         
         if 'density' in sample.keys():
-            sample['density'] = torch.from_numpy(sample['density']).to(c.device)
+            sample['density'] = torch.from_numpy(sample['density'])#.to(c.device)
             if a.args.model_name in ['LCFCN','UNet_seg']:
-                sample['point_map']  = torch.from_numpy(sample['point_map']).to(c.device)
+                sample['point_map']  = torch.from_numpy(sample['point_map'])#.to(c.device)
         if 'annotations' in sample.keys():
-            sample['annotations'] = torch.from_numpy(sample['annotations']).to(c.device)
+            sample['annotations'] = torch.from_numpy(sample['annotations'])#.to(c.device)
         if 'labels' in sample.keys():
-            sample['labels'] = torch.from_numpy(sample['labels']).to(c.device)
+            sample['labels'] = torch.from_numpy(sample['labels'])#.to(c.device)
         if 'counts' in sample.keys():
-            sample['counts'] = sample['counts'].to(c.device)
+            sample['counts'] = sample['counts']#.to(c.device)
         if 'binary_labels' in sample.keys():
-            sample['binary_labels'] = sample['binary_labels'].to(c.device)
+            sample['binary_labels'] = sample['binary_labels']#.to(c.device)
 
         return sample
     
@@ -1006,7 +1006,7 @@ class DmapAddUniformNoise(object):
         # https://stackoverflow.com/questions/44328530/how-to-get-a-uniform-distribution-in-a-range-r1-r2-in-pytorch
         
         if 'density' in sample.keys():
-            sample['density'] =  sample['density'] + torch.FloatTensor(sample['density'].size()).uniform_(self.r1, self.r2).to(c.device)
+            sample['density'] =  sample['density'] + torch.FloatTensor(sample['density'].size()).uniform_(self.r1, self.r2)#.to(c.device)
         
             if c.debug:
                 print("uniform noise ({},{}) added to dmap".format(self.r1, self.r2))
@@ -1323,27 +1323,36 @@ def make_loaders(transformed_dataset):
     
     # leave shuffle off for use of any samplers
     full_train_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 
-                        num_workers=0,collate_fn=transformed_dataset.custom_collate_aerial,
-                        pin_memory=False,sampler=full_train_sampler)
+                        num_workers=1,collate_fn=transformed_dataset.custom_collate_aerial,
+                        pin_memory=True,sampler=full_train_sampler)
 
     full_val_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 
-                        num_workers=0,collate_fn=transformed_dataset.custom_collate_aerial,
-                        pin_memory=False,sampler=full_val_sampler)
+                        num_workers=1,collate_fn=transformed_dataset.custom_collate_aerial,
+                        pin_memory=True,sampler=full_val_sampler)
     
     train_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 
-                        num_workers=0,collate_fn=transformed_dataset.custom_collate_aerial,
-                        pin_memory=False,sampler=train_sampler)
+                        num_workers=1,collate_fn=transformed_dataset.custom_collate_aerial,
+                        pin_memory=True,sampler=train_sampler)
 
     val_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 
-                        num_workers=0,collate_fn=transformed_dataset.custom_collate_aerial,
-                        pin_memory=False,sampler=val_sampler)
+                        num_workers=1,collate_fn=transformed_dataset.custom_collate_aerial,
+                        pin_memory=True,sampler=val_sampler)
     
     return full_train_loader, full_val_loader, train_loader, val_loader
 
-def preprocess_batch(data):
+def preprocess_batch(data,dlr=False):
     '''move data to device and reshape image'''
+    
     images,dmaps,labels, binary_labels, annotations,point_maps = data
-    images,dmaps,labels, binary_labels, annotations,point_maps = images,dmaps,labels, binary_labels, annotations,point_maps
+    images,dmaps,labels, binary_labels, annotations,point_maps = images.to(c.device),dmaps.to(c.device),labels, binary_labels, annotations,point_maps
+    
+    if dlr:
+        images,dmaps,counts,point_maps = data
+        images,dmaps,counts,point_maps = images.to(c.device),dmaps.to(c.device),counts.to(c.device),point_maps.to(c.device)
+        return images,dmaps,labels, binary_labels, annotations,point_maps
+    
+    if point_maps[0] != None:
+        point_maps = point_maps.to(c.device)
     
     images = images.float()
     
