@@ -14,6 +14,7 @@ parser.add_argument('-ram',help='Load images/dmaps/point maps into ram for faste
 parser.add_argument('-mod',"--model_name",help="Specify model to train (NF,CSRNet, UNet, UCSRNetNet_seg, FCRN, LCFCN, MCNN).",default='')
 parser.add_argument("-fe_only", help="Trains the feature extractor only.", action="store_true",default=False)
 parser.add_argument("-bc_only", help="Trains the binary classifier only.", action="store_true",default=False)
+parser.add_argument("-skip_final_eval", help="Skips final eval.", action="store_true",default=False)
 parser.add_argument("-uc", "--unconditional", help="Trains the model without labels.", action="store_true")
 parser.add_argument("-gn", "--gpu_number", help="Selects which GPU to train on.", type=int, default=0)
 
@@ -58,6 +59,7 @@ parser.add_argument("-step_gamma",help="gamma of stepLR scheduler",type=float,de
 parser.add_argument("-expon_gamma",help="gamma of expon scheduler",type=float,default=0.9)
 
 # NF only options
+parser.add_argument("-train_classification_head",action='store_true',default=False) # whether to train classification model for filtering null patches
 parser.add_argument("-pyramid",action='store_true',default=True) # whether to a feature pyramid for conditioning - only implemented for resnet18
 parser.add_argument("-fixed1x1conv",action='store_true',default=False) # whether to use 1x1 convs
 parser.add_argument("-freq_1x1",type=int,default=1) # 1 for always | how many x coupling blocks to have a 1x1 conv permutation layer
