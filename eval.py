@@ -1,25 +1,28 @@
+# External
 from tqdm import tqdm
 import numpy as np
 from skimage.feature import peak_local_max # 
 from skimage.metrics import peak_signal_noise_ratio, structural_similarity
 from scipy.spatial import distance
 from scipy.optimize import linear_sum_assignment
+import torch
+from torch import randn
+from torch.utils.data import DataLoader # Dataset  
 
 import random
 import os
 import time 
-import torch
-from torch import randn
-import torch.nn.functional as F
 
 import matplotlib.pyplot as plt
+
+# Internal
 from utils import ft_dims_select, np_split,is_baseline, UnNormalize, create_point_map,loader_check
 import config as c
 import gvars as g
 import arguments as a
 
-from data_loader import CustToTensor, AerialNormalize, DmapAddUniformNoise, train_val_split, Resize, RotateFlip, CustResize, prep_transformed_dataset
-from torch.utils.data import DataLoader # Dataset   
+from data_loader import CustToTensor, AerialNormalize, DmapAddUniformNoise, train_val_split, Resize, RotateFlip, CustResize, prep_transformed_dataset, preprocess_batch
+ 
 
 from lcfcn import lcfcn_loss
 
@@ -483,9 +486,9 @@ def dmap_metrics(mdl, loader,n=10,mode='',null_filter=(a.args.sampler == 'weight
     for i, data in enumerate(tqdm(loader, disable=False)):
         
         if not mdl.dlr_acd and not loader.dataset.classification:
-            images,dmaps,labels,annotations, point_maps  = data
+            images,dmaps,labels,annotations, point_maps  = preprocess_batch(data,dlr=True)
         elif not mdl.dlr_acd:
-            images,dmaps,labels,binary_labels , annotations, point_maps  = data 
+            images,dmaps,labels,binary_labels , annotations, point_maps  = preprocess_batch(data)
         else:
             images,dmaps,counts,point_maps = data
 

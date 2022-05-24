@@ -1,12 +1,13 @@
-# MIT License Marco Rudolph 2021
-from torch import randn
-import matplotlib.pyplot as plt
-from tqdm import tqdm
-import os
+# MIT License Matthew Skiffington 2022
+# External
 import torch
+from torch import randn
 import torchvision.transforms.functional as TF
 import torchvision.transforms as T
 import torch.nn.functional as F
+import matplotlib.pyplot as plt
+from tqdm import tqdm
+import os
 import numpy as np
 import random
 from datetime import datetime 
@@ -18,17 +19,17 @@ import rasterio
 from rasterio.plot import reshape_as_raster
 import dill # solve error when trying to pickle lambda function in FrEIA
 import shutil
+from sklearn.preprocessing import StandardScaler
+from lcfcn import lcfcn_loss
+from skimage.feature import peak_local_max # 
+from skimage import morphology as morph
+
+# Internal
 import config as c
 import gvars as g
 import arguments as a
+from data_loader import preprocess_batch
 
-from sklearn.preprocessing import StandardScaler
-
-from lcfcn import lcfcn_loss
-
-from skimage.feature import peak_local_max # 
-
-from skimage import morphology as morph
 
 
 # TODO - shift below 5 util functions to utils
@@ -198,7 +199,7 @@ def plot_preds_multi(UNet_path,CSRNet_path,FCRN_path,NF_path,mode,loader,sample_
             fig.suptitle('Baseline Comparisons {}'.format(mode),y=1.0,fontsize=16) # :.2f
             [axi.set_axis_off() for axi in ax.ravel()] # turn off subplot axes
             
-            images,dmaps,labels,binary_labels,annotations,point_maps  = data
+            images,dmaps,labels,binary_labels , annotations, point_maps  = preprocess_batch(data)
             j = 0
             
             
@@ -422,7 +423,7 @@ def plot_preds_baselines(mdl, loader,mode="",mdl_type='',writer=None,writer_epoc
         for i, data in enumerate(tqdm(loader, disable=c.hide_tqdm_bar)):
                 
                 mdl.to(c.device)
-                images,dmaps,labels,binary_labels,annotations, point_maps = data
+                images,dmaps,labels,binary_labels , annotations, point_maps  = preprocess_batch(data)
                 preds = mdl(images)/mdl.dmap_scaling
                 
                 if mdl_type == 'UNet_seg':
@@ -577,7 +578,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
             elif loader.dataset.count: # mdl.dataset.count
                 images,dmaps,labels,counts, point_maps = data
             elif loader.dataset.classification:
-                images,dmaps,labels,binary_labels,annotations, point_maps = data
+                images,dmaps,labels,binary_labels , annotations, point_maps  = preprocess_batch(data)
             else:
                 images,dmaps,labels,_ = data
             
