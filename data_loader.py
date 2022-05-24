@@ -28,7 +28,7 @@ from skimage import io
 import config as c
 import gvars as g
 import arguments as a
-from utils import UnNormalize, split_image, create_point_map
+import utils
 
 warnings.filterwarnings("ignore", message=r"Passing", category=FutureWarning)
 
@@ -90,7 +90,7 @@ class DLRACD(Dataset):
                     
                     im = cv2.imread(os.path.join(self.root_dir,mode+"/Images/"+img_path))
                     self.images[mode].append(im)
-                    im_patches = split_image(im, patch_size = 320,save = False, overlap=0)
+                    im_patches = utils.split_image(im, patch_size = 320,save = False, overlap=0)
                     self.patches[mode].extend(im_patches)
                     self.patch_path[mode].extend([img_path]*len(im_patches))
             
@@ -105,7 +105,7 @@ class DLRACD(Dataset):
                 # create image patches
                 for img_path in tqdm(images_list, desc="Loading and splitting {} images...".format(mode)):
                     im = cv2.imread(os.path.join(self.root_dir,mode+"/Images/"+img_path))
-                    im_patches = split_image(im, save = patch_save, overlap=overlap,name = img_path[:-4],path = im_patch_path,frmt = 'jpg',dlr=True)
+                    im_patches = utils.split_image(im, save = patch_save, overlap=overlap,name = img_path[:-4],path = im_patch_path,frmt = 'jpg',dlr=True)
         
                 patches_list = sorted(os.listdir(os.path.join(self.root_dir,mode+"/Images/Patches/")))
                 
@@ -130,7 +130,7 @@ class DLRACD(Dataset):
                         annotation = cv2.imread(os.path.join(self.root_dir,mode+"/Annotation/"+anno_path),0)
                         self.annotations[mode].append(annotation)
                         
-                        point_maps = split_image(annotation, patch_size = 320,save = False, overlap=0)   
+                        point_maps = utils.split_image(annotation, patch_size = 320,save = False, overlap=0)   
                         
                         for pm in point_maps:
                             
@@ -165,7 +165,7 @@ class DLRACD(Dataset):
                     # create annotation patches
                     for anno_path in tqdm(annotation_list, desc="Loading and splitting images..."):
                         anno = cv2.imread(os.path.join(self.root_dir,mode+"/Annotation/"+anno_path))
-                        anno_patches = split_image(anno,save=patch_save, overlap=overlap,name = anno_path[:-4],path = anno_patch_path,frmt = 'png',dlr=True)
+                        anno_patches = utils.split_image(anno,save=patch_save, overlap=overlap,name = anno_path[:-4],path = anno_patch_path,frmt = 'png',dlr=True)
                         self.anno_path[mode].extend([anno_path]*len(anno_patches))
                     
                     anno_patches_list = sorted(os.listdir(os.path.join(self.root_dir,mode+"/Annotation/Patches/")))
@@ -574,7 +574,7 @@ class CowObjectsDataset(Dataset):
                             point_map = None
                         
                         # add points onto basemap
-                        base_map, point_flag = create_point_map(mdl=None,annotations=annotations)
+                        base_map, point_flag = utils.create_point_map(mdl=None,annotations=annotations)
                             
                         if a.args.model_name in ['LCFCN','UNet_seg']:
                             point_map = base_map
@@ -1340,11 +1340,28 @@ def make_loaders(transformed_dataset):
     
     return full_train_loader, full_val_loader, train_loader, val_loader
 
+class UnNormalize(object):
+    def __init__(self, mean, std):
+        self.mean = mean
+        self.std = std
+
+    def __call__(self, tensor):
+        """
+        Args:
+            tensor (Tensor): Tensor image of size (C, H, W) to be normalized.
+        Returns:
+            Tensor: Normalized image.
+        """
+        for t, m, s in zip(tensor, self.mean, self.std):
+            t.mul_(s).add_(m)
+            # The normalize code -> t.sub_(m).div_(s)
+        return tensor    
+
 def preprocess_batch(data,dlr=False):
     '''move data to device and reshape image'''
     
     images,dmaps,labels, binary_labels, annotations,point_maps = data
-    images,dmaps,labels, binary_labels, annotations,point_maps = images.to(c.device),dmaps.to(c.device),labels, binary_labels, annotations,point_maps
+    images,dmaps,labels, binary_labels, annotations,point_maps = images.to(c.device),dmaps.to(c.device),labels, binary_labels.to(c.device), annotations,point_maps
     
     if dlr:
         images,dmaps,counts,point_maps = data

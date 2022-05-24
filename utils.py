@@ -28,7 +28,7 @@ from skimage import morphology as morph
 import config as c
 import gvars as g
 import arguments as a
-from data_loader import preprocess_batch
+import data_loader 
 
 
 
@@ -151,24 +151,7 @@ def get_loss(z, jac,dims):
 def init_weights(m):
     if isinstance(m, torch.nn.Conv2d):
         torch.nn.init.xavier_uniform_(m.weight)
-        m.bias.data.fill_(0.01)
-
-class UnNormalize(object):
-    def __init__(self, mean, std):
-        self.mean = mean
-        self.std = std
-
-    def __call__(self, tensor):
-        """
-        Args:
-            tensor (Tensor): Tensor image of size (C, H, W) to be normalized.
-        Returns:
-            Tensor: Normalized image.
-        """
-        for t, m, s in zip(tensor, self.mean, self.std):
-            t.mul_(s).add_(m)
-            # The normalize code -> t.sub_(m).div_(s)
-        return tensor      
+        m.bias.data.fill_(0.01)  
 
 def add_plot_tb(writer,fig,writer_mode,writer_epoch):
     
@@ -199,7 +182,7 @@ def plot_preds_multi(UNet_path,CSRNet_path,FCRN_path,NF_path,mode,loader,sample_
             fig.suptitle('Baseline Comparisons {}'.format(mode),y=1.0,fontsize=16) # :.2f
             [axi.set_axis_off() for axi in ax.ravel()] # turn off subplot axes
             
-            images,dmaps,labels,binary_labels , annotations, point_maps  = preprocess_batch(data)
+            images,dmaps,labels,binary_labels , annotations, point_maps  = data_loader.preprocess_batch(data)
             j = 0
             
             
@@ -252,7 +235,7 @@ def plot_preds_multi(UNet_path,CSRNet_path,FCRN_path,NF_path,mode,loader,sample_
                 
             break
     
-    unnorm = UnNormalize(mean=tuple(c.norm_mean),
+    unnorm = data_loader.UnNormalize(mean=tuple(c.norm_mean),
                          std=tuple(c.norm_std))
     im = unnorm(images[lb_idx])
     im = im.permute(1,2,0).cpu().numpy()
@@ -423,7 +406,7 @@ def plot_preds_baselines(mdl, loader,mode="",mdl_type='',writer=None,writer_epoc
         for i, data in enumerate(tqdm(loader, disable=c.hide_tqdm_bar)):
                 
                 mdl.to(c.device)
-                images,dmaps,labels,binary_labels , annotations, point_maps  = preprocess_batch(data)
+                images,dmaps,labels,binary_labels , annotations, point_maps  = data_loader.preprocess_batch(data)
                 preds = mdl(images)/mdl.dmap_scaling
                 
                 if mdl_type == 'UNet_seg':
@@ -455,7 +438,7 @@ def plot_preds_baselines(mdl, loader,mode="",mdl_type='',writer=None,writer_epoc
                 else:
                     preds = preds[lb_idx].permute(1,2,0).cpu().numpy()
                 
-                unnorm = UnNormalize(mean=tuple(c.norm_mean),
+                unnorm = data_loader.UnNormalize(mean=tuple(c.norm_mean),
                                      std=tuple(c.norm_std))
                 
                 plot_dmap = dmaps[lb_idx] #/mdl.dmap_scaling
@@ -578,7 +561,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
             elif loader.dataset.count: # mdl.dataset.count
                 images,dmaps,labels,counts, point_maps = data
             elif loader.dataset.classification:
-                images,dmaps,labels,binary_labels , annotations, point_maps  = preprocess_batch(data)
+                images,dmaps,labels,binary_labels , annotations, point_maps  = data_loader.preprocess_batch(data)
             else:
                 images,dmaps,labels,_ = data
             
@@ -763,7 +746,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
                     if mdl.mnist:
                         im = images[lb_idx].squeeze().cpu().numpy()
                     else:
-                        unnorm = UnNormalize(mean =tuple(c.norm_mean),
+                        unnorm = data_loader.UnNormalize(mean =tuple(c.norm_mean),
                                              std=tuple(c.norm_std))
                         
                         if mdl.dlr_acd:
@@ -877,7 +860,7 @@ def plot_peaks(mdl, loader,n=10):
             x_list.append(x)
         
         # get back to correct image data
-        unnorm = UnNormalize(mean=tuple(c.norm_mean),
+        unnorm = data_loader.UnNormalize(mean=tuple(c.norm_mean),
                              std=tuple(c.norm_std))
         
         x_agg = torch.stack(x_list,dim=1)
