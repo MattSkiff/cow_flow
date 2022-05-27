@@ -30,8 +30,6 @@ import gvars as g
 import arguments as a
 import data_loader 
 
-
-
 # TODO - shift below 5 util functions to utils
 def save_cstate(cdir,modelname,config_file):
     ''' saves a snapshot of the config file before running and saving model '''

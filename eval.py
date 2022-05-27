@@ -3,6 +3,7 @@ from tqdm import tqdm
 import numpy as np
 from skimage.feature import peak_local_max # 
 from skimage.metrics import peak_signal_noise_ratio, structural_similarity
+from sklearn.metrics import auc
 from scipy.spatial import distance
 from scipy.optimize import linear_sum_assignment
 import torch
@@ -21,9 +22,8 @@ import config as c
 import gvars as g
 import arguments as a
 from data_loader import CustToTensor, AerialNormalize, Resize
-from data_loader import RotateFlip, CustResize, prep_transformed_dataset, preprocess_batch, UnNormalize
+from data_loader import CustResize, prep_transformed_dataset, preprocess_batch
  
-
 from lcfcn import lcfcn_loss
 
 MAX_DISTANCE = 100
@@ -49,71 +49,77 @@ def eval_dataloaders(mdl):
 
 def gen_localisation_metrics(dlr,thres, y_coords,y_hat_coords):
     # localisation metrics (using kernalised dmaps)
-    localisation_dict = {
-        'tp':0,
-        'fp':0,
-        'fn':0
-        }
     
-    for gt_dmap, pred_dmap in zip(y_coords, y_hat_coords):
-        
-        if isinstance(gt_dmap, np.ndarray):
-            empty_arr = False
-        else:
-            empty_arr = True
-            
-        if not dlr and not empty_arr:
-            gt_dmap = np.swapaxes(gt_dmap,1,0)
-        else:
-            gt_dmap = np.array(gt_dmap)
-        
-        if not empty_arr:
-            dist_matrix = distance.cdist(gt_dmap, pred_dmap, 'euclidean')
-            
-            # hungarian algorithm from scipy (yes, optimality is critical, even for eval)
-            optim = linear_sum_assignment(dist_matrix)
-            
-            dists = [] # matched distances per density map
-            
-            # match all pred points (if pred < gt) or match up to predicted number of points
-            for i in range(min(int(gt_dmap.sum()),len(optim[0]))):
-                # delete entry from distance matrix when match is found
-                dists.append(dist_matrix[optim[0][i],optim[1][i]]) 
-            
-            dists = np.array(dists)
-            
-            #DEBUG VIZ
-            # unnorm = UnNormalize(mean=tuple(c.norm_mean),
-            #           std=tuple(c.norm_std))
-            # import matplotlib.pyplot as plt
-            # fig, ax = plt.subplots(1,3, figsize=(30, 10))
-            # ax[0].scatter(pred_dmap[:,0], pred_dmap[:,1],label='Predicted coordinates')
-            # ax[0].scatter(gt_dmap[:,0], gt_dmap[:,1],c='red',marker='1',label='Ground truth coordinates')
-            # ax[0].set_ylim(0,256)
-            # ax[0].set_xlim(0,256)
-            # ax[1].imshow(test_dms[z])
-            # ax[2].imshow(ac_dms[z].cpu().numpy())
-            # z+=1
-
-            # check me!
-            tp = np.count_nonzero(dists<=thres)
-            fp = pred_dmap.shape[0]-tp
-            fn = gt_dmap.shape[0]-tp
-
-        else:
-            tp = 0 # set tp to zero for null annotations
-            fn = 0 # --- #
-            fp = pred_dmap.shape[0]      
-        
-        localisation_dict['tp'] += tp
-        localisation_dict['fp'] += fp
-        localisation_dict['fn'] += fn
-        
-        # print('tp {} | fp {} | fn {}'.format(tp,fp,fn))
+    prs = []; rcs = []
     
-    return localisation_dict
+    for thres in tqdm(np.append(np.arange(1, 100, 0.5, dtype=float),thres),desc='Generating PR AUC'):
+        
+        localisation_dict = {'tp':0,'fp':0,'fn':0}
+        
+        for gt_dmap, pred_dmap in zip(y_coords, y_hat_coords):
+            
+            if isinstance(gt_dmap, np.ndarray):
+                empty_arr = False
+            else:
+                empty_arr = True
+                
+            if not dlr and not empty_arr:
+                gt_dmap = np.swapaxes(gt_dmap,1,0)
+            else:
+                gt_dmap = np.array(gt_dmap)
+            
+            if not empty_arr:
+                
+                gt_n_points = int(gt_dmap.sum())
+                dist_matrix = distance.cdist(gt_dmap, pred_dmap, 'euclidean')
+                
+                # hungarian algorithm from scipy (yes, optimality is critical, even for eval)
+                optim = linear_sum_assignment(dist_matrix)
+                
+                dists = [] # matched distances per density map
+                
+                # match all pred points (if pred < gt) or match up to true number of points
+                for i in range(min(gt_n_points,len(optim[0]))):
+                    # delete entry from distance matrix when match is found
+                    dists.append(dist_matrix[optim[0][i],optim[1][i]]) 
+                
+                dists = np.array(dists)
+                
+                # check me!
+                tp = np.count_nonzero(dists<=thres)
+                fp = pred_dmap.shape[0]-tp
+                fn = gt_dmap.shape[0]-tp
+                
+                # DEBUG VIZ
+                # unnorm = UnNormalize(mean=tuple(c.norm_mean),
+                #           std=tuple(c.norm_std))
+                # import matplotlib.pyplot as plt
+                # fig, ax = plt.subplots(1,3, figsize=(30, 10))
+                # ax[0].scatter(pred_dmap[:,0], pred_dmap[:,1],label='Predicted coordinates')
+                # ax[0].scatter(gt_dmap[:,0], gt_dmap[:,1],c='red',marker='1',label='Ground truth coordinates')
+                # ax[0].set_ylim(0,256)
+                # ax[0].set_xlim(0,256)
+                # ax[1].imshow(test_dms[z])
+                # ax[2].imshow(ac_dms[z].cpu().numpy())
+                # z+=1
+    
+            else:
+                tp = 0 # set tp to zero for null annotations
+                fn = 0 # --- #
+                fp = pred_dmap.shape[0]   
+            
+            localisation_dict['tp'] += tp
+            localisation_dict['fp'] += fp
+            localisation_dict['fn'] += fn
+            
+        prs.append(localisation_dict['tp']/( localisation_dict['tp']+localisation_dict['fp']))
+        rcs.append(localisation_dict['tp']/( localisation_dict['tp']+localisation_dict['fn']))
+            
+            # print('tp {} | fp {} | fn {}'.format(tp,fp,fn))
+    
+    return localisation_dict,prs[:-1],rcs[:-1]
 
-def gen_metrics(dm_mae,dm_mse,dm_ssim,dm_psnr,y_n,y_hat_n,game,gampe,localisation_dict,mode):
+def gen_metrics(dm_mae,dm_mse,dm_ssim,dm_psnr,y_n,y_hat_n,game,gampe,localisation_dict,prs,rcs,mode):
     
     # dmap metrics (average across images)
     dm_mae = np.mean(np.vstack(dm_mae))
@@ -167,6 +173,8 @@ def gen_metrics(dm_mae,dm_mse,dm_ssim,dm_psnr,y_n,y_hat_n,game,gampe,localisatio
     else:
         fscore = tp/(tp+0.5*(fp+fn))
     
+    pr_auc = auc(prs,rcs)
+    
     metric_dict = {
         
         # Counts
@@ -187,8 +195,8 @@ def gen_metrics(dm_mae,dm_mse,dm_ssim,dm_psnr,y_n,y_hat_n,game,gampe,localisatio
         # localisation
         '{}_fscore'.format(mode):fscore,
         '{}_precision'.format(mode):pr,
-        '{}_recall'.format(mode):rc
-        
+        '{}_recall'.format(mode):rc,
+        '{}_pr_auc'.format(mode):pr_auc,
         }
     
     if a.args.mode == 'eval':
@@ -335,8 +343,8 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False):
             dm_psnr.append(peak_signal_noise_ratio(ground_truth_dmap,dmap_np))
             dm_ssim.append(structural_similarity(ground_truth_dmap,dmap_np))
     
-    localisation_dict = gen_localisation_metrics(dlr=False,thres=thres,y_coords=y_coords,y_hat_coords=y_hat_coords)
-    metric_dict = gen_metrics(dm_mae,dm_mse,dm_ssim,dm_psnr,y_n,y_hat_n,game,gampe,localisation_dict,mode)
+    localisation_dict,prs,rcs = gen_localisation_metrics(dlr=False,thres=thres,y_coords=y_coords,y_hat_coords=y_hat_coords)
+    metric_dict = gen_metrics(dm_mae,dm_mse,dm_ssim,dm_psnr,y_n,y_hat_n,game,gampe,localisation_dict,prs,rcs,mode)
     
     t2 = time.perf_counter()
     print("Dmap evaluation finished. Wall time: {}".format(round(t2-t1,2)))
@@ -614,8 +622,8 @@ def dmap_metrics(mdl, loader,n=10,mode='',null_filter=(a.args.sampler == 'weight
             game.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)))
             gampe.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)/np.maximum(np.ones(len(gt_dmap_split_counts)),gt_dmap_split_counts)))     
     
-    localisation_dict = gen_localisation_metrics(dlr=mdl.dlr_acd,thres=thres,y_coords=y_coords,y_hat_coords=y_hat_coords)
-    metric_dict = gen_metrics(dm_mae,dm_mse,dm_ssim,dm_psnr,y_n,y_hat_n,game,gampe,localisation_dict,mode)
+    localisation_dict,prs,rcs = gen_localisation_metrics(dlr=mdl.dlr_acd,thres=thres,y_coords=y_coords,y_hat_coords=y_hat_coords)
+    metric_dict = gen_metrics(dm_mae,dm_mse,dm_ssim,dm_psnr,y_n,y_hat_n,game,gampe,localisation_dict,prs,rcs,mode)
     
     t2 = time.perf_counter()
     print("Dmap evaluation finished. Wall time: {}".format(round(t2-t1,2)))
@@ -698,7 +706,6 @@ def dmap_pr_curve(mdl, loader,n = 10,mode = ''):
             
             gt_count -= loader_noise
             pred_count -= constant
-            
             
             y_hat_coords['div2'].append(peak_local_max(dmap_rev_np,min_distance=int(mdl.sigma//2),num_peaks=max(1,int(pred_count))))
             y_hat_coords['same'].append(peak_local_max(dmap_rev_np,min_distance=int(mdl.sigma),num_peaks=max(1,int(pred_count))))
