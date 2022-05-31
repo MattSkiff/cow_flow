@@ -383,8 +383,6 @@ class Up(nn.Module):
         x = torch.cat([x2, x1], dim=1)
         return self.conv(x)
 
-
-
 # https://github.com/leeyeehoo/CSRNet-pytorch- official CSRNet repo
 
 class CSRNet(nn.Module):

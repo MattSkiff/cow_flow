@@ -52,7 +52,9 @@ def gen_localisation_metrics(dlr,thres, y_coords,y_hat_coords):
     
     prs = []; rcs = []
     
-    for thres in tqdm(np.append(np.arange(1, 100, 0.5, dtype=float),thres),desc='Generating PR AUC'):
+    TS = np.append(g.THRES_SEQ,thres)
+    
+    for thres in tqdm(TS,desc='Generating PR AUC'):
         
         localisation_dict = {'tp':0,'fp':0,'fn':0}
         
@@ -114,8 +116,26 @@ def gen_localisation_metrics(dlr,thres, y_coords,y_hat_coords):
             
         prs.append(localisation_dict['tp']/( localisation_dict['tp']+localisation_dict['fp']))
         rcs.append(localisation_dict['tp']/( localisation_dict['tp']+localisation_dict['fn']))
-            
-            # print('tp {} | fp {} | fn {}'.format(tp,fp,fn))
+        # print('tp {} | fp {} | fn {}'.format(tp,fp,fn))
+    
+    fig, ax = plt.subplots(3,1, figsize=(8, 8))
+
+    ax[0].plot(g.THRES_SEQ,rcs[:-1], '-o', c='blue',label='Min D: Half kernel')
+    ax[0].title.set_text('Recall Curve')
+    ax[0].set(xlabel="Threshold: Euclidean Distance (pixels)", ylabel="Recall")
+    ax[0].legend()
+    
+    ax[1].plot(g.THRES_SEQ,prs[:-1], '-o', c='blue',label='Min D: Half kernel')
+    ax[1].title.set_text('Precision Curve')
+    ax[1].set(xlabel="Threshold: Euclidean Distance (pixels)", ylabel="Precision") 
+    ax[1].legend()
+    
+    ax[2].plot(prs[:-1],rcs[:-1], '-o', c='blue',label='Min D: Half kernel')
+    ax[2].title.set_text('Precision-Recall Curve')
+    ax[2].set(xlabel="Recall", ylabel="Precision") 
+    ax[2].legend()
+    
+    plt.show()
     
     return localisation_dict,prs[:-1],rcs[:-1]
 
@@ -173,7 +193,8 @@ def gen_metrics(dm_mae,dm_mse,dm_ssim,dm_psnr,y_n,y_hat_n,game,gampe,localisatio
     else:
         fscore = tp/(tp+0.5*(fp+fn))
     
-    pr_auc = auc(prs,rcs)
+    rc_auc = auc(g.THRES_SEQ,rcs)/np.max(g.THRES_SEQ)
+    pr_auc = auc(g.THRES_SEQ,prs)/np.max(g.THRES_SEQ)
     
     metric_dict = {
         
@@ -196,7 +217,8 @@ def gen_metrics(dm_mae,dm_mse,dm_ssim,dm_psnr,y_n,y_hat_n,game,gampe,localisatio
         '{}_fscore'.format(mode):fscore,
         '{}_precision'.format(mode):pr,
         '{}_recall'.format(mode):rc,
-        '{}_pr_auc'.format(mode):pr_auc,
+        '{}_recall_auc'.format(mode):rc_auc,
+        '{}_precision_auc'.format(mode):pr_auc
         }
     
     if a.args.mode == 'eval':
@@ -804,7 +826,7 @@ def dmap_pr_curve(mdl, loader,n = 10,mode = ''):
     ax[0].plot(thresholds,rc_dict['mult2'][0], '-o', c='orange',label='Min D: Kernel x2')
     ax[0].plot(thresholds,rc_dict['mult4'][0], '-o', c='green',label='Min D: Kernel x4')
     ax[0].title.set_text('Recall Curve')
-    ax[0].set(xlabel="", ylabel="Recall")
+    ax[0].set(xlabel="Threshold: Euclidean Distance (pixels)", ylabel="Recall")
     ax[0].legend()
     
     ax[1].plot(thresholds,pr_dict['div2'][0], '-o', c='blue',label='Min D: Half kernel')
