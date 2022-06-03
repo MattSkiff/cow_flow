@@ -230,17 +230,30 @@ def nf_pyramid(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_fea
     for k in range(c.levels):
         conditions.append(Ff.ConditionNode(p_dims[k][1],p_dims[k][2],p_dims[k][3],name = 'Condition{}'.format(k)))
         
-        if a.args.fixed1x1conv and k != 0: # c.channels*4**k
-            nodes.append(Ff.Node(nodes[-1].out0, Fm.Fixed1x1Conv,{'M': random_orthog(c.channels*4**k).to(c.device) }, name='1x1_Conv_{}'.format(k)))
+        if a.args.all_in_one:
+            
+            # All in One
+            nodes.append(Ff.Node(nodes[-1].out0, Fm.HaarDownsampling, {}, name = 'Main_Downsampling_{}'.format(k)))
+            
+            for j in range(a.args.n_pyramid_blocks):
+                nodes.append(Ff.Node(nodes[-1], Fm.AllInOneBlock,
+                                {'affine_clamping': c.clamp_alpha,'subnet_constructor':subnet},
+                                conditions=conditions[k],name = 'AllInOne_{}'.format(k)))
+            
         else:
-            nodes.append(Ff.Node(nodes[-1].out0, Fm.PermuteRandom, {'seed': k}, name='Permute_{}'.format(k)))
-        
-        nodes.append(Ff.Node(nodes[-1].out0, Fm.HaarDownsampling, {}, name = 'Main_Downsampling_{}'.format(k)))
-        
-        for j in range(a.args.n_pyramid_blocks):
-            nodes.append(Ff.Node(nodes[-1], Fm.GLOWCouplingBlock,
-                            {'clamp': c.clamp_alpha,'subnet_constructor':subnet},
-                            conditions=conditions[k],name = 'Couple_{}'.format(k)))
+            
+            # Non 'All in One'
+            if a.args.fixed1x1conv and k != 0: # c.channels*4**k
+                nodes.append(Ff.Node(nodes[-1].out0, Fm.Fixed1x1Conv,{'M': random_orthog(c.channels*4**k).to(c.device) }, name='1x1_Conv_{}'.format(k)))
+            else:
+                nodes.append(Ff.Node(nodes[-1].out0, Fm.PermuteRandom, {'seed': k}, name='Permute_{}'.format(k)))
+            
+            nodes.append(Ff.Node(nodes[-1].out0, Fm.HaarDownsampling, {}, name = 'Main_Downsampling_{}'.format(k)))
+            
+            for j in range(a.args.n_pyramid_blocks):
+                nodes.append(Ff.Node(nodes[-1], Fm.GLOWCouplingBlock,
+                                {'clamp': c.clamp_alpha,'subnet_constructor':subnet},
+                                conditions=conditions[k],name = 'Couple_{}'.format(k)))
     
     inn = Ff.GraphINN(nodes + conditions + [Ff.OutputNode(nodes[-1], name='output')], verbose=c.verbose)
     

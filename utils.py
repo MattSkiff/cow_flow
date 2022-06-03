@@ -1,28 +1,31 @@
 # MIT License Matthew Skiffington 2022
 # External
 import torch
-from torch import randn
-import torchvision.transforms.functional as TF
-import torchvision.transforms as T
-import torch.nn.functional as F
-import matplotlib.pyplot as plt
-from tqdm import tqdm
+import dill # solve error when trying to pickle lambda function in FrEIA
+import shutil
 import os
 import numpy as np
 import random
-from datetime import datetime 
 import cv2
+import rasterio
+
+from torch import randn
+from tqdm import tqdm
+from collections import OrderedDict
+from datetime import datetime 
 from prettytable import PrettyTable
 from pathlib import Path
 from PIL import Image
-import rasterio
 from rasterio.plot import reshape_as_raster
-import dill # solve error when trying to pickle lambda function in FrEIA
-import shutil
 from sklearn.preprocessing import StandardScaler
 from lcfcn import lcfcn_loss
 from skimage.feature import peak_local_max # 
 from skimage import morphology as morph
+
+import torchvision.transforms.functional as TF
+import torchvision.transforms as T
+import torch.nn.functional as F
+import matplotlib.pyplot as plt
 
 # Internal
 import config as c
@@ -159,32 +162,37 @@ def add_plot_tb(writer,fig,writer_mode,writer_epoch):
 
 # TODO - edit to include UNet seg and LCFCN, MCNN?
 @torch.no_grad()
-def plot_preds_multi(UNet_path,CSRNet_path,FCRN_path,NF_path,mode,loader,sample_n=5): 
-    UNet = load_model(UNet_path)
-    CSRNet = load_model(CSRNet_path)
-    FCRN = load_model(FCRN_path)
-    NF = load_model(NF_path)
+def plot_preds_multi(mode,loader,model_path_dict=g.BEST_MODEL_PATH_DICT,sample_n=5): 
     
+    UNet = load_model(model_path_dict['UNet'])
+    UNet_seg = load_model(model_path_dict['UNet_seg'])
+    CSRNet = load_model(model_path_dict['CSRNet'])
+    FCRN = load_model(model_path_dict['FCRN'])
+    
+    LCFCN = load_model(model_path_dict['LCFCN'])
+    MCNN = load_model(model_path_dict['MCNN'])
+    Res50 = load_model(model_path_dict['Res50'])
+    NF = load_model(model_path_dict['NF'])
+    
+    count_odict = OrderedDict([('UNet',0),('CSRNet',0),('FCRN',0),('MCNN',0),('Res50',0),('UNet_seg',0),('LCFCN',0),('NF',0)])
+    
+    assert len(count_odict) == len(g.BEST_MODEL_PATH_DICT)
     assert mode in ['train','val']
-    
-    count_arr = []
     
     lb_idx = random.randint(0,loader.batch_size-1)
 
     for i, data in enumerate(tqdm(loader, disable=c.hide_tqdm_bar)):
             
-            fig, ax = plt.subplots(1,6)
-            plt.subplots_adjust(left=0.1, right=0.9, top=0.9, bottom=0.1)
+            j = 0
+            fig = plt.figure()
+            fig.subplots_adjust(left=0.1, right=0.9, top=0.9, bottom=0.1)
             fig.set_size_inches(35*1,7*1)
             fig.set_dpi(100)
-            fig.suptitle('Baseline Comparisons {}'.format(mode),y=1.0,fontsize=16) # :.2f
-            [axi.set_axis_off() for axi in ax.ravel()] # turn off subplot axes
+            fig.suptitle('Baseline Comparisons {}'.format(mode.capitalize()),y=1.0,fontsize=16) # :.2f
             
             images,dmaps,labels,binary_labels , annotations, point_maps  = data_loader.preprocess_batch(data)
-            j = 0
             
-            
-            for mdl in [UNet,CSRNet,FCRN]:
+            for mdl in [UNet,CSRNet,FCRN,MCNN,Res50,UNet_seg]:
                 
                 plot_dmap = dmaps[lb_idx]/mdl.dmap_scaling
                 
@@ -193,17 +201,40 @@ def plot_preds_multi(UNet_path,CSRNet_path,FCRN_path,NF_path,mode,loader,sample_
                 preds = preds[lb_idx].permute(1,2,0).cpu().numpy()
                 # todo - retrain models with noise attr and uncomment below
                 constant = ((mdl.noise)/2)*plot_dmap.shape[0]*plot_dmap.shape[1]
-                count_arr.append((preds.sum()/mdl.dmap_scaling)-constant)
-                ax[j].title.set_text('Density Map Prediction {}'.format(str(type(mdl))))
-                ax[j].imshow(preds)
+                
+                if j != 5:
+                    count_odict[list(count_odict.keys())[j]] = ((preds.sum()/mdl.dmap_scaling)-constant)
+                else:
+                    count_odict[list(count_odict.keys())[j]] = len(peak_local_max(preds.squeeze(),min_distance=1,
+                                            num_peaks=np.inf,threshold_abs=0,threshold_rel=0.5))
+                
+                ax = plt.subplot(2,5,j+1); ax.set_axis_off()
+                ax.title.set_text('{}'.format(str(type(mdl))))
+                ax.imshow(preds)
                 
                 j = j + 1
                 
-                x_list = []
-            
+            for mdl in [LCFCN]:
+                
+                    mdl.to(c.device)
+                    preds = mdl(images)
+                    probs = preds.sigmoid().cpu().numpy()
+                    pred_blobs = lcfcn_loss.get_blobs(probs=probs).squeeze()
+                    pred_points = lcfcn_loss.blobs2points(pred_blobs).squeeze()
+                    y_list, x_list = np.where(pred_points.squeeze())
+                    count_odict[list(count_odict.keys())[j]] = (np.unique(pred_blobs)!=0).sum()
+                    preds = preds.squeeze(0).sigmoid().permute(1,2,0).cpu().numpy() 
+                    ax = plt.subplot(2,5,j+1); ax.set_axis_off()
+                    ax.title.set_text('{}'.format(str(type(mdl))))
+                    ax.imshow(preds)
+                    
+                    j = j + 1
+        
             mdl = NF; mdl.to(c.device)
             
             # NF prediction
+            x_list = []
+            
             for i in range(sample_n):
                                     
                 in_channels = c.channels*4**5 # n_ds=5
@@ -219,17 +250,19 @@ def plot_preds_multi(UNet_path,CSRNet_path,FCRN_path,NF_path,mode,loader,sample_
                     
             # replace predicted densities with null predictions if not +ve pred from feature extractor
             # subtract constant for uniform noise
-            outputs = mdl.classification_head(images)  
-            _, preds = torch.max(outputs, 1)  
-            x[(preds == 1).bool(),:,:,:] = torch.zeros(1,mdl.density_map_h,mdl.density_map_w).to(c.device)
+            # outputs = mdl.classification_head(images)  
+            # _, preds = torch.max(outputs, 1)  
+            # x[(preds == 1).bool(),:,:,:] = torch.zeros(1,mdl.density_map_h,mdl.density_map_w).to(c.device)
                      
             dmap_rev_np = x[lb_idx].squeeze().cpu().detach().numpy()
             
-            ax[j].title.set_text('Density Map Prediction {}'.format(str(type(mdl))))
-            ax[j].imshow(dmap_rev_np)
+            ax = plt.subplot(2,5,j+1); ax.set_axis_off()
+            ax.title.set_text('{}'.format(str(type(mdl))))
+            ax.imshow(dmap_rev_np)
             
             constant = ((mdl.noise)/2)*plot_dmap.shape[0]*plot_dmap.shape[1]
-            count_arr.append(dmap_rev_np.sum()-constant)
+            count_odict[list(count_odict.keys())[j]] = (dmap_rev_np.sum()-constant)
+            j+=1
                 
             break
     
@@ -238,12 +271,18 @@ def plot_preds_multi(UNet_path,CSRNet_path,FCRN_path,NF_path,mode,loader,sample_
     im = unnorm(images[lb_idx])
     im = im.permute(1,2,0).cpu().numpy()
     
-    ax[4].title.set_text('Conditioning Aerial Image')
-    ax[4].imshow((im * 255).astype(np.uint8))
-    ax[5].title.set_text('Ground Truth Density Map')
-    ax[5].imshow(dmaps[lb_idx].cpu().numpy())
+    ax = plt.subplot(2,5,j+1); ax.set_axis_off(); j+=1
+    ax.title.set_text('Conditioning Aerial Image')
+    ax.imshow((im * 255).astype(np.uint8))
     
-    return {'UNet':count_arr[0],'FCRN':count_arr[1],'CSRNet':count_arr[2],'NF':count_arr[3]}
+    ax = plt.subplot(2,5,j+1); ax.set_axis_off(); j+=1
+    ax.title.set_text('Ground Truth Density Map')
+    ax.imshow(dmaps[lb_idx].cpu().numpy())
+    
+    plt.show()
+    print(count_odict)
+    
+    return count_odict
     # TODO - show pred counts
 
 @torch.no_grad()
@@ -466,7 +505,7 @@ def plot_preds_baselines(mdl, loader,mode="",mdl_type='',writer=None,writer_epoc
                 print("Label Count: {}".format(len(labels[lb_idx])))
                 
                 if str(type(mdl)) =="<class 'baselines.LCFCN'>":# or mdl_type == 'UNet_seg':
-                        print("%s predicted (LCFCN)" % (len(y_list)))
+                        print("%s predicted (LCFCN)" % (pred_counts))
                 
                 if mdl_type == 'UNet_seg':
                         print("%s predicted (UNet_seg)" % (len(coords)))
@@ -1349,6 +1388,9 @@ def make_model_name(train_loader):
      
      if a.args.model_name == 'NF':
          parts.append('NC'+str(c.n_coupling_blocks))
+    
+     if a.args.all_in_one:
+         parts.append('IN1')
 
      parts.append(a.args.sampler)
      
@@ -1384,8 +1426,7 @@ def make_model_name(train_loader):
      if a.args.model_name == 'NF' and c.dropout_p != 0:
          parts.append('DP_{}'.format(c.dropout_p))
          
-     if a.args.weight_decay != 1e-5:
-         parts.extend(["WD",str(a.args.weight_decay)])
+     parts.extend(["WD",str(a.args.weight_decay)])
          
      if c.train_feat_extractor or c.load_feat_extractor_str != '':
          parts.append('FT')
@@ -1430,6 +1471,7 @@ def make_hparam_dict(val_loader):
                         'finetuned?':c.train_feat_extractor,
                         'mnist?':a.args.data == 'mnist',
                         'counts?':c.counts,
+                        'all_in_one?':a.args.all_in_one,
                         'n pyramid blocks?':a.args.n_pyramid_blocks,
                         'subnet_type?':c.subnet_type,
                         'prop. of data':c.data_prop,

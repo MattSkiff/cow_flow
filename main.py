@@ -8,10 +8,11 @@ import os
 # internal
 import config as c
 import arguments as a
+import gvars as g
 import model
 from data_loader import prep_transformed_dataset, make_loaders
 from train import train, train_baselines, train_feat_extractor, train_classification_head
-from utils import load_model
+from utils import load_model,plot_preds,plot_preds_baselines,plot_preds_multi
 from eval import dmap_metrics, eval_baselines
 from dlr_acd import dlr_acd
 from mnist import mnist
@@ -52,6 +53,16 @@ if a.args.data == 'cows':
             eval_baselines(mdl,val_loader,mode='val',is_unet_seg=(a.args.model_name=='UNet_seg'))
             #eval_baselines(mdl,train_loader,mode='train',is_unet_seg=(a.args.model_name=='UNet_seg'))
         
+    
+    if a.args.mode == 'plot':  
+        
+        if a.args.model_name == 'NF':
+            plot_preds(mdl,val_loader)
+        elif a.args.model_name == 'ALL':
+            plot_preds_multi(mode='val',loader=val_loader)
+        elif a.args.model_name in g.BASELINE_MODEL_NAMES:
+            plot_preds_baselines(mdl, val_loader,mode="val",mdl_type=a.args.model_name)
+            
     if a.args.mode == 'train' and not a.args.holdout:
         
         if a.args.bc_only:
