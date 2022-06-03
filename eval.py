@@ -29,6 +29,65 @@ from lcfcn import lcfcn_loss
 MAX_DISTANCE = 100
 STEP = 1
 
+def write_localisation_data(mdl,prs,rcs,write=False):
+    
+    if write:
+        
+        if not os.path.exists("./viz/data/"):
+            os.makedirs("./viz/data/")
+        
+        precision_file = open("./viz/data/" + "{}.precision".format(mdl.modelname), "w")
+        recall_file = open("./viz/data/" + "{}.recall".format(mdl.modelname), "w")
+        
+        for precision, recall in zip(prs,rcs):
+            
+            recall_file.write(str(recall) + "\n")
+            precision_file.write(str(precision) + "\n")
+            
+        precision_file.close()
+        recall_file.close()
+
+def plot_pr_curves(directory='./viz/data/anno_256/'):
+    
+    context_string = "256x256, best current models, annotations only"
+    
+    recall_dict = {}; precision_dict = {}
+    
+    # final - rename files 
+    for file in os.listdir(directory):
+        
+            filename, file_extension = os.path.splitext(file)
+            
+            txt_file = open(directory+"/{}".format(file), "r")
+            file_content = txt_file.read()
+            
+            if file_extension == ".precision":
+                
+                recall_dict["{}".format(file)] = file_content.split("\n")
+                txt_file.close()
+                
+            if file_extension == ".recall":
+                
+                precision_dict["{}".format(file)] = file_content.split("\n")
+                txt_file.close()
+            
+    fig, ax = plt.subplots(2,1, figsize=(8, 8))
+    fig.subplots_adjust(hspace=0.4)
+    
+    for model in sorted(precision_dict.keys()):
+        ax[0].plot(g.THRES_SEQ,np.asfarray(precision_dict[model][:-1]), '-o',label=model[:10])
+    
+    ax[0].title.set_text('Precision Curve - {}'.format(context_string))
+    ax[0].set(xlabel="Threshold: Euclidean Distance (pixels)", ylabel="Recall")
+    ax[0].legend()
+    
+    for model in sorted(recall_dict.keys()):
+        ax[1].plot(g.THRES_SEQ,np.asfarray(recall_dict[model][:-1]), '-o',label=model[:10])
+    
+    ax[1].title.set_text('Recall Curve- {}'.format(context_string))
+    ax[1].set(xlabel="Threshold: Euclidean Distance (pixels)", ylabel="Precision") 
+    ax[1].legend()
+
 def eval_dataloaders(mdl):
     
     transforms = [CustToTensor()]
@@ -82,14 +141,17 @@ def gen_localisation_metrics(dlr,thres, y_coords,y_hat_coords):
                 
                 # match all pred points (if pred < gt) or match up to true number of points
                 for i in range(min(gt_n_points,len(optim[0]))):
-                    # delete entry from distance matrix when match is found
-                    dists.append(dist_matrix[optim[0][i],optim[1][i]]) 
+                     dists.append(dist_matrix[optim[0][i],optim[1][i]]) 
+                
+                if gt_n_points < len(optim[0]):
+                    print(optim[0])
+                    print("---")
+                    print(dists)
+                    1/0
                 
                 dists = np.array(dists)
-                
-                # check me!
-                tp = np.count_nonzero(dists<=thres)
-                fp = pred_dmap.shape[0]-tp
+                tp = np.count_nonzero(dists<=thres) # filter points matched further than threshold
+                fp = pred_dmap.shape[0]-tp # unmatched points (in excess of n gt -> FP)
                 fn = gt_dmap.shape[0]-tp
                 
                 # DEBUG VIZ
@@ -118,24 +180,7 @@ def gen_localisation_metrics(dlr,thres, y_coords,y_hat_coords):
         rcs.append(localisation_dict['tp']/( localisation_dict['tp']+localisation_dict['fn']))
         # print('tp {} | fp {} | fn {}'.format(tp,fp,fn))
     
-    fig, ax = plt.subplots(3,1, figsize=(8, 8))
-
-    ax[0].plot(g.THRES_SEQ,rcs[:-1], '-o', c='blue',label='Min D: Half kernel')
-    ax[0].title.set_text('Recall Curve')
-    ax[0].set(xlabel="Threshold: Euclidean Distance (pixels)", ylabel="Recall")
-    ax[0].legend()
-    
-    ax[1].plot(g.THRES_SEQ,prs[:-1], '-o', c='blue',label='Min D: Half kernel')
-    ax[1].title.set_text('Precision Curve')
-    ax[1].set(xlabel="Threshold: Euclidean Distance (pixels)", ylabel="Precision") 
-    ax[1].legend()
-    
-    ax[2].plot(prs[:-1],rcs[:-1], '-o', c='blue',label='Min D: Half kernel')
-    ax[2].title.set_text('Precision-Recall Curve')
-    ax[2].set(xlabel="Recall", ylabel="Precision") 
-    ax[2].legend()
-    
-    plt.show()
+    # plt.show()
     
     return localisation_dict,prs[:-1],rcs[:-1]
 
@@ -227,7 +272,7 @@ def gen_metrics(dm_mae,dm_mse,dm_ssim,dm_psnr,y_n,y_hat_n,game,gampe,localisatio
     return metric_dict
     
 @torch.no_grad()
-def eval_baselines(mdl,loader,mode,is_unet_seg=False):
+def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True):
     
     thres=4*2 #mdl.sigma*2
     
@@ -297,16 +342,12 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False):
             
             pred_count -= constant
             gt_count -= loader_noise
-		
-            if is_unet_seg:
-                n_peaks=np.inf
-            else:
-                n_peaks=max(1,int(pred_count))
+            n_peaks=max(1,int(pred_count))
             
             if str(type(mdl)) == "<class 'baselines.LCFCN'>":
                 coordinates = np.argwhere(pred_points != 0)
             elif is_unet_seg:
-                coordinates = peak_local_max(dmap_np.squeeze(),min_distance=1,
+                coordinates = peak_local_max(dmap_np.squeeze(),min_distance=int(mdl.sigma//2),
                                              num_peaks=np.inf,threshold_abs=0,threshold_rel=0.5)
 
                 pred_count = len(coordinates)
@@ -314,7 +355,7 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False):
             elif str(type(mdl))  in ["<class 'baselines.CSRNet'>"]:
                 coordinates = np.array([[0,0]])
             else:
-                coordinates = peak_local_max(dmap_np,min_distance=int(mdl.sigma*2),num_peaks=n_peaks)
+                coordinates = peak_local_max(dmap_np,min_distance=int(mdl.sigma//2),num_peaks=n_peaks)
                 
             #y.append(labels[idx].cpu().detach().numpy())
             y_n.append(len(labels[idx]))
@@ -366,6 +407,7 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False):
             dm_ssim.append(structural_similarity(ground_truth_dmap,dmap_np))
     
     localisation_dict,prs,rcs = gen_localisation_metrics(dlr=False,thres=thres,y_coords=y_coords,y_hat_coords=y_hat_coords)
+    write_localisation_data(mdl,prs,rcs,write=write)
     metric_dict = gen_metrics(dm_mae,dm_mse,dm_ssim,dm_psnr,y_n,y_hat_n,game,gampe,localisation_dict,prs,rcs,mode)
     
     t2 = time.perf_counter()
@@ -491,7 +533,7 @@ def eval_mnist(mdl, valloader, trainloader,samples = 1,confusion = False, preds 
     return  out # train, val
 
 @torch.no_grad()
-def dmap_metrics(mdl, loader,n=10,mode='',null_filter=(a.args.sampler == 'weighted')):
+def dmap_metrics(mdl, loader,n=10,mode='',null_filter=(a.args.sampler == 'weighted'),write=True):
     '''DMAP,COUNT,LOCALIZATION metrics'''
     
     thres=mdl.sigma*2
@@ -608,7 +650,7 @@ def dmap_metrics(mdl, loader,n=10,mode='',null_filter=(a.args.sampler == 'weight
             dist_counts -= constant
             gt_count -= loader_noise
             
-            coordinates = peak_local_max(dmap_rev_np,min_distance=int(mdl.sigma*2),num_peaks=max(1,int(pred_count)))
+            coordinates = peak_local_max(dmap_rev_np,min_distance=int(mdl.sigma//2),num_peaks=max(1,int(pred_count)))
             
             if mdl.dlr_acd:
                 #y.append()
@@ -645,6 +687,7 @@ def dmap_metrics(mdl, loader,n=10,mode='',null_filter=(a.args.sampler == 'weight
             gampe.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)/np.maximum(np.ones(len(gt_dmap_split_counts)),gt_dmap_split_counts)))     
     
     localisation_dict,prs,rcs = gen_localisation_metrics(dlr=mdl.dlr_acd,thres=thres,y_coords=y_coords,y_hat_coords=y_hat_coords)
+    write_localisation_data(mdl,prs,rcs,write=write)
     metric_dict = gen_metrics(dm_mae,dm_mse,dm_ssim,dm_psnr,y_n,y_hat_n,game,gampe,localisation_dict,prs,rcs,mode)
     
     t2 = time.perf_counter()

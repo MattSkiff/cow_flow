@@ -11,7 +11,7 @@ parser.add_argument('-mdl_path',help="Specify mdl for eval",default='')
 parser.add_argument('-bin_classifier_path', default='')
 parser.add_argument('-ram',help='Load images/dmaps/point maps into ram for faster trainig',action="store_true",default=False)
 
-parser.add_argument('-mod',"--model_name",help="Specify model to train (NF,CSRNet, UNet, UCSRNetNet_seg, FCRN, LCFCN, MCNN).",default='')
+parser.add_argument('-mod',"--model_name",help="Specify model (NF,CSRNet, UNet, UCSRNetNet_seg, FCRN, LCFCN, MCNN).",default='')
 parser.add_argument("-fe_only", help="Trains the feature extractor only.", action="store_true",default=False)
 parser.add_argument("-bc_only", help="Trains the binary classifier only.", action="store_true",default=False)
 parser.add_argument("-skip_final_eval", help="Skips final eval.", action="store_true",default=False)
@@ -57,16 +57,17 @@ parser.add_argument("-scheduler",help="Learning rate scheduler (exponential,step
 parser.add_argument("-step_size",help="step size of stepLR scheduler",type=int,default=10)
 parser.add_argument("-step_gamma",help="gamma of stepLR scheduler",type=float,default=0.1)
 parser.add_argument("-expon_gamma",help="gamma of expon scheduler",type=float,default=0.9)
+parser.add_argument('-wd','--weight_decay',type=float,default=None) # differnet: 1e-5
 
 # NF only options
 parser.add_argument("-train_classification_head",action='store_true',default=False) # whether to train classification model for filtering null patches
+parser.add_argument("-all_in_one",action='store_true',default=False) # whether to use all in blocks (inc act norm)
 parser.add_argument("-pyramid",action='store_true',default=True) # whether to a feature pyramid for conditioning - only implemented for resnet18
 parser.add_argument("-fixed1x1conv",action='store_true',default=False) # whether to use 1x1 convs
 parser.add_argument("-freq_1x1",type=int,default=1) # 1 for always | how many x coupling blocks to have a 1x1 conv permutation layer
-parser.add_argument("-npb","--n_pyramid_blocks",type=int,default=3)
+parser.add_argument("-npb","--n_pyramid_blocks",type=int,default=0)
 parser.add_argument('-nse',"--noise",help='amount of uniform noise (sample evenly from 0-x) | 0 for none',type=float,default=0)
-parser.add_argument('-f','--filters',help='width of conv subnetworks',type=int,default=32)
-parser.add_argument('-wd','--weight_decay',type=float,default=None) # differnet: 1e-5
+parser.add_argument('-f','--filters',help='width of conv subnetworks',type=int,default=0)
 parser.add_argument("-split", "--split_dimensions", help="split off half the dimensions after each block of coupling layers.", type=int, default=0)
 
 # weighted: weight minibatch samples such that sampling distribution is 50/50 null/annotated
@@ -82,13 +83,13 @@ host = socket.gethostname()
 
 # defaults for if running interactively
 if any('SPYDER' in name for name in os.environ):
-    args.model_name = "UNet"
+    args.model_name = "NF"
     args.data = 'cows'
     args.optim = "adam"
     args.scheduler = 'none'
-    args.sampler = 'weighted'
+    args.sampler = 'anno'
     args.mode = 'train' #'eval'
-    args.sub_epochs = 5
+    args.sub_epochs = 1
     args.meta_epochs = 1
     args.batch_size = 1
     args.learning_rate = 1e-3
@@ -100,12 +101,16 @@ if any('SPYDER' in name for name in os.environ):
     args.dmap_scaling = 1
     args.max_filter_size = 4.0
     args.sigma = 4.0
-    args.noise = 0
+    args.noise = 1e-3
     args.mdl_path = ''#'final_9Z5_NF_quatern_BS64_LR_I0.0002_E10000_DIM256_OPTIMadam_FE_resnet18_NC5_anno_step_JO_PY_1_1x1_WD_0.001_10_05_2022_17_37_42'
     args.holdout = False
+    args.all_in_one = True
+    args.fixed1x1conv = True
+    args.filters = 32
+    args.n_pyramid_blocks = 3
     
 # checks
-assert args.mode in ['train','eval','store']
+assert args.mode in ['train','eval','store','plot']
 assert args.gpu_number > -1
 
 if args.mode == 'eval':
@@ -128,8 +133,23 @@ if (args.adam_b1 != 0 or args.adam_b2 != 0 or args.adam_e != 0) and args.optim !
 if args.sgd_mom != 0 and args.optim != 'sgd':
     ValueError
 
+if args.all_in_one:
+    assert args.model_name == 'NF'
+    assert args.fixed1x1conv
+
 if args.model_name != 'NF':
     assert args.bin_classifier_path == ''
+    assert not args.all_in_one
+    assert not args.train_classification_head
+    assert args.noise == 0
+    assert args.filters == 0
+    assert args.n_pyramid_blocks == 0
+
+if args.model_name == 'NF':
+    assert args.noise != 0
+    assert args.filters != 0
+    assert args.n_pyramid_blocks != 0
+    
     
 if args.fixed1x1conv and args.pyramid:
     assert args.freq_1x1 == 1
