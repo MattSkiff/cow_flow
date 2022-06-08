@@ -251,11 +251,11 @@ def nf_pyramid(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_fea
             nodes.append(Ff.Node(nodes[-1].out0, Fm.HaarDownsampling, {}, name = 'Main_Downsampling_{}'.format(k)))
             
             for j in range(a.args.n_pyramid_blocks):
-                nodes.append(Ff.Node(nodes[-1], Fm.GLOWCouplingBlock,
+                nodes.append(Ff.Node(nodes[-1].out0, Fm.GLOWCouplingBlock,
                                 {'clamp': c.clamp_alpha,'subnet_constructor':subnet},
                                 conditions=conditions[k],name = 'Couple_{}'.format(k)))
     
-    inn = Ff.GraphINN(nodes + conditions + [Ff.OutputNode(nodes[-1], name='output')], verbose=c.verbose)
+    inn = Ff.GraphINN(nodes + conditions + [Ff.OutputNode(nodes[-1].out0, name='output')], verbose=c.verbose)
     
     return inn
 
@@ -267,7 +267,7 @@ def nf_pyramid_split(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c
     mdl = ResNetPyramid()
     # TODO: take out hardcoding activation channels (64)
     channels = 3
-    feats = mdl(torch.randn(c.batch_size[0],channels,c.density_map_h,c.density_map_w,requires_grad=False))
+    feats = mdl(torch.randn(a.args.batch_size,channels,c.density_map_h,c.density_map_w,requires_grad=False))
     del mdl
     
     if c.verbose:
@@ -275,10 +275,9 @@ def nf_pyramid_split(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c
         [print(f.shape) for f in feats]
         
     p_dims = [f.shape for f in feats]
-    #assert p_dims[0][1] == channels
     
     nodes = [Ff.InputNode(c.channels,input_dim[0],input_dim[1],name='input')] 
-    conditions = []; #transformed_splits = []; # splits = [];
+    conditions = []; transformed_splits = []; splits_ds = []; split = []
     
     for k in range(c.levels):
         conditions.append(Ff.ConditionNode(p_dims[k][1],p_dims[k][2],p_dims[k][3],name = 'Condition{}'.format(k)))
@@ -291,91 +290,50 @@ def nf_pyramid_split(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c
         nodes.append(Ff.Node(nodes[-1].out0, Fm.HaarDownsampling, {}, name = 'Main_Downsampling_{}'.format(k)))
         
         # split off noise dimensions (see Dinh, 2016) - multiscale architecture (splits along channel, splits into two [default])
-        #if split_count < c.n_splits:
-        #    split_count += 1
+        split.append(Ff.Node(nodes[-1].out0, Fm.Split, {}, name='Split_{}'.format(k)))
         
-        # splitting once
-        if k == 0:
-            split = Ff.Node(nodes[-1].out0, Fm.Split, {}, name='Split_{}'.format(k))
-            nodes.append(split)
-            
-            # after every split, out1 sent to coupling, out0 split off for downsampling and later concatenation
-            for j in range(a.args.n_pyramid_blocks):
-                if j == 0:
-                    nodes.append(Ff.Node(nodes[-1].out1, Fm.GLOWCouplingBlock,
-                                         {'clamp': c.clamp_alpha,'subnet_constructor':subnet},
-                                         conditions=conditions[k],name = 'Couple_{}_{}'.format(k,j)))
-                else:
-                    # no split
-                    nodes.append(Ff.Node(nodes[-1].out0, Fm.GLOWCouplingBlock,
-                                         {'clamp': c.clamp_alpha,'subnet_constructor':subnet},
-                                         conditions=conditions[k],name = 'Couple_{}_{}'.format(k,j)))
-                    
-        else:
-            for j in range(a.args.n_pyramid_blocks):
-                nodes.append(Ff.Node(nodes[-1].out0, Fm.GLOWCouplingBlock,
-                            {'clamp': c.clamp_alpha,'subnet_constructor':subnet},
-                            conditions=conditions[k],name = 'Couple_{}'.format(k)))
+        # deal with split 5 untransformed output here
+        if k==4:
+            untransformed_split = split[-1]
                 
-    last_coupling = nodes[-1]  # link up main chain to split chains
-    
-        # else:
-        #     for j in range(a.args.n_pyramid_blocks):
-        #         # no split
-        #         nodes.append(Ff.Node(nodes[-1].out0, Fm.GLOWCouplingBlock,
-        #                                      {'clamp': c.clamp_alpha,'subnet_constructor':subnet},
-        #                                      conditions=conditions[k],name = 'Couple_{}_{}'.format(k,j)))    
-       
-    #if c.debug:
-    
-    # main chain of split
-    nodes.append(Ff.Node(split.out0, Fm.HaarDownsampling, {}, name = 'Split_Downsampling1'))
-    nodes.append(Ff.Node(nodes[-1].out0, Fm.HaarDownsampling, {}, name = 'Split_Downsampling2'))
-    nodes.append(Ff.Node(nodes[-1].out0, Fm.HaarDownsampling, {}, name = 'Split_Downsampling3'))
-    
-    last_split_ds = Ff.Node(nodes[-1].out0, Fm.HaarDownsampling, {}, name = 'Split_Downsampling4')
-    
-    nodes.append(last_split_ds)
-        
-    # loop to add downsampling to split dimensions before concatenation
-    # for each split node, append a variable amount of downsampling blocks to ensure dimensional compatability
-    # for i in range(len(splits)):
-    #     for j in range(5-i):
-    #         if i == len(splits)-1:
-    #             transformed_splits.append(splits[i])  
-    #         elif j == 0:
-    #             #print(splits[i])
-    #             # out1 of split nodes proceeds into main node chain
-    #             nodes.append(Ff.Node(splits[i].out0, Fm.HaarDownsampling, {}, name = 'Split_{}_Downsampling_{}'.format(i,j)))
-    #         elif j == (5-i)-1:
-    #             transformed_splits.append(nodes[-1])
-    #         else:
-    #             nodes.append(Ff.Node(nodes[-1].out0, Fm.HaarDownsampling, {}, name = 'Split_{}_Downsampling_{}'.format(i,j)))
+        # after every split, out1 sent to coupling, out0 split off for downsampling and later concatenation
+        for j in range(a.args.n_pyramid_blocks):
+            
+            if j == 0:
+                
+                nodes.append(Ff.Node(split[-1].out0, Fm.GLOWCouplingBlock,
+                                     {'clamp': c.clamp_alpha,'subnet_constructor':subnet},
+                                     conditions=conditions[k],name = 'Couple_{}_{}'.format(k,j)))
+                
+                for i in range(4-k):
+                    
+                    if i == 0:
+                        splits_ds.append(Ff.Node(split[-1].out1, Fm.HaarDownsampling, {}, name = 'Split_Downsampling_{}_{}_{}'.format(k,j,i)))
+                    else:
+                        splits_ds.append(Ff.Node(splits_ds[-1].out0, Fm.HaarDownsampling, {}, name = 'Split_Downsampling_{}_{}_{}'.format(k,j,i)))
+                 
+                if k != 4:
+                    transformed_splits.append(splits_ds[-1])
+            
+            else:
+                
+                nodes.append(Ff.Node(nodes[-1], Fm.GLOWCouplingBlock,
+                                             {'clamp': c.clamp_alpha,'subnet_constructor':subnet},
+                                             conditions=conditions[k],name = 'Couple_{}_{}'.format(k,j)))
     
     # concatenate list of split chain outputs back to output node           
-    concat_node = Ff.Node([last_coupling.out0,
-                           last_split_ds.out0]#,
-                           #transformed_splits[1].out0,
-                           #transformed_splits[2].out0,
-                           #transformed_splits[3].out0, 
-                           #transformed_splits[4].out0]
-                           ,Fm.Concat,{},name='Concat_Splits')
+    nodes.append(Ff.Node([nodes[-1].out0,  # last coupling - link up main chain to split chains
+                           untransformed_split.out1,
+                           transformed_splits[0].out0,
+                           transformed_splits[1].out0,
+                           transformed_splits[2].out0,
+                           transformed_splits[3].out0]
+                           ,Fm.Concat,{},name='Concat_Splits'))
     
-    nodes.append(concat_node)
-    
-    for node in nodes:
-        print('node')
-        print(node)
-        #print(node.output_dims)
-        #print(node.input_dims)
-        
-        print('outs')
-        print(node.outputs)
-        print('ins')
-        print(node.inputs)
-        print('---')   
-    
-    inn = Ff.GraphINN(nodes + conditions + [Ff.OutputNode(nodes[-1], name='output')], verbose=c.verbose)
+    nodes.append(Ff.OutputNode(nodes[-1].out0, name='output'))
+                          
+    # node properties: output_dims, input_dims, outputs, inputs  
+    inn = Ff.GraphINN(conditions + split + splits_ds + nodes, verbose=c.verbose)
     
     return inn
     

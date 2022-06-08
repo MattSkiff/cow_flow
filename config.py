@@ -12,15 +12,15 @@ else:
     proj_dir = "/home/mks29/clones/cow_flow/data"
 
 gpu = True
-seed = 101 # important to keep this constant between model and servers for evaluaton
+seed = 7 #101 # important to keep this constant between model and servers for evaluaton
 
 ## Dataset Options ------
 counts = False # must be off for pretraining feature extractor (#TODO)
 
 ## Training Options ------
-validation = True # whether to run validation data per meta epoch
+validation = False # whether to run validation data per meta epoch
 eval_n = 10
-data_prop = 1 # proportion of the full dataset to use (ignored in DLR ACD,MNIST)
+data_prop = 0.1 # proportion of the full dataset to use (ignored in DLR ACD,MNIST)
 test_train_split = 70 # percentage of data to allocate to train set
 
 ## Density Map Options ------
