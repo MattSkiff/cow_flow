@@ -104,10 +104,11 @@ if any('SPYDER' in name for name in os.environ):
     args.noise = 1e-3
     args.mdl_path = ''#'final_9Z5_NF_quatern_BS64_LR_I0.0002_E10000_DIM256_OPTIMadam_FE_resnet18_NC5_anno_step_JO_PY_1_1x1_WD_0.001_10_05_2022_17_37_42'
     args.holdout = False
-    args.all_in_one = True
-    args.fixed1x1conv = True
+    args.all_in_one = False
+    args.fixed1x1conv = False
     args.filters = 32
-    args.n_pyramid_blocks = 3
+    args.n_pyramid_blocks = 1
+    args.split_dimensions = 1
     
 # checks
 assert args.mode in ['train','eval','store','plot']
@@ -133,11 +134,15 @@ if (args.adam_b1 != 0 or args.adam_b2 != 0 or args.adam_e != 0) and args.optim !
 if args.sgd_mom != 0 and args.optim != 'sgd':
     ValueError
 
+if args.split_dimensions:
+    assert args.model_name == 'NF'
+    assert not args.fixed1x1conv
+
 if args.all_in_one:
     assert args.model_name == 'NF'
     assert args.fixed1x1conv
 
-if args.model_name != 'NF':
+if args.model_name != 'NF' and args.mode == 'train':
     assert args.bin_classifier_path == ''
     assert not args.all_in_one
     assert not args.train_classification_head
@@ -145,7 +150,7 @@ if args.model_name != 'NF':
     assert args.filters == 0
     assert args.n_pyramid_blocks == 0
 
-if args.model_name == 'NF':
+if args.model_name == 'NF' and args.mode == 'train':
     assert args.noise != 0
     assert args.filters != 0
     assert args.n_pyramid_blocks != 0

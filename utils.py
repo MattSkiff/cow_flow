@@ -518,7 +518,7 @@ def plot_preds_baselines(mdl, loader,mode="",mdl_type='',writer=None,writer_epoc
 @torch.no_grad()
 def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
                hist=False,sampling="randn",plot_n=None,writer=None,writer_epoch=None,
-               writer_mode=None,include_empty=False,sample_n=10,null_filter=True):
+               writer_mode=None,include_empty=True,sample_n=10,null_filter=False):
     
     assert type(loader) == torch.utils.data.dataloader.DataLoader
     
@@ -578,7 +578,9 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
     
     def inner_func(mdl=mdl,hist=hist):
         
-        plt.switch_backend('agg') # for tensorboardx
+        if a.args.mode == 'train':
+            plt.switch_backend('agg') # for tensorboardx
+            
         idx = random.randint(0,len(loader)-1)
         
         k = 0
@@ -828,6 +830,8 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
                     add_plot_tb(writer,fig,writer_mode,writer_epoch)
                     
                     # saving and outs
+                    plt.show()
+                    
                     if save:
                         if not os.path.exists(g.VIZ_DIR):
                             os.makedirs(g.VIZ_DIR)
@@ -1391,6 +1395,9 @@ def make_model_name(train_loader):
     
      if a.args.all_in_one:
          parts.append('IN1')
+         
+     if a.args.split_dimensions:
+         parts.append('SPLIT')
 
      parts.append(a.args.sampler)
      
@@ -1470,6 +1477,7 @@ def make_hparam_dict(val_loader):
                         'fc_width':c.width,
                         'finetuned?':c.train_feat_extractor,
                         'mnist?':a.args.data == 'mnist',
+                        'split_dims?':a.args.split_dimensions,
                         'counts?':c.counts,
                         'all_in_one?':a.args.all_in_one,
                         'n pyramid blocks?':a.args.n_pyramid_blocks,

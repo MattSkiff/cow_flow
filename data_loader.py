@@ -1323,19 +1323,19 @@ def make_loaders(transformed_dataset):
     
     # leave shuffle off for use of any samplers
     full_train_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 
-                        num_workers=1,collate_fn=transformed_dataset.custom_collate_aerial,
+                        num_workers=4,collate_fn=transformed_dataset.custom_collate_aerial,
                         pin_memory=True,sampler=full_train_sampler)
 
     full_val_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 
-                        num_workers=1,collate_fn=transformed_dataset.custom_collate_aerial,
+                        num_workers=4,collate_fn=transformed_dataset.custom_collate_aerial,
                         pin_memory=True,sampler=full_val_sampler)
     
     train_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 
-                        num_workers=1,collate_fn=transformed_dataset.custom_collate_aerial,
+                        num_workers=4,collate_fn=transformed_dataset.custom_collate_aerial,
                         pin_memory=True,sampler=train_sampler)
 
     val_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 
-                        num_workers=1,collate_fn=transformed_dataset.custom_collate_aerial,
+                        num_workers=4,collate_fn=transformed_dataset.custom_collate_aerial,
                         pin_memory=True,sampler=val_sampler)
     
     return full_train_loader, full_val_loader, train_loader, val_loader

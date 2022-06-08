@@ -40,28 +40,29 @@ if a.args.data == 'cows':
         full_train_loader, full_val_loader, train_loader, val_loader = make_loaders(transformed_dataset)
     else:
         val_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=True, 
-                            num_workers=1,collate_fn=transformed_dataset.custom_collate_aerial,
+                            num_workers=4,collate_fn=transformed_dataset.custom_collate_aerial,
                             pin_memory=True)
     
-    if a.args.mode == 'eval':
+    if a.args.mode in ['plot','eval']:
         
         mdl = load_model(a.args.mdl_path)
-        
-        if a.args.model_name == 'NF':
-            dmap_metrics(mdl,val_loader,mode='val',n=50)
-        else:
-            eval_baselines(mdl,val_loader,mode='val',is_unet_seg=(a.args.model_name=='UNet_seg'))
-            #eval_baselines(mdl,train_loader,mode='train',is_unet_seg=(a.args.model_name=='UNet_seg'))
-        
     
-    if a.args.mode == 'plot':  
-        
-        if a.args.model_name == 'NF':
-            plot_preds(mdl,val_loader)
-        elif a.args.model_name == 'ALL':
-            plot_preds_multi(mode='val',loader=val_loader)
-        elif a.args.model_name in g.BASELINE_MODEL_NAMES:
-            plot_preds_baselines(mdl, val_loader,mode="val",mdl_type=a.args.model_name)
+        if a.args.mode == 'eval':
+            
+            if a.args.model_name == 'NF':
+                dmap_metrics(mdl,val_loader,mode='val',n=50)
+            else:
+                eval_baselines(mdl,val_loader,mode='val',is_unet_seg=(a.args.model_name=='UNet_seg'))
+                #eval_baselines(mdl,train_loader,mode='train',is_unet_seg=(a.args.model_name=='UNet_seg')
+    
+        if a.args.mode == 'plot':  
+    
+            if a.args.model_name == 'NF':
+                plot_preds(mdl,val_loader)
+            elif a.args.model_name == 'ALL':
+                plot_preds_multi(mode='val',loader=val_loader)
+            elif a.args.model_name in g.BASELINE_MODEL_NAMES:
+                plot_preds_baselines(mdl, val_loader,mode="val",mdl_type=a.args.model_name)
             
     if a.args.mode == 'train' and not a.args.holdout:
         

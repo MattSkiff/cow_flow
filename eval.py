@@ -143,12 +143,6 @@ def gen_localisation_metrics(dlr,thres, y_coords,y_hat_coords):
                 for i in range(min(gt_n_points,len(optim[0]))):
                      dists.append(dist_matrix[optim[0][i],optim[1][i]]) 
                 
-                if gt_n_points < len(optim[0]):
-                    print(optim[0])
-                    print("---")
-                    print(dists)
-                    1/0
-                
                 dists = np.array(dists)
                 tp = np.count_nonzero(dists<=thres) # filter points matched further than threshold
                 fp = pred_dmap.shape[0]-tp # unmatched points (in excess of n gt -> FP)
