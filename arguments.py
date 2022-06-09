@@ -69,6 +69,7 @@ parser.add_argument("-npb","--n_pyramid_blocks",type=int,default=0)
 parser.add_argument('-nse',"--noise",help='amount of uniform noise (sample evenly from 0-x) | 0 for none',type=float,default=0)
 parser.add_argument('-f','--filters',help='width of conv subnetworks',type=int,default=0)
 parser.add_argument("-split", "--split_dimensions", help="split off half the dimensions after each block of coupling layers.", type=int, default=0)
+parser.add_argument("-subnet_type",help="type of subnet to use in flow [fc,conv,MCNN]",default ='')
 
 # weighted: weight minibatch samples such that sampling distribution is 50/50 null/annotated
 # anno: use only annotated samples
@@ -89,30 +90,34 @@ if any('SPYDER' in name for name in os.environ):
     args.scheduler = 'none'
     args.sampler = 'anno'
     args.mode = 'train' #'eval'
-    args.sub_epochs = 1
+    args.sub_epochs = 10
     args.meta_epochs = 1
-    args.batch_size = 1
-    args.learning_rate = 1e-3
+    args.batch_size = 8
+    args.learning_rate = 1e-4
     args.weight_decay = 1e-5
     args.tensorboard = True
     args.viz = True
     args.viz_freq = 1
     args.resize = True
     args.dmap_scaling = 1
-    args.max_filter_size = 4.0
+    args.max_filter_size = 1
     args.sigma = 4.0
-    args.noise = 1e-3
+    args.noise = 1e-10
     args.mdl_path = ''#'final_9Z5_NF_quatern_BS64_LR_I0.0002_E10000_DIM256_OPTIMadam_FE_resnet18_NC5_anno_step_JO_PY_1_1x1_WD_0.001_10_05_2022_17_37_42'
     args.holdout = False
     args.all_in_one = False
     args.fixed1x1conv = False
-    args.filters = 32
+    args.filters = 64
     args.n_pyramid_blocks = 1
-    args.split_dimensions = 1
+    args.split_dimensions = 0
+    args.subnet_type = 'conv'
     
 # checks
 assert args.mode in ['train','eval','store','plot']
 assert args.gpu_number > -1
+
+if args.split_dimensions:
+    assert not args.all_in_one
 
 if args.mode == 'eval':
     assert args.mdl_path != ''
@@ -149,11 +154,13 @@ if args.model_name != 'NF' and args.mode == 'train':
     assert args.noise == 0
     assert args.filters == 0
     assert args.n_pyramid_blocks == 0
+    assert args.subnet_type == ""
 
 if args.model_name == 'NF' and args.mode == 'train':
     assert args.noise != 0
     assert args.filters != 0
     assert args.n_pyramid_blocks != 0
+    assert args.subnet_type != ''
     
     
 if args.fixed1x1conv and args.pyramid:
@@ -185,3 +192,5 @@ elif host == 'quatern' or host == 'deuce':
     assert args.gpu_number < 2
 else:
     assert args.gpu_number < 1 
+    
+assert args.subnet_type in ['conv','fc','MCNN','']

@@ -510,7 +510,7 @@ def plot_preds_baselines(mdl, loader,mode="",mdl_type='',writer=None,writer_epoc
                 if mdl_type == 'UNet_seg':
                         print("%s predicted (UNet_seg)" % (len(coords)))
                         
-                    
+                plt.show()    
                 
                 return #preds, preds.sum(),plot_dmap.sum(),len(labels[lb_idx])
                 
@@ -723,7 +723,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
             
             if c.one_hot:
                 
-                if c.subnet_type == 'conv':
+                if a.args.subnet_type in ['conv','MCNN']:
                     x = x.argmax(-3).to(torch.float)
                 else:
                     x = x.argmax(-1).to(torch.float)
@@ -744,7 +744,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
                 elif mdl.count and mdl.gap:
                     x_flat = x
                                         
-                if mdl.mnist and c.subnet_type == 'conv':
+                if mdl.mnist and a.args.subnet_type in ['conv','MCNN']:
                     x = torch.mode(x,dim = 1).values.cpu().detach().numpy() #print(x.shape) (200,)
                 else:
                     x = torch.mode(x,dim = 0).values.cpu().detach().numpy()
@@ -798,7 +798,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
                     if mdl.feat_extractor.__class__.__name__ == 'NothingNet':
                         dmap_rev_np = dmap_rev_np[1,:,:] # select only data from first duplicated channel
                     
-                    if not (mdl.count and mdl.gap) and not (mdl.mnist and c.subnet_type == 'fc'):
+                    if not (mdl.count and mdl.gap) and not (mdl.mnist and a.args.subnet_type == 'fc'):
                         ax[0].title.set_text('Density Map Prediction')
                         ax[0].imshow(dmap_rev_np)#, cmap='viridis', interpolation='nearest')
                     else:
@@ -1481,7 +1481,7 @@ def make_hparam_dict(val_loader):
                         'counts?':c.counts,
                         'all_in_one?':a.args.all_in_one,
                         'n pyramid blocks?':a.args.n_pyramid_blocks,
-                        'subnet_type?':c.subnet_type,
+                        'subnet_type?':a.args.subnet_type,
                         'prop. of data':c.data_prop,
                         'clamp alpha':c.clamp_alpha,
                         'epochs':a.args.meta_epochs*a.args.sub_epochs,
