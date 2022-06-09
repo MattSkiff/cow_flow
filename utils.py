@@ -1392,6 +1392,7 @@ def make_model_name(train_loader):
      
      if a.args.model_name == 'NF':
          parts.append('NC'+str(c.n_coupling_blocks))
+         parts.append(a.args.subnet_type)
     
      if a.args.all_in_one:
          parts.append('IN1')
@@ -1474,6 +1475,7 @@ def make_hparam_dict(val_loader):
                         'feature extractor?':c.feat_extractor,
                         '1x1convs?':a.args.fixed1x1conv,
                         'conv filters':a.args.filters,
+                        'mcnn':a.args.subnet_type == 'MCNN',
                         'fc_width':c.width,
                         'finetuned?':c.train_feat_extractor,
                         'mnist?':a.args.data == 'mnist',
