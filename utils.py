@@ -744,13 +744,13 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
                 elif mdl.count and mdl.gap:
                     x_flat = x
                                         
-                if mdl.mnist and a.args.subnet_type in ['conv','MCNN']:
+                if mdl.mnist and mdl.subnet_type in ['conv','MCNN']:
                     x = torch.mode(x,dim = 1).values.cpu().detach().numpy() #print(x.shape) (200,)
                 else:
                     x = torch.mode(x,dim = 0).values.cpu().detach().numpy()
                 
                 # TODO!
-                if mdl.mnist or mdl.subnet_type == 'conv':
+                if mdl.mnist or mdl.subnet_type in ['conv','MCNN']:
                     sum_pred = dmap_rev_np.sum()-constant #[lb_idx]
                     true_dmap_count = dmaps[lb_idx].sum()-loader_noise
                     if not mdl.dlr_acd:
@@ -867,7 +867,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
 @torch.no_grad()
 def plot_peaks(mdl, loader,n=10):
     assert not mdl.count
-    assert mdl.subnet_type == 'conv'
+    assert mdl.subnet_type in ['conv','MCNN']
 
     mdl = mdl.to(c.device)
     

@@ -537,7 +537,7 @@ def dmap_metrics(mdl, loader,n=10,mode='',null_filter=(a.args.sampler == 'weight
     assert not mdl.count
     assert c.data_prop == 1
     assert mode in ['train','val']
-    assert mdl.subnet_type == 'conv'
+    assert mdl.subnet_type in ['conv','MCNN']
    
     print("Dmap Evaluation....")
     t1 = time.perf_counter()
