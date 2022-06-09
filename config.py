@@ -12,7 +12,7 @@ else:
     proj_dir = "/home/mks29/clones/cow_flow/data"
 
 gpu = True
-seed = 7 #101 # important to keep this constant between model and servers for evaluaton
+seed = 101 #101 # important to keep this constant between model and servers for evaluaton
 
 ## Dataset Options ------
 counts = False # must be off for pretraining feature extractor (#TODO)
@@ -20,7 +20,7 @@ counts = False # must be off for pretraining feature extractor (#TODO)
 ## Training Options ------
 validation = False # whether to run validation data per meta epoch
 eval_n = 10
-data_prop = 0.1 # proportion of the full dataset to use (ignored in DLR ACD,MNIST)
+data_prop = 1 # proportion of the full dataset to use (ignored in DLR ACD,MNIST)
 test_train_split = 70 # percentage of data to allocate to train set
 
 ## Density Map Options ------
@@ -41,15 +41,14 @@ downsampling = True # whether to downsample (5 ds layers) dmaps by converting sp
 n_coupling_blocks = 5 # if pyramid, total blocks will be n_pyramid_blocks x 5
 
 ## Subnet Architecture Options
-subnet_type = 'conv' # options = fc, conv
 batchnorm = False # conv
 width = 400 # fc ('128' recommended min)
 dropout_p = 0.0 # fc only param - 0 for no dropout
 
 # Hyper Params and Optimisation ------
 joint_optim = True # jointly optimse feature extractor and flow
-clip_value = 1 # gradient clipping
-clamp_alpha = 1.9 
+clip_value = 1  # gradient clipping
+clamp_alpha = 1.9
 
 ## Output Settings ----
 debug = False # report loads of info/debug info
@@ -177,22 +176,22 @@ if not a.args.resize:
 assert not (feat_extractor == 'none' and gap == True)
 assert gap != downsampling
 assert n_splits >= 0 and n_splits < 6
-assert subnet_type in ['conv','fc']
+
 assert feat_extractor in ['none' ,'alexnet','vgg16_bn','resnet18']
 
-if subnet_type == 'fc':
+if a.args.subnet_type == 'fc' and a.args.model_name == 'NF':
     assert gap
     assert a.args.data == 'mnist' or counts
     assert not a.args.fixed1x1conv
 
-if subnet_type == 'conv':
+if a.args.subnet_type == 'conv':
     assert dropout_p == 0
     
 if a.args.data == 'mnist':
     assert not counts
 
-if counts:
-    assert subnet_type == 'fc' and gap or subnet_type == 'conv' and not gap
+if counts and a.args.model_name == 'NF':
+    assert a.args.subnet_type == 'fc' and gap or a.args.subnet_type == 'conv' and not gap
 
 if a.args.pyramid:
     assert n_coupling_blocks == 5 # for recording purposes

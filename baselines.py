@@ -653,7 +653,7 @@ class MCNN(nn.Module):
         -Implementation of Single Image Crowd Counting via Multi-column CNN (Zhang et al.)
     '''
     
-    def __init__(self, modelname): # bn=False
+    def __init__(self, modelname,dims_in=3,dims_out=1): # bn=False
         
         super(MCNN, self).__init__()
         
@@ -680,28 +680,28 @@ class MCNN(nn.Module):
         self.sigma = a.args.sigma
         
         # todo: re add option for batch norm
-        self.branch1 = nn.Sequential(nn.Conv2d( 3, 16, 9, padding='same'),
+        self.branch1 = nn.Sequential(nn.Conv2d( dims_in, 16, 9, padding='same'),
                                      nn.MaxPool2d(2),
                                      nn.Conv2d(16, 32, 7, padding='same'),
                                      nn.MaxPool2d(2),
                                      nn.Conv2d(32, 16, 7, padding='same'),
                                      nn.Conv2d(16,  8, 7, padding='same'))
         
-        self.branch2 = nn.Sequential(nn.Conv2d( 3, 20, 7, padding='same'),
+        self.branch2 = nn.Sequential(nn.Conv2d( dims_in, 20, 7, padding='same'),
                                      nn.MaxPool2d(2),
                                      nn.Conv2d(20, 40, 5, padding='same'),
                                      nn.MaxPool2d(2),
                                      nn.Conv2d(40, 20, 5, padding='same'),
                                      nn.Conv2d(20, 10, 5, padding='same'))
         
-        self.branch3 = nn.Sequential(nn.Conv2d( 3, 24, 5, padding='same'),
+        self.branch3 = nn.Sequential(nn.Conv2d( dims_in, 24, 5, padding='same'),
                                      nn.MaxPool2d(2),
                                      nn.Conv2d(24, 48, 3, padding='same'),
                                      nn.MaxPool2d(2),
                                      nn.Conv2d(48, 24, 3, padding='same'),
                                      nn.Conv2d(24, 12, 3, padding='same'))
         
-        self.fuse = nn.Sequential(nn.Conv2d( 30, 1, 1, padding='same'))
+        self.fuse = nn.Sequential(nn.Conv2d( 30, dims_out, 1, padding='same'))
 
         initialize_weights(self.modules())   
         
