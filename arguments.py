@@ -90,7 +90,7 @@ if any('SPYDER' in name for name in os.environ):
     args.scheduler = 'none'
     args.sampler = 'anno'
     args.mode = 'train' #'eval'
-    args.sub_epochs = 10
+    args.sub_epochs = 1
     args.meta_epochs = 1
     args.batch_size = 8
     args.learning_rate = 1e-4
@@ -110,7 +110,8 @@ if any('SPYDER' in name for name in os.environ):
     args.filters = 64
     args.n_pyramid_blocks = 1
     args.split_dimensions = 0
-    args.subnet_type = 'conv'
+    args.subnet_type = 'MCNN'
+    args.skip_final_eval = True
     
 # checks
 assert args.mode in ['train','eval','store','plot']
