@@ -48,7 +48,7 @@ parser.add_argument("-bs","--batch_size",type=int,default=0)
 
 # Optimiser options
 parser.add_argument("-lr","--learning_rate",type=float,default=None)
-parser.add_argument('-optim',help='optimizer [sgd,adam]',type=str,default='')
+parser.add_argument('-optim',help='optimizer [sgd,adam, adamw]',type=str,default='')
 parser.add_argument('-adam_b1',help='adam beta1',type=float,default=0.9)
 parser.add_argument('-adam_b2',help='adam beta2',type=float,default=0.999)
 parser.add_argument('-adam_e',help='adam episilon',type=float,default=1e-8)
@@ -71,6 +71,11 @@ parser.add_argument('-f','--filters',help='width of conv subnetworks',type=int,d
 parser.add_argument("-split", "--split_dimensions", help="split off half the dimensions after each block of coupling layers.", type=int, default=0)
 parser.add_argument("-subnet_type",help="type of subnet to use in flow [fc,conv,MCNN]",default ='')
 
+parser.add_argument('-fe_beta1',help='fe_adam beta1',type=float,default=0.9)
+parser.add_argument('-fe_beta2',help='fe adam beta2',type=float,default=0.999)
+parser.add_argument("-fe_lr",help="fe LR",type=float,default=1e-3)
+parser.add_argument("-fe_wd",help="fe wd",type=float,default=1e-5)
+
 # weighted: weight minibatch samples such that sampling distribution is 50/50 null/annotated
 # anno: use only annotated samples
 
@@ -86,24 +91,25 @@ host = socket.gethostname()
 if any('SPYDER' in name for name in os.environ):
     args.model_name = "NF"
     args.data = 'cows'
-    args.optim = "adam"
+    args.pyramid = True
+    args.optim = "adamw"
     args.scheduler = 'none'
     args.sampler = 'anno'
     args.mode = 'train' #'eval'
-    args.sub_epochs = 1
+    args.sub_epochs = 10
     args.meta_epochs = 1
-    args.batch_size = 8
-    args.learning_rate = 1e-4
-    args.weight_decay = 1e-5
-    args.tensorboard = True
+    args.batch_size = 16
+    args.learning_rate = 1e-3
+    args.weight_decay = 1e-8
+    args.tensorboard = False
     args.viz = True
     args.viz_freq = 1
     args.resize = True
     args.dmap_scaling = 1
     args.max_filter_size = 1
     args.sigma = 4.0
-    args.noise = 1e-10
-    args.mdl_path = ''#'final_9Z5_NF_quatern_BS64_LR_I0.0002_E10000_DIM256_OPTIMadam_FE_resnet18_NC5_anno_step_JO_PY_1_1x1_WD_0.001_10_05_2022_17_37_42'
+    args.noise = 1e-99
+    args.mdl_path = '' #'final_9Z5_NF_quatern_BS64_LR_I0.0002_E10000_DIM256_OPTIMadam_FE_resnet18_NC5_anno_step_JO_PY_1_1x1_WD_0.001_10_05_2022_17_37_42'
     args.holdout = False
     args.all_in_one = False
     args.fixed1x1conv = False
@@ -112,6 +118,15 @@ if any('SPYDER' in name for name in os.environ):
     args.split_dimensions = 0
     args.subnet_type = 'MCNN'
     args.skip_final_eval = True
+    args.scheduler = 'none'
+    args.expon_gamma = 0.99
+    args.adam_b1 = 0.9
+    args.adam_b2 = 0.999
+    
+    args.fe_lr = 1e-3
+    args.fe_b1 = 0.9
+    args.fe_b2 = 0.999
+    args.fe_wd = 1e-8
     
 # checks
 assert args.mode in ['train','eval','store','plot']
@@ -179,7 +194,7 @@ if args.model_name in ['UNet_seg','LCFCN']:
 
 if args.mode == 'train':
     assert args.scheduler in ['exponential','step','none']
-    assert args.optim in ['sgd','adam']
+    assert args.optim in ['sgd','adam','adamw']
 
 # todo - find better way of checking NF only argument
 
