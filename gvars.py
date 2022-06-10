@@ -23,9 +23,11 @@ BEST_MODEL_PATH_DICT = {
     }
 
 BASELINE_MODEL_NAMES = ['UNet','CSRNet','FCRN','LCFCN','UNet_seg','MCNN','Res50']
+SUBNETS = ['conv','conv_shallow','fc','MCNN','UNet']
 THRES_SEQ = np.arange(0, 20, 0.5, dtype=float)
 
 if a.args.model_name in BASELINE_MODEL_NAMES:
     assert a.args.noise == 0
     
 assert a.args.model_name in BASELINE_MODEL_NAMES + ['NF','ALL']
+assert a.args.subnet_type in SUBNETS

@@ -71,6 +71,7 @@ parser.add_argument('-f','--filters',help='width of conv subnetworks',type=int,d
 parser.add_argument("-split", "--split_dimensions", help="split off half the dimensions after each block of coupling layers.", type=int, default=0)
 parser.add_argument("-subnet_type",help="type of subnet to use in flow [fc,conv,MCNN]",default ='')
 
+parser.add_argument("-fe_load_imagenet_weights",help="load pt weights into FE",action='store_true',default=False)
 parser.add_argument('-fe_beta1',help='fe_adam beta1',type=float,default=0.9)
 parser.add_argument('-fe_beta2',help='fe adam beta2',type=float,default=0.999)
 parser.add_argument("-fe_lr",help="fe LR",type=float,default=1e-3)
@@ -98,7 +99,7 @@ if any('SPYDER' in name for name in os.environ):
     args.mode = 'train' #'eval'
     args.sub_epochs = 10
     args.meta_epochs = 1
-    args.batch_size = 16
+    args.batch_size = 4
     args.learning_rate = 1e-3
     args.weight_decay = 1e-8
     args.tensorboard = False
@@ -116,7 +117,7 @@ if any('SPYDER' in name for name in os.environ):
     args.filters = 64
     args.n_pyramid_blocks = 1
     args.split_dimensions = 0
-    args.subnet_type = 'MCNN'
+    args.subnet_type = 'conv'
     args.skip_final_eval = True
     args.scheduler = 'none'
     args.expon_gamma = 0.99
@@ -208,5 +209,3 @@ elif host == 'quatern' or host == 'deuce':
     assert args.gpu_number < 2
 else:
     assert args.gpu_number < 1 
-    
-assert args.subnet_type in ['conv','fc','MCNN','']
