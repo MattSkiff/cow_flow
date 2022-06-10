@@ -17,7 +17,6 @@ import os
 import types
 from datetime import datetime 
 
-
 # Internal
 from utils import get_loss, plot_preds,plot_preds_baselines, counts_preds_vs_actual, t2np, torch_r2, make_model_name, make_hparam_dict, save_model
 import model # importing entire file fixes 'cyclical import' issues
@@ -27,8 +26,6 @@ import arguments as a
 import baselines as b
 from data_loader import preprocess_batch
 from eval import eval_mnist, dmap_metrics, dmap_pr_curve, eval_baselines
-
-
                
 def train_baselines(model_name,train_loader,val_loader):
 
@@ -61,7 +58,11 @@ def train_baselines(model_name,train_loader,val_loader):
         mdl = b.Res50(modelname=modelname)
         
     if a.args.optim == 'adam':   
-        optimizer = torch.optim.Adam(mdl.parameters(), lr=a.args.learning_rate, betas=(a.args.adam_b1, a.args.adam_b2), eps=a.args.adam_e, weight_decay=a.args.weight_decay)
+        optimizer = torch.optim.Adam(mdl.parameters(), lr=a.args.learning_rate,
+                                     betas=(a.args.adam_b1, a.args.adam_b2), eps=a.args.adam_e, weight_decay=a.args.weight_decay)
+    if a.args.optim == 'adamw':
+        optimizer = torch.optim.AdamW(mdl.parameters(), lr=a.args.learning_rate, 
+                                     betas=(a.args.adam_b1, a.args.adam_b2), eps=a.args.adam_e, weight_decay=a.args.weight_decay)
     if a.args.optim == 'sgd':
         optimizer = torch.optim.SGD(mdl.parameters(), lr=a.args.learning_rate,momentum=a.args.sgd_mom)
 
@@ -222,24 +223,31 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
             
             c_head_trained = False    
             
-            if c.joint_optim:
+            if c.joint_optim and c.feat_extractor != 'none':
                 # TODO
                 if a.args.optim == 'adam':   
                     optimizer = torch.optim.Adam([
                                 {'params': mdl.nf.parameters()},
-                                {'params': mdl.feat_extractor.parameters(), 'lr_init': 1e-3,'betas':(0.9,0.999),'eps':1e-08, 'weight_decay':0}
-                            ], lr=a.args.learning_rate, betas=(a.args.adam_b1, a.args.adam_b2), eps=a.args.adam_e, weight_decay=a.args.weight_decay )                
+                                {'params': mdl.feat_extractor.parameters(), 'lr_init': a.args.fe_lr,'betas':(a.args.fe_b1,a.args.fe_b2),'eps':1e-08, 'weight_decay':a.args.fe_wd}
+                            ], lr=a.args.learning_rate, betas=(a.args.adam_b1, a.args.adam_b2), eps=a.args.adam_e, weight_decay=a.args.weight_decay )      
+                    
+                if a.args.optim == 'adamw':   
+                    optimizer = torch.optim.AdamW([
+                                {'params': mdl.nf.parameters()},
+                                {'params': mdl.feat_extractor.parameters(), 'lr_init': a.args.fe_lr,'betas':(a.args.fe_b1,a.args.fe_b2),'eps':1e-08, 'weight_decay':a.args.fe_wd}
+                            ], lr=a.args.learning_rate, betas=(a.args.adam_b1, a.args.adam_b2), eps=a.args.adam_e, weight_decay=a.args.weight_decay )  
                 
                 if a.args.optim == 'sgd':
                     optimizer = torch.optim.SGD([
                                 {'params': mdl.nf.parameters()},
-                                {'params': mdl.feat_extractor.parameters(), 'lr_init': 1e-3,'betas':(0.9,0.999),'eps':1e-08, 'weight_decay':0}
+                                {'params': mdl.feat_extractor.parameters(), 'lr_init': a.args.fe_lr,'weight_decay':a.args.weight_decay}
                             ], lr=a.args.learning_rate,momentum=a.args.sgd_mom)
-                    
             else:
                 
                 if a.args.optim == 'adam':   
                     optimizer = torch.optim.Adam(mdl.parameters(), lr=a.args.learning_rate, betas=(a.args.adam_b1, a.args.adam_b2), eps=a.args.adam_e, weight_decay=a.args.weight_decay)
+                if a.args.optim == 'adamw':   
+                    optimizer = torch.optim.AdamW(mdl.parameters(), lr=a.args.learning_rate, betas=(a.args.adam_b1, a.args.adam_b2), eps=a.args.adam_e, weight_decay=a.args.weight_decay)
                 if a.args.optim == 'sgd':
                     optimizer = torch.optim.SGD(mdl.parameters(), lr=a.args.learning_rate,momentum=a.args.sgd_mom)   
                     

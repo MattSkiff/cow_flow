@@ -152,6 +152,30 @@ def select_feat_extractor(feat_extractor,train_loader=None,valid_loader=None):
         
     return feat_extractor
 
+def sub_conv2d_shallow(dims_in,dims_out,n_filters):
+    # naming pytorch layers:
+    # https://stackoverflow.com/questions/66152766/how-to-assign-a-name-for-a-pytorch-layer/66162559#66162559
+    network_dict = collections.OrderedDict(
+                [
+                    ("conv1", nn.Conv2d(dims_in, n_filters, kernel_size = 1,padding = 1)), 
+                    ("conv3", nn.Conv2d(n_filters, dims_out,kernel_size = 1,padding = 1)) # n_filters*2
+                ]
+        )
+    
+    # batchnorm works poorly for very small minibatches, so may want to disable
+    # if not c.batchnorm:
+    #     del network_dict['batchnorm1']
+    #     del network_dict['batchnorm2']
+    
+    net = nn.Sequential(network_dict)
+    net.apply(u.init_weights)
+    
+    # zero init last subnet weights as per glow, cINNs paper
+    net.conv3.weight = torch.nn.init.zeros_(net.conv3.weight)
+    net.conv3.bias.data.fill_(0.00) 
+    
+    return net
+
 def sub_conv2d(dims_in,dims_out,n_filters):
     # naming pytorch layers:
     # https://stackoverflow.com/questions/66152766/how-to-assign-a-name-for-a-pytorch-layer/66162559#66162559
@@ -164,14 +188,14 @@ def sub_conv2d(dims_in,dims_out,n_filters):
                     ("conv2", nn.Conv2d(a.args.filters, n_filters*2, kernel_size = 1,padding = 0)),
                     ('batchnorm2',nn.BatchNorm2d(n_filters*2)),
                     ("relu2", nn.ReLU()),
-                    ("conv3", nn.Conv2d(n_filters*2, dims_out,kernel_size = 3,padding = 1))
+                    ("conv3", nn.Conv2d(n_filters, dims_out,kernel_size = 3,padding = 1)) # n_filters*2
                 ]
         )
     
     # batchnorm works poorly for very small minibatches, so may want to disable
-    if not c.batchnorm:
-        del network_dict['batchnorm1']
-        del network_dict['batchnorm2']
+    # if not c.batchnorm:
+    #     del network_dict['batchnorm1']
+    #     del network_dict['batchnorm2']
     
     net = nn.Sequential(network_dict)
     net.apply(u.init_weights)
@@ -188,10 +212,12 @@ def subnet(dims_in, dims_out):
     # hence switch from linear to conv2d net
     if a.args.subnet_type == 'conv':
         net = sub_conv2d(dims_in,dims_out,a.args.filters)
+        if a.args.subnet_type == 'conv_shallow':
+            net = sub_conv2d(dims_in,dims_out,a.args.filters)
     elif a.args.subnet_type == 'fc':
         net = sub_fc(dims_in,dims_out,c.width)
     elif a.args.subnet_type == 'MCNN':
-        net = sub_mcnn(dims_in,dims_out,c.width)
+        net = sub_mcnn(dims_in,dims_out,a.args.filters)
         
 
     if c.debug:
@@ -216,6 +242,9 @@ def sub_fc(dims_in,dims_out,internal_size):
 def sub_mcnn(dims_in,dims_out,internal_size):
     
     net = MCNN(modelname="subnet",dims_in=dims_in,dims_out=dims_out)
+    net.apply(u.init_weights)
+    net.fuse[0].weight = torch.nn.init.zeros_(net.fuse[0].weight)
+    net.fuse[0].bias.data.fill_(0.00) 
     
     return net
     
@@ -223,7 +252,7 @@ def sub_mcnn(dims_in,dims_out,internal_size):
 
 def nf_pyramid(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat):
     
-    assert a.args.subnet_type in ['conv','MCNN']
+    assert a.args.subnet_type in ['conv','MCNN','conv_shallow']
     assert not c.gap and not c.counts and not a.args.data == 'mnist'
     
     mdl = ResNetPyramid()
@@ -275,7 +304,7 @@ def nf_pyramid(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_fea
     return inn
 
 def nf_pyramid_split(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat):
-    assert a.args.subnet_type in ['conv','MCNN']
+    assert a.args.subnet_type in ['conv','MCNN','conv_shallow']
     assert not c.gap and not c.counts and not a.args.data == 'mnist'
     
     # TODO - will break because of ref to config file
@@ -351,7 +380,25 @@ def nf_pyramid_split(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c
     inn = Ff.GraphINN(conditions + split + splits_ds + nodes, verbose=c.verbose)
     
     return inn
+
+def nf_no_fe(input_dim=(c.density_map_h,c.density_map_w),condition_dim=3,mnist=False):
+
+    condition = [Ff.ConditionNode(condition_dim,input_dim[0],input_dim[1], name = 'condition')]
+
+    nodes = [Ff.InputNode(1,input_dim[0],input_dim[1],name='input')] 
+
+    for k in range(c.n_coupling_blocks):
+                  
+        #nodes.append(Ff.Node(nodes[-1], Fm.PermuteRandom, {'seed': k}, name='permute_{}'.format(k)))
+        
+        nodes.append(Ff.Node(nodes[-1], Fm.GLOWCouplingBlock,{'clamp': c.clamp_alpha, 'subnet_constructor':subnet},conditions=condition,
+                            name = 'couple_{}'.format(k)))
+        
+        out = Ff.ReversibleGraphNet(nodes + condition + [Ff.OutputNode(nodes[-1], name='output')], verbose=c.verbose) 
     
+    return out
+    
+
 def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,mnist=False):
     
     # include batch size as extra dimension here? data is batched along extra dimension
@@ -361,7 +408,7 @@ def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,m
     # https://github.com/VLL-HD/FrEIA/issues/9
     
     # condition = exacted image features
-    if (a.args.data == 'mnist' or (c.counts and not c.gap)) and a.args.subnet_type in ['conv','MCNN']:
+    if (a.args.data == 'mnist' or (c.counts and not c.gap)) and a.args.subnet_type in ['conv','MCNN','conv_shallow']:
         condition = [Ff.ConditionNode(condition_dim,input_dim[0] // 2,input_dim[1] // 2, name = 'condition')]
     elif (c.counts and c.gap) or (a.args.subnet_type == 'fc' and a.args.data == 'mnist'):
         condition = [Ff.ConditionNode(condition_dim,name = 'condition')]
@@ -381,7 +428,7 @@ def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,m
     # haar downsampling to resolves input data only having a single channel (from unsqueezed singleton dimension)
     # affine coupling performs channel wise split
     # https://github.com/VLL-HD/FrEIA/issues/8
-    if (a.args.data == 'mnist' or (c.counts and not c.gap) or c.feat_extractor == 'none' or not c.downsampling) and a.args.subnet_type in ['conv','MCNN']:
+    if (a.args.data == 'mnist' or (c.counts and not c.gap) or c.feat_extractor == 'none' or not c.downsampling) and a.args.subnet_type in ['conv','MCNN','conv_shallow']:
         nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling'))
         
     elif not c.counts and c.feat_extractor != 'none' and c.downsampling:
@@ -441,6 +488,8 @@ class CowFlow(nn.Module):
                 self.nf = nf_pyramid_split() 
             else:
                 self.nf = nf_pyramid()   
+        elif c.feat_extractor == 'none':
+            self.nf = nf_no_fe()
         else:
             self.nf = nf_head()  
         
@@ -535,11 +584,11 @@ class CowFlow(nn.Module):
         if not rev:
             labels = labels.unsqueeze(1) #.expand(-1,c.n_feat,-1, -1) 
         
-        if c.counts and not rev and a.args.subnet_type in ['conv','MCNN']:
+        if c.counts and not rev and a.args.subnet_type in ['conv','MCNN','conv_shallow']:
             # expand counts out to spatial dims of feats
             labels = labels.unsqueeze(2).unsqueeze(3).expand(-1,-1,feats.size()[2] * 2,feats.size()[3] * 2)
             
-        if self.unconditional and not c.downsampling and not self.count and a.args.subnet_type in ['conv','MCNN']: 
+        if self.unconditional and not c.downsampling and not self.count and a.args.subnet_type in ['conv','MCNN','conv_shallow']: 
             labels = labels.expand(-1,c.channels,-1,-1) # expand dmap over channel dimension
             
         # second argument to NF is the condition - i.e. the features
@@ -626,7 +675,7 @@ class MNISTFlow(nn.Module):
             print(feats.size(),"\n")
         
         if not rev:
-            if c.feat_extractor != "none" and a.args.subnet_type in ['conv','MCNN']:
+            if c.feat_extractor != "none" and a.args.subnet_type in ['conv','MCNN','conv_shallow']:
                 if c.gap:
                     feats = feats.unsqueeze(2).unsqueeze(3).expand(-1, -1, c.density_map_h // 2,c.density_map_w // 2)
         
@@ -644,7 +693,7 @@ class MNISTFlow(nn.Module):
         if not rev:
             if c.one_hot:
                 labels = F.one_hot(labels.to(torch.int64),num_classes=10).to(torch.float)
-                if a.args.subnet_type in ['conv','MCNN']:
+                if a.args.subnet_type in ['conv','MCNN','conv_shallow']:
                     labels = labels.unsqueeze(2).unsqueeze(3).expand(-1, -1, c.density_map_h,c.density_map_w)
             else:
                 labels = labels.unsqueeze(1).unsqueeze(2).unsqueeze(3).expand(-1, -1, c.density_map_h,c.density_map_w)

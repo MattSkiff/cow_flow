@@ -101,8 +101,6 @@ def ft_dims_select(mdl=None):
     
     if mdl == None:
         fe = c.feat_extractor
-    else:
-        fe = mdl.feat_extractor.__class__.__name__
     
     if c.downsampling:
         
@@ -122,7 +120,7 @@ def ft_dims_select(mdl=None):
             
             
     else:
-        ft_dims = (mdl.density_map_h//2,mdl.density_map_w//2)
+        ft_dims = (600,800)#(mdl.density_map_h//2,mdl.density_map_w//2)
         
     return ft_dims
 
@@ -723,7 +721,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
             
             if c.one_hot:
                 
-                if a.args.subnet_type in ['conv','MCNN']:
+                if a.args.subnet_type in ['conv','MCNN','conv_shallow']:
                     x = x.argmax(-3).to(torch.float)
                 else:
                     x = x.argmax(-1).to(torch.float)
@@ -744,13 +742,13 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
                 elif mdl.count and mdl.gap:
                     x_flat = x
                                         
-                if mdl.mnist and mdl.subnet_type in ['conv','MCNN']:
+                if mdl.mnist and mdl.subnet_type in ['conv','MCNN','conv_shallow']:
                     x = torch.mode(x,dim = 1).values.cpu().detach().numpy() #print(x.shape) (200,)
                 else:
                     x = torch.mode(x,dim = 0).values.cpu().detach().numpy()
                 
                 # TODO!
-                if mdl.mnist or mdl.subnet_type in ['conv','MCNN']:
+                if mdl.mnist or mdl.subnet_type in ['conv','MCNN','conv_shallow']:
                     sum_pred = dmap_rev_np.sum()-constant #[lb_idx]
                     true_dmap_count = dmaps[lb_idx].sum()-loader_noise
                     if not mdl.dlr_acd:
@@ -867,7 +865,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
 @torch.no_grad()
 def plot_peaks(mdl, loader,n=10):
     assert not mdl.count
-    assert mdl.subnet_type in ['conv','MCNN']
+    assert mdl.subnet_type in ['conv','MCNN','conv_shallow']
 
     mdl = mdl.to(c.device)
     

@@ -174,7 +174,7 @@ if not a.args.resize:
 # TODO
 # assert not (pyramid and fixed1x1conv)
 assert not (feat_extractor == 'none' and gap == True)
-assert gap != downsampling
+#assert gap != downsampling
 assert n_splits >= 0 and n_splits < 6
 
 assert feat_extractor in ['none' ,'alexnet','vgg16_bn','resnet18']

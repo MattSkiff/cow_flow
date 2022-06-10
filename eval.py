@@ -455,7 +455,7 @@ def eval_mnist(mdl, valloader, trainloader,samples = 1,confusion = False, preds 
                 
             # Z shape: torch.Size([2, 4, 300, 400]) (batch size = 2)
             # channels * 4 is a result of haar downsampling
-            if a.args.subnet_type in ['conv','MCNN']:
+            if a.args.subnet_type in ['conv','MCNN','conv_shallow']:
                 dummy_z = (randn(images.size()[0], c.channels*4 , c.density_map_h // 2,c.density_map_w  // 2, requires_grad=True)).to(c.device)
             else:
                 dummy_z = (randn(images.size()[0], c.channels, requires_grad=True)).to(c.device)
@@ -471,7 +471,7 @@ def eval_mnist(mdl, valloader, trainloader,samples = 1,confusion = False, preds 
                 x, _ = mdl(images,dummy_z,rev=True) # TODO: investigate eval use for log det j?
                 
                 if c.one_hot:
-                    if a.args.subnet_type in ['conv','MCNN']:
+                    if a.args.subnet_type in ['conv','MCNN','conv_shallow']:
                         x = x.argmax(-3).to(torch.float)
                     else:
                         x = x.argmax(-1).to(torch.float)
@@ -481,12 +481,12 @@ def eval_mnist(mdl, valloader, trainloader,samples = 1,confusion = False, preds 
 #                if c.one_hot:
 #                    dims = (1,2)
                 
-                if a.args.subnet_type in ['conv','MCNN']:
+                if a.args.subnet_type in ['conv','MCNN','conv_shallow']:
                     x = torch.reshape(x,(images.size()[0],c.density_map_h * c.density_map_w)) # torch.Size([200, 12, 12])
                 
                 raw_preds = x  # torch.Size([200, 144])
                 
-                if a.args.subnet_type in ['conv','MCNN']:
+                if a.args.subnet_type in ['conv','MCNN','conv_shallow']:
                     x = torch.mode(x,dim = 1).values.cpu().detach().numpy() #print(x.shape) (200,)
                 else:
                     x = x.cpu().detach().numpy()
@@ -537,7 +537,7 @@ def dmap_metrics(mdl, loader,n=10,mode='',null_filter=(a.args.sampler == 'weight
     assert not mdl.count
     assert c.data_prop == 1
     assert mode in ['train','val']
-    assert mdl.subnet_type in ['conv','MCNN']
+    assert mdl.subnet_type in ['conv','MCNN','conv_shallow']
    
     print("Dmap Evaluation....")
     t1 = time.perf_counter()
