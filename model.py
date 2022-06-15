@@ -154,6 +154,8 @@ def select_feat_extractor(feat_extractor,train_loader=None,valid_loader=None):
 def sub_conv2d_shallow(dims_in,dims_out,n_filters):
     # naming pytorch layers:
     # https://stackoverflow.com/questions/66152766/how-to-assign-a-name-for-a-pytorch-layer/66162559#66162559
+    
+    
     network_dict = collections.OrderedDict(
                 [
                     ("conv1", nn.Conv2d(dims_in, n_filters, kernel_size = 1,padding = 0)), 
@@ -164,6 +166,7 @@ def sub_conv2d_shallow(dims_in,dims_out,n_filters):
     
     net = nn.Sequential(network_dict)
     net.apply(u.init_weights)
+  
     
     # zero init last subnet weights as per glow, cINNs paper
     net.conv3.weight = torch.nn.init.zeros_(net.conv3.weight)

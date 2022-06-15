@@ -567,7 +567,7 @@ class CowObjectsDataset(Dataset):
                             density_map = np.zeros((c.raw_img_size[1], c.raw_img_size[0]), dtype=np.float32) # c.raw_img_size  
                             
                         if not a.args.resize and a.args.model_name in ['LCFCN','UNet_seg']:
-                            point_map= np.zeros((c.raw_img_size[1], c.raw_img_size[0]), dtype=np.float32) # c.raw_img_size
+                            point_map = np.zeros((c.raw_img_size[1], c.raw_img_size[0]), dtype=np.float32) # c.raw_img_size
                         elif a.args.model_name in ['LCFCN','UNet_seg']:
                             point_map = np.zeros((256,256), dtype=np.float32) # c.raw_img_size
                         else:
@@ -623,10 +623,6 @@ class CowObjectsDataset(Dataset):
         self.compute_labels = compute_labels
         
         if self.ram:
-
-            # for img_path in tqdm(self.im_paths,desc="Loading aerial images into RAM"): 
-                
-            #     self.images.append(io.imread(img_path))
             
             if ram and a.args.ram:
                 desc = "Loading images, annotations, dmaps and labels into RAM"
@@ -970,17 +966,17 @@ class CustToTensor(object):
         sample['image'] =  image.float()
         
         if 'density' in sample.keys():
-            sample['density'] = torch.from_numpy(sample['density'])#.to(c.device)
+            sample['density'] = torch.from_numpy(sample['density'])
             if a.args.model_name in ['LCFCN','UNet_seg']:
-                sample['point_map']  = torch.from_numpy(sample['point_map'])#.to(c.device)
+                sample['point_map']  = torch.from_numpy(sample['point_map'])
         if 'annotations' in sample.keys():
-            sample['annotations'] = torch.from_numpy(sample['annotations'])#.to(c.device)
+            sample['annotations'] = torch.from_numpy(sample['annotations'])
         if 'labels' in sample.keys():
-            sample['labels'] = torch.from_numpy(sample['labels'])#.to(c.device)
+            sample['labels'] = torch.from_numpy(sample['labels'])
         if 'counts' in sample.keys():
-            sample['counts'] = sample['counts']#.to(c.device)
+            sample['counts'] = sample['counts']
         if 'binary_labels' in sample.keys():
-            sample['binary_labels'] = sample['binary_labels']#.to(c.device)
+            sample['binary_labels'] = sample['binary_labels']
 
         return sample
     
@@ -1086,6 +1082,28 @@ class RotateFlip(object):
         
         return sample    
 
+class RandomCrop(object):
+    """ """
+    
+    def __call__(self, sample):
+    
+        # Random crop
+        i, j, h, w = T.RandomCrop.get_params(sample['image'], output_size=(256,256))
+        sample['image'] = TF.crop(sample['image'].unsqueeze(0), i, j, h, w)
+        sample['density'] = TF.crop(sample['density'].unsqueeze(0).unsqueeze(0), i, j, h, w)
+        
+        if a.args.model_name in ['LCFCN','UNet_seg']:
+            sample['point_map'] = TF.crop(sample['point_map'], i, j, h, w)
+            
+        if a.args.model_name in ['LCFCN','UNet_seg']:
+            sample['point_map']  = TF.crop(sample['point_map'].unsqueeze(0).unsqueeze(0), i, j, h, w) 
+            sample['point_map']  = sample['point_map'].squeeze().squeeze()
+            
+        sample['image'] = sample['image'].squeeze()
+        sample['density'] = sample['density'].squeeze().squeeze()
+    
+        return sample
+    
 # unused currently - padding was causing artifacting
 # class CustCrop(object):
 #     """Crop images to match vgg feature sizes."""
@@ -1285,6 +1303,9 @@ def prep_transformed_dataset():
     if not a.args.resize:
         transforms.append(CustResize())
     
+    if a.args.rrc:
+        transforms.append(RandomCrop())
+    
     #if a.args.rrc:
     if not a.args.mode == 'eval' and not a.args.holdout:
         transforms.append(RotateFlip())
@@ -1323,19 +1344,19 @@ def make_loaders(transformed_dataset):
     
     # leave shuffle off for use of any samplers
     full_train_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 
-                        num_workers=4,collate_fn=transformed_dataset.custom_collate_aerial,
+                        num_workers=1,collate_fn=transformed_dataset.custom_collate_aerial,
                         pin_memory=True,sampler=full_train_sampler)
 
     full_val_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 
-                        num_workers=4,collate_fn=transformed_dataset.custom_collate_aerial,
+                        num_workers=1,collate_fn=transformed_dataset.custom_collate_aerial,
                         pin_memory=True,sampler=full_val_sampler)
     
     train_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 
-                        num_workers=4,collate_fn=transformed_dataset.custom_collate_aerial,
+                        num_workers=1,collate_fn=transformed_dataset.custom_collate_aerial,
                         pin_memory=True,sampler=train_sampler)
 
     val_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 
-                        num_workers=4,collate_fn=transformed_dataset.custom_collate_aerial,
+                        num_workers=1,collate_fn=transformed_dataset.custom_collate_aerial,
                         pin_memory=True,sampler=val_sampler)
     
     return full_train_loader, full_val_loader, train_loader, val_loader

@@ -1523,6 +1523,7 @@ def create_point_map(mdl,annotations):
     return base_map, point_flags
 
 def loader_check(mdl,loader):
+    # TODO
     return    
     assert mdl.sigma == a.args.sigma
     assert mdl.noise == a.args.noise
