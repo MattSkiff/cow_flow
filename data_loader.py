@@ -1098,8 +1098,6 @@ class RandomCrop(object):
             
         sample['image'] = sample['image'].squeeze()
         sample['density'] = sample['density'].squeeze().squeeze()
-        
-        print(sample['point_map'].size())
     
         return sample
     

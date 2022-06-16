@@ -165,7 +165,7 @@ if gpu:
 if a.args.gpu_number != 0:
     assert gpu
 
-if not a.args.resize: 
+if not (a.args.resize or a.args.rrc): 
     img_size = (800,600)
     density_map_w,density_map_h = (800,608)
 

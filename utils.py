@@ -1522,7 +1522,7 @@ def create_point_map(mdl,annotations):
         
         # subtract 1 to account for 0 indexing
         # NOTE: this overrides duplicate annotation points (4 out of 22k)
-        if a.args.resize:
+        if a.args.resize or a.args.rrc:
             base_map[int(round((point[2])*256)-offset),int(round((point[1])*256)-offset)] = 1 # +=1
         else:
             base_map[int(round((point[2])*c.raw_img_size[1])-offset),int(round((point[1])*c.raw_img_size[0])-offset)] = 1 # +=1
@@ -1532,8 +1532,8 @@ def create_point_map(mdl,annotations):
 def loader_check(mdl,loader):
     
     assert mdl.sigma == a.args.sigma
-    assert mdl.noise == a.args.noise
-    assert mdl.dmap_scaling == a.args.dmap_scaling
+    assert mdl.noise == a.args.noise, 'model noise is {}'.format(mdl.noise)
+    assert mdl.dmap_scaling == a.args.dmap_scaling, 'model scaling is {}'.format(mdl.dmap_scaling)
     
     if str(type(mdl))=="<class 'baselines.UNet'>":
         if mdl.seg:
@@ -1555,4 +1555,4 @@ def loader_check(mdl,loader):
         assert not a.args.resize
         
     if mdl.density_map_h == 256:
-        assert a.args.resize
+        assert a.args.resize or a.args.rrc
