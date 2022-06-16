@@ -97,7 +97,7 @@ if any('SPYDER' in name for name in os.environ):
     args.scheduler = 'none'
     args.sampler = 'anno'
     args.mode = 'train' #'eval'
-    args.sub_epochs = 5
+    args.sub_epochs = 1
     args.meta_epochs = 1
     args.batch_size = 1
     args.learning_rate = 1e-3
@@ -105,7 +105,7 @@ if any('SPYDER' in name for name in os.environ):
     args.tensorboard = False
     args.viz = True
     args.viz_freq = 100
-    args.skip_final_eval = True
+    args.skip_final_eval = False
     args.resize = False
     args.rrc = True
     args.dmap_scaling = 1
