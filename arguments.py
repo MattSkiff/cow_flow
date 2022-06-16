@@ -90,14 +90,14 @@ host = socket.gethostname()
 
 # defaults for if running interactively
 if any('SPYDER' in name for name in os.environ):
-    args.model_name = "NF"
+    args.model_name = "Res50"
     args.data = 'cows'
     args.pyramid = True
     args.optim = "adamw"
     args.scheduler = 'none'
     args.sampler = 'anno'
     args.mode = 'train' #'eval'
-    args.sub_epochs = 10
+    args.sub_epochs = 5
     args.meta_epochs = 1
     args.batch_size = 1
     args.learning_rate = 1e-3
@@ -105,21 +105,22 @@ if any('SPYDER' in name for name in os.environ):
     args.tensorboard = False
     args.viz = True
     args.viz_freq = 100
+    args.skip_final_eval = True
     args.resize = False
     args.rrc = True
-    args.dmap_scaling = 1000
+    args.dmap_scaling = 1
     args.max_filter_size = 4
     args.sigma = 4.0
-    args.noise = 1e-3
+    args.noise = 0
     args.mdl_path = '' #'final_9Z5_NF_quatern_BS64_LR_I0.0002_E10000_DIM256_OPTIMadam_FE_resnet18_NC5_anno_step_JO_PY_1_1x1_WD_0.001_10_05_2022_17_37_42'
     args.holdout = False
     args.all_in_one = False
     args.fixed1x1conv = False
-    args.filters = 32
-    args.n_pyramid_blocks = 1
+    args.filters = 0
+    args.n_pyramid_blocks = 0
     args.split_dimensions = 0
     args.subnet_type = ''
-    args.skip_final_eval = True
+
     args.scheduler = 'none'
     args.expon_gamma = 0.99
     args.adam_b1 = 0.9
@@ -178,12 +179,11 @@ if args.model_name != 'NF' and args.mode == 'train':
 
 if args.model_name == 'NF' and args.mode == 'train':
     assert args.noise != 0
-    assert args.filters != 0
     assert args.n_pyramid_blocks != 0
     assert args.subnet_type != ''
     
-if args.subnet_type != 'conv':
-    assert args.filters == 0 # this argument only applies to regular conv subnets
+if args.subnet_type in ['conv','conv_shallow']:
+    assert args.filters != 0 # this argument only applies to regular conv subnets
 
 if args.fixed1x1conv and args.pyramid:
     assert args.freq_1x1 == 1
