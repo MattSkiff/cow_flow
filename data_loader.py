@@ -1382,6 +1382,7 @@ def preprocess_batch(data,dlr=False):
     '''move data to device and reshape image'''
     
     images,dmaps,labels, binary_labels, annotations,point_maps = data
+    dmaps = dmaps * a.args.dmap_scaling
     images,dmaps,labels, binary_labels, annotations,point_maps = images.to(c.device),dmaps.to(c.device),labels, binary_labels.to(c.device), annotations,point_maps
     
     if dlr:

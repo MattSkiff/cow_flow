@@ -88,7 +88,6 @@ def train_baselines(model_name,train_loader,val_loader):
                 
                 optimizer.zero_grad()
                 images,dmaps,labels, binary_labels, annotations,point_maps = preprocess_batch(data)
-                #images = images.float().to(c.device)
                 results = mdl(images)
                 
                 # import matplotlib.pyplot as plt
@@ -98,17 +97,17 @@ def train_baselines(model_name,train_loader,val_loader):
                 
                 if a.args.model_name == 'LCFCN':
                     
-                    iter_loss = lcfcn_loss.compute_loss(points=point_maps, probs=results.sigmoid())*a.args.dmap_scaling
+                    iter_loss = lcfcn_loss.compute_loss(points=point_maps, probs=results.sigmoid())
                  
                 # TODO: check no one-hot encoding here is ok (single class only)
                 elif a.args.model_name == 'UNet_seg':
                     
                     iter_loss = (loss(input = results.squeeze(1),target = dmaps) \
-                              + b.dice_loss(TF.softmax(results, dim=0).float().squeeze(1),dmaps,multiclass=False))*a.args.dmap_scaling
+                              + b.dice_loss(TF.softmax(results, dim=0).float().squeeze(1),dmaps,multiclass=False))
                     
                 else:
                     
-                    iter_loss = loss(results.squeeze(),dmaps.squeeze()*a.args.dmap_scaling)
+                    iter_loss = loss(results.squeeze(),dmaps.squeeze())
                     
                 t_loss = t2np(iter_loss)
                 iter_loss.backward()
@@ -135,11 +134,11 @@ def train_baselines(model_name,train_loader,val_loader):
                         
                     elif a.args.model_name == 'UNet_seg':
                     
-                        iter_loss = (loss(input = results.squeeze(1),target = dmaps*a.args.dmap_scaling) \
-                                  + b.dice_loss(TF.softmax(results, dim=0).float().squeeze(1),dmaps*a.args.dmap_scaling,multiclass=False))
+                        iter_loss = (loss(input = results.squeeze(1),target = dmaps) \
+                                  + b.dice_loss(TF.softmax(results, dim=0).float().squeeze(1),dmaps,multiclass=False))
                     else:
                         
-                        iter_loss = loss(results.squeeze(),dmaps.squeeze()*a.args.dmap_scaling)
+                        iter_loss = loss(results.squeeze(),dmaps.squeeze())
                         
                     v_loss = t2np(iter_loss)
                     val_loss.append(v_loss)
@@ -198,7 +197,8 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
             if c.verbose: 
                 print("Training run using {} train samples and {} valid samples...".format(str(len(train_loader)*int(train_loader.batch_size)),str(len(val_loader)*int(val_loader.batch_size))))
                 print("Using device: {}".format(c.device))
-                     
+                
+            model_metric_dict = {}
             modelname = make_model_name(train_loader)
             model_hparam_dict = make_hparam_dict(val_loader)
             
@@ -207,8 +207,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
     
             if c.verbose:
                 print("Training using {} train samples and {} val samples...".format(len(train_loader)*train_loader.batch_size,
-                                                                                            len(val_loader)*val_loader.batch_size))
-    
+                                                                                            len(val_loader)*val_loader.batch_size))            
             if a.args.tensorboard:
                 writer = SummaryWriter(log_dir='runs/'+a.args.schema+'/'+modelname)
             else:
@@ -453,8 +452,6 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                     #save_weights(model,"checkpoint_"+str(l)+"_"+modelname) # currently have no use for saving weights
                     mdl.to(c.device)
                 
-                model_metric_dict = {}
-                
                 if writer != None:
                     # DMAP Count Metrics - y,y_n,y_hat_n,y_hat_n_dists,y_hat_coords
                     # add images to TB writer
@@ -520,10 +517,6 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                 
                 l += 1
             
-            ### Post-Training ---
-            mdl.hparam_dict = model_hparam_dict
-            mdl.metric_dict = model_metric_dict
-            
             # visualise a random reconstruction
             if a.args.viz:
                 
@@ -541,6 +534,10 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                 if c.counts:
                     print("Plotting Train R2")
                     counts_preds_vs_actual(mdl,train_loader,plot=a.args.viz)
+            
+            ### Post-Training ---
+            mdl.hparam_dict = model_hparam_dict
+            mdl.metric_dict = model_metric_dict
             
             # save final model, unless models are being saved at end of every meta peoch
             if c.save_model and not c.checkpoints:

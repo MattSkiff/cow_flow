@@ -58,7 +58,7 @@ def save_model(mdl,filename,loc=g.MODEL_DIR):
 def load_model(filename,loc=g.MODEL_DIR):
     
     path = os.path.join(loc, filename)
-    mdl = torch.load(path, pickle_module=dill)
+    mdl = torch.load(path, pickle_module=dill,map_location=torch.device(c.device))
     
     bc_path = os.path.join(g.FEAT_MOD_DIR, a.args.bin_classifier_path)
     
@@ -109,7 +109,7 @@ def ft_dims_select(mdl=None):
         if a.args.data == 'dlr_acd':
             ft_dims = (mdl.density_map_h // 2**5,mdl.density_map_w // 2**5) # 10, 10
         elif fe in ['resnet18','ResNetPyramid'] or fe == 'Sequential':
-            if a.args.resize:
+            if a.args.resize or a.args.rrc:
                 ft_dims = (8,8)
             else:
                 ft_dims = (19, 25) # (mdl.density_map_h // 2**5,mdl.density_map_w // 2**5)
@@ -444,7 +444,7 @@ def plot_preds_baselines(mdl, loader,mode="",mdl_type='',writer=None,writer_epoc
                 
                 mdl.to(c.device)
                 images,dmaps,labels,binary_labels , annotations, point_maps  = data_loader.preprocess_batch(data)
-                preds = mdl(images)/mdl.dmap_scaling
+                preds = mdl(images)
                 
                 if mdl_type == 'UNet_seg':
                     coords = peak_local_max(preds.squeeze().cpu().numpy(),min_distance=1,
@@ -509,7 +509,10 @@ def plot_preds_baselines(mdl, loader,mode="",mdl_type='',writer=None,writer_epoc
                 
                 if mdl_type == 'UNet_seg':
                         print("%s predicted (UNet_seg)" % (len(coords)))
-                        
+                
+                if mdl.dmap_scaling != 1:
+                    print('mdl dmap scaling: {}'.format(mdl.dmap_scaling))
+                
                 plt.show()    
                 
                 return #preds, preds.sum(),plot_dmap.sum(),len(labels[lb_idx])
@@ -1390,6 +1393,9 @@ def make_model_name(train_loader):
      if a.args.model_name not in g.BASELINE_MODEL_NAMES:
          parts.append("FE_"+str(c.feat_extractor))    
      
+     if a.args.dmap_scaling != 1:
+         parts.append('SC{}'.format(a.args.dmap_scaling))
+     
      if a.args.model_name == 'NF':
          parts.append('NC'+str(c.n_coupling_blocks))
          parts.append(a.args.subnet_type)
@@ -1489,6 +1495,7 @@ def make_hparam_dict(val_loader):
                         'epochs':a.args.meta_epochs*a.args.sub_epochs,
                         'no. of coupling blocks':c.n_coupling_blocks,
                         'dmap sigma':a.args.sigma,
+                        'dmap scaling':a.args.dmap_scaling,
                         'feat vec length':c.n_feat}
     
     return hparam_dict
@@ -1523,8 +1530,7 @@ def create_point_map(mdl,annotations):
     return base_map, point_flags
 
 def loader_check(mdl,loader):
-    # TODO
-    return    
+    
     assert mdl.sigma == a.args.sigma
     assert mdl.noise == a.args.noise
     assert mdl.dmap_scaling == a.args.dmap_scaling

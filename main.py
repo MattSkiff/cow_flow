@@ -1,6 +1,6 @@
 # external
 from torch.cuda import empty_cache
-from torch.utils.data import DataLoader # Dataset                                                                                                                                                                    
+from torch.utils.data import DataLoader # Dataset
 
 import torch.nn as nn
 import os
