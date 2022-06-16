@@ -90,7 +90,7 @@ host = socket.gethostname()
 
 # defaults for if running interactively
 if any('SPYDER' in name for name in os.environ):
-    args.model_name = "Res50"
+    args.model_name = "LCFCN"
     args.data = 'cows'
     args.pyramid = True
     args.optim = "adamw"

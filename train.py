@@ -90,11 +90,6 @@ def train_baselines(model_name,train_loader,val_loader):
                 images,dmaps,labels, binary_labels, annotations,point_maps = preprocess_batch(data)
                 results = mdl(images)
                 
-                # import matplotlib.pyplot as plt
-                # fig, ax = plt.subplots(1,1)
-                # ax.imshow(dmaps[0].cpu().numpy())
-                # 1/0
-                
                 if a.args.model_name == 'LCFCN':
                     
                     iter_loss = lcfcn_loss.compute_loss(points=point_maps, probs=results.sigmoid())

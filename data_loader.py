@@ -1091,9 +1091,6 @@ class RandomCrop(object):
         i, j, h, w = T.RandomCrop.get_params(sample['image'], output_size=(256,256))
         sample['image'] = TF.crop(sample['image'].unsqueeze(0), i, j, h, w)
         sample['density'] = TF.crop(sample['density'].unsqueeze(0).unsqueeze(0), i, j, h, w)
-        
-        if a.args.model_name in ['LCFCN','UNet_seg']:
-            sample['point_map'] = TF.crop(sample['point_map'], i, j, h, w)
             
         if a.args.model_name in ['LCFCN','UNet_seg']:
             sample['point_map']  = TF.crop(sample['point_map'].unsqueeze(0).unsqueeze(0), i, j, h, w) 
@@ -1101,6 +1098,8 @@ class RandomCrop(object):
             
         sample['image'] = sample['image'].squeeze()
         sample['density'] = sample['density'].squeeze().squeeze()
+        
+        print(sample['point_map'].size())
     
         return sample
     
@@ -1166,7 +1165,7 @@ class CustResize(object):
             if not a.args.resize:
                 pd = 8
                 
-                if a.args.model_name in ['LCFCN','UNet_seg']:
+                if a.args.model_name in ['LCFCN','UNet_seg'] and not a.args.rrc:
                     point_map = TF.pad(img=point_map,fill=0,padding=[0,0,0,8],padding_mode='constant')
             
             # point_map = point_map.unsqueeze(0).unsqueeze(0)
