@@ -33,7 +33,7 @@ if a.args.data == 'cows':
     
     # check dataloader if running interactively
     if any('SPYDER' in name for name in os.environ):
-        transformed_dataset.show_annotations(66) # 5895
+        transformed_dataset.show_annotations(3) # 5895
     
     if not a.args.holdout:
         # create test train split

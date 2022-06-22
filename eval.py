@@ -169,9 +169,13 @@ def gen_localisation_metrics(dlr,thres, y_coords,y_hat_coords):
             localisation_dict['tp'] += tp
             localisation_dict['fp'] += fp
             localisation_dict['fn'] += fn
-            
-        prs.append(localisation_dict['tp']/( localisation_dict['tp']+localisation_dict['fp']))
-        rcs.append(localisation_dict['tp']/( localisation_dict['tp']+localisation_dict['fn']))
+        
+        if localisation_dict['tp']+localisation_dict['fp'] == 0:
+            prs.append(-99)
+            rcs.append(-99)
+        else:
+            prs.append(localisation_dict['tp']/( localisation_dict['tp']+localisation_dict['fp']))
+            rcs.append(localisation_dict['tp']/( localisation_dict['tp']+localisation_dict['fn']))
         # print('tp {} | fp {} | fn {}'.format(tp,fp,fn))
     
     # plt.show()
@@ -295,7 +299,7 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True):
         # if i == 30:
         #     break
         
-        images,dmaps,labels, binary_labels , annotations, point_maps = data
+        images,dmaps,labels,binary_labels,annotations,point_maps = data
         images = images.float().to(c.device)
         
         x = mdl(images)
@@ -327,7 +331,8 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True):
             else:
                 gt_coords = None
             
-            ground_truth_point_map, _ = create_point_map(mdl=mdl,annotations=annotations[idx].cpu().detach().numpy()) 
+            #ground_truth_point_map, _ = create_point_map(mdl=mdl,annotations=annotations[idx].cpu().detach().numpy()) 
+            ground_truth_point_map = point_maps[idx].squeeze().cpu().detach().numpy()
             gt_count = ground_truth_dmap.sum() #.round()
             
             # subtract constrant for uniform noise
@@ -383,8 +388,14 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True):
             l = 1 # cell size param - number of cells to split images into: 1 = 16 
             
             # this splits the density maps into cells for counting per cell
-            gt_dmap_split_counts = np_split(ground_truth_point_map,nrows=mdl.density_map_w//4**l,ncols=mdl.density_map_h//4**l).sum(axis=(1,2))
-            pred_dmap_split_counts = np_split(dmap_np,nrows=mdl.density_map_w//4**l,ncols=mdl.density_map_h//4**l).sum(axis=(1,2))
+            
+            if a.args.rrc:
+                nr,nc = 256//4**l,256//4**l
+            else:
+                nr,nc = mdl.density_map_w//4**l,mdl.density_map_h//4**l
+            
+            gt_dmap_split_counts = np_split(ground_truth_point_map,nrows=nr,ncols=nc).sum(axis=(1,2))
+            pred_dmap_split_counts = np_split(dmap_np,nrows=nr,ncols=nc).sum(axis=(1,2))
             
             game.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)))
             gampe.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)/np.maximum(np.ones(len(gt_dmap_split_counts)),gt_dmap_split_counts)))  
