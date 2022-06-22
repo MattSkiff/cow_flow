@@ -1522,7 +1522,7 @@ def create_point_map(mdl,annotations):
         
         # subtract 1 to account for 0 indexing
         # NOTE: this overrides duplicate annotation points (4 out of 22k)
-        if a.args.resize or a.args.rrc:
+        if a.args.resize:
             base_map[int(round((point[2])*256)-offset),int(round((point[1])*256)-offset)] = 1 # +=1
         else:
             base_map[int(round((point[2])*c.raw_img_size[1])-offset),int(round((point[1])*c.raw_img_size[0])-offset)] = 1 # +=1

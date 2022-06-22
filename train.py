@@ -179,7 +179,6 @@ def train_baselines(model_name,train_loader,val_loader):
         print(model_hparam_dict, file=f)
     
     mdl.to('cpu')
-    save_model(mdl,modelname)
     mdl.to(c.device)
     
     return mdl    
@@ -542,12 +541,6 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                 # could switch to using json and print params on model reload
                 with open(filename, 'w') as f:
                     print(model_hparam_dict, file=f)
-                
-                mdl.to('cpu')
-                save_model(mdl,"final_"+modelname)
-                #model.save_weights(model, modelname) # currently have no use for saving weights
-                mdl.to(c.device)
-            
             
             if not a.args.data == 'dlr':
                 print("Performing final evaluation without trained null classifier...")
