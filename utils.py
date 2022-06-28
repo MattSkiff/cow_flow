@@ -510,8 +510,9 @@ def plot_preds_baselines(mdl, loader,mode="",mdl_type='',writer=None,writer_epoc
                 if mdl_type == 'UNet_seg':
                         print("%s predicted (UNet_seg)" % (len(coords)))
                 
-                if mdl.dmap_scaling != 1:
-                    print('mdl dmap scaling: {}'.format(mdl.dmap_scaling))
+                if hasattr(mdl, 'dmap_scaling'):
+                    if mdl.dmap_scaling != 1:
+                        print('mdl dmap scaling: {}'.format(mdl.dmap_scaling))
                 
                 plt.show()    
                 
