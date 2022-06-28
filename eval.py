@@ -273,6 +273,11 @@ def gen_metrics(dm_mae,dm_mse,dm_ssim,dm_psnr,y_n,y_hat_n,game,gampe,localisatio
 def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True):
     
     thres=4*2 #mdl.sigma*2
+
+    if mdl.density_map_w == 600:
+        width = 608
+    else:
+        width = 256
     
     loader_check(mdl=mdl,loader=loader)
     
@@ -327,7 +332,7 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True):
                        
             gt_coords = annotations[idx]
             if gt_coords.nelement() != 0:
-                gt_coords = torch.stack([gt_coords[:,2]*mdl.density_map_w,gt_coords[:,1]*mdl.density_map_h]).cpu().detach().numpy()
+                gt_coords = torch.stack([gt_coords[:,2]*width,gt_coords[:,1]*mdl.density_map_h]).cpu().detach().numpy()
             else:
                 gt_coords = None
             
@@ -390,9 +395,10 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True):
             # this splits the density maps into cells for counting per cell
             
             if a.args.rrc:
-                nr,nc = 256//4**l,256//4**l
+                nr,nc = width//4**l,width//4**l
             else:
-                nr,nc = mdl.density_map_w//4**l,mdl.density_map_h//4**l
+                #nr,nc = width//4**l,mdl.density_map_h//4**l
+                nr,nc = 800//4**l,608//4**l
             
             gt_dmap_split_counts = np_split(ground_truth_point_map,nrows=nr,ncols=nc).sum(axis=(1,2))
             pred_dmap_split_counts = np_split(dmap_np,nrows=nr,ncols=nc).sum(axis=(1,2))

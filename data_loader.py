@@ -1130,7 +1130,7 @@ class CustResize(object):
         if 'density' in sample.keys():
             density = sample['density']
             
-            if a.args.model_name in ['LCFCN','UNet_seg']:
+            if 'point_map' in sample.keys():
                 point_map = sample['point_map']
             #sz = list(density.size())
             sz = [c.density_map_h,c.density_map_w]
@@ -1143,8 +1143,8 @@ class CustResize(object):
             if not a.args.resize:
                 pd = 8
                 
-                if a.args.model_name in ['LCFCN','UNet_seg']:
-                    point_map = TF.pad(img=point_map,fill=0,padding=[0,0,0,8],padding_mode='constant')
+                if 'point_map' in sample.keys():
+                    point_map = TF.pad(img=point_map,fill=0,padding=[0,0,0,pd],padding_mode='constant')
             
             # point_map = point_map.unsqueeze(0).unsqueeze(0)
             # point_map = TF.resize(point_map,(sz[0]//c.scale,sz[1]//c.scale))
@@ -1158,7 +1158,7 @@ class CustResize(object):
             
             sample['density'] = density
             
-            if a.args.model_name in ['LCFCN','UNet_seg']:
+            if 'point_map' in sample.keys():
                 sample['point_map'] = point_map
         
         return sample
