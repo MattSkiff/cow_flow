@@ -96,7 +96,7 @@ if any('SPYDER' in name for name in os.environ):
     args.optim = "adamw"
     args.scheduler = 'none'
     args.sampler = 'anno'
-    args.mode = 'train' #'eval'
+    args.mode = 'store' #'eval'
     args.sub_epochs = 1
     args.meta_epochs = 1
     args.batch_size = 1
@@ -110,7 +110,7 @@ if any('SPYDER' in name for name in os.environ):
     args.rrc = True
     args.dmap_scaling = 1
     args.max_filter_size = 4
-    args.sigma = 4.0
+    args.sigma = 9.0
     args.noise = 0
     args.mdl_path = '' #'final_9Z5_NF_quatern_BS64_LR_I0.0002_E10000_DIM256_OPTIMadam_FE_resnet18_NC5_anno_step_JO_PY_1_1x1_WD_0.001_10_05_2022_17_37_42'
     args.holdout = False
@@ -135,6 +135,9 @@ if any('SPYDER' in name for name in os.environ):
 # checks
 assert args.mode in ['train','eval','store','plot']
 assert args.gpu_number > -1
+
+if args.mode == 'store':
+    assert args.ram
 
 if args.split_dimensions:
     assert not args.all_in_one
