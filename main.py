@@ -32,7 +32,7 @@ if a.args.data == 'cows':
     transformed_dataset = prep_transformed_dataset()
     
     # check dataloader if running interactively
-    if any('SPYDER' in name for name in os.environ):
+    if any('SPYDER' in name for name in os.environ) and not a.args.mode == 'store':
         transformed_dataset.show_annotations(3) # 5895
     
     if not a.args.holdout:

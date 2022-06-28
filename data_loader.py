@@ -501,7 +501,7 @@ class CowObjectsDataset(Dataset):
             
             dmap_path = g.DMAP_DIR+self.im_names[idx]
             
-            if a.args.ram:
+            if a.args.ram and not a.args.mode == 'store':
                 if not os.path.exists(dmap_path):
                     ValueError("Dmaps must have been previously stored!")
                 
@@ -604,12 +604,10 @@ class CowObjectsDataset(Dataset):
         
         if self.ram:
             
-            if ram and a.args.ram:
+            if not a.args.mode == 'store' and a.args.ram:
                 desc = "Loading images, annotations, dmaps and labels into RAM"
-            elif ram and a.args.mode == 'store':
+            elif a.args.ram and a.args.mode == 'store':
                 desc = "Storing dmaps, pmaps, annotations and labels to file"
-            elif ram:
-                desc = "Computing dmaps, pmaps, annotations and labels and storing into RAM"
             
             for idx in tqdm(range(len(self.im_paths)),desc=desc):
             #for idx in [5895]:
