@@ -96,7 +96,7 @@ if any('SPYDER' in name for name in os.environ):
     args.optim = "adamw"
     args.scheduler = 'none'
     args.sampler = 'anno'
-    args.mode = 'train' #'eval'
+    args.mode = 'store' #'eval'
     args.sub_epochs = 1
     args.meta_epochs = 1
     args.batch_size = 1
