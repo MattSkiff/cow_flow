@@ -1,16 +1,17 @@
 """The implementation of U-Net and FCRN-A models."""
 from typing import Tuple
 
+# external imports
 import numpy as np
+import collections
 import torch
 from torch import nn
 import torchvision
 from torchvision import models
 from skimage import morphology as morph
-from skimage.morphology import watershed
-from skimage.segmentation import find_boundaries
-from scipy import ndimage
 import torch.nn.functional as F
+
+# interal import
 import arguments as a
 import config as c
 
@@ -145,94 +146,6 @@ class FCRN_A(nn.Module):
         """Forward pass."""
         return self.model(input)
 
-# # delete 
-# class UNet(nn.Module):
-#     """
-#     U-Net implementation.
-#     Ref. O. Ronneberger et al. "U-net: Convolutional networks for biomedical
-#     image segmentation."
-#     """
-
-#     def __init__(self,modelname,filters: int=64, input_filters: int=3, **kwargs):
-#         """
-#         Create U-Net model with:
-#             * fixed kernel size = (3, 3)
-#             * fixed max pooling kernel size = (2, 2) and upsampling factor = 2
-#             * fixed no. of convolutional layers per block = 2 (see conv_block)
-#             * constant no. of filters for convolutional layers
-#         Args:
-#             filters: no. of filters for convolutional layers
-#             input_filters: no. of input channels
-#         """
-        
-        
-#         # these attr's are needed to make the model object independant of the config file
-#         self.dlr_acd = a.args.dlr_acd
-#         self.modelname = modelname
-#         self.unconditional = False
-#         self.count = False
-#         self.subnet_type = None
-#         self.mnist = False
-#         self.gap = c.gap
-#         self.n_coupling_blocks = 0
-#         self.joint_optim = False
-#         self.pretrained = False
-#         self.finetuned = False
-#         self.scheduler = a.args.scheduler
-#         self.scale = c.scale
-#         self.density_map_h = c.density_map_h
-#         self.density_map_w = c.density_map_w
-#         self.downsampling = c.downsampling
-#         self.scale = c.scale
-#         self.noise = a.args.noise
-#         self.seed = c.seed
-#         self.dmap_scaling = a.args.dmap_scaling
-        
-#         super(UNet, self).__init__()
-#         # first block channels size
-#         initial_filters = (input_filters, filters)
-#         # channels size for downsampling
-#         down_filters = (filters, filters)
-#         # channels size for upsampling (input doubled because of concatenate)
-#         up_filters = (2 * filters, filters)
-
-#         # downsampling
-#         self.block1 = conv_block(channels=initial_filters, size=(3, 3), N=2)
-#         self.block2 = conv_block(channels=down_filters, size=(3, 3), N=2)
-#         self.block3 = conv_block(channels=down_filters, size=(3, 3), N=2)
-
-#         # upsampling
-#         self.block4 = ConvCat(channels=down_filters, size=(3, 3), N=2)
-#         self.block5 = ConvCat(channels=up_filters, size=(3, 3), N=2)
-#         self.block6 = ConvCat(channels=up_filters, size=(3, 3), N=2)
-
-#         # density prediction
-#         self.block7 = conv_block(channels=up_filters, size=(3, 3), N=2)
-#         self.density_pred = nn.Conv2d(in_channels=filters, out_channels=1,
-#                                       kernel_size=(1, 1), bias=False)
-
-#     def forward(self, input: torch.Tensor):
-#         """Forward pass."""
-#         # use the same max pooling kernel size (2, 2) across the network
-#         pool = nn.MaxPool2d(2)
-
-#         # downsampling
-#         block1 = self.block1(input)
-#         pool1 = pool(block1)
-#         block2 = self.block2(pool1)
-#         pool2 = pool(block2)
-#         block3 = self.block3(pool2)
-#         pool3 = pool(block3)
-
-#         # upsampling
-#         block4 = self.block4(pool3, block3)
-#         block5 = self.block5(block4, block2)
-#         block6 = self.block6(block5, block1)
-
-#         # density prediction
-#         block7 = self.block7(block6)
-#         return self.density_pred(block7)
-
 # implementation from: https://github.com/milesial/Pytorch-UNet
 # density modification from: https://github.com/NeuroSYS-pl/objects_counting_dmap 
 class UNet(nn.Module):
@@ -335,14 +248,24 @@ class DoubleConv(nn.Module):
         super().__init__()
         if not mid_channels:
             mid_channels = out_channels
-        self.double_conv = nn.Sequential(
-            nn.Conv2d(in_channels, mid_channels, kernel_size=3, padding=1, bias=False),
-            nn.BatchNorm2d(mid_channels),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(mid_channels, out_channels, kernel_size=3, padding=1, bias=False),
-            nn.BatchNorm2d(out_channels),
-            nn.ReLU(inplace=True)
-        )
+            
+        network_dict = collections.OrderedDict(
+                    [
+                        ('conv1',nn.Conv2d(in_channels, mid_channels, kernel_size=3, padding=1, bias=False)),
+                        ('batchnorm1',nn.BatchNorm2d(mid_channels)),
+                        ("relu1", nn.ReLU(inplace=True)),
+                        ("conv2",nn.Conv2d(mid_channels, out_channels, kernel_size=3, padding=1, bias=False)),
+                        ('batchnorm2',nn.BatchNorm2d(out_channels)),
+                        ("relu2", nn.ReLU(inplace=True))
+                   
+                    ]
+            )
+        
+        if not c.batchnorm:
+            del network_dict['batchnorm1']
+            del network_dict['batchnorm2']
+        
+        self.double_conv = nn.Sequential(network_dict)
 
     def forward(self, x):
         return self.double_conv(x)

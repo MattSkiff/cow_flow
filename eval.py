@@ -274,7 +274,7 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True):
     
     thres=4*2 #mdl.sigma*2
 
-    if mdl.density_map_w == 600:
+    if mdl.density_map_w and not a.args.rrc == 600:
         width = 608
     else:
         width = 256
@@ -337,7 +337,7 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True):
                 gt_coords = None
             
             #ground_truth_point_map, _ = create_point_map(mdl=mdl,annotations=annotations[idx].cpu().detach().numpy()) 
-            ground_truth_point_map = point_maps[idx].squeeze().cpu().detach().numpy()
+            #ground_truth_point_map = point_maps[idx].squeeze().cpu().detach().numpy()
             gt_count = ground_truth_dmap.sum() #.round()
             
             # subtract constrant for uniform noise
@@ -400,7 +400,7 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True):
                 #nr,nc = width//4**l,mdl.density_map_h//4**l
                 nr,nc = 800//4**l,608//4**l
             
-            gt_dmap_split_counts = np_split(ground_truth_point_map,nrows=nr,ncols=nc).sum(axis=(1,2))
+            gt_dmap_split_counts = np_split(ground_truth_dmap,nrows=nr,ncols=nc).sum(axis=(1,2))
             pred_dmap_split_counts = np_split(dmap_np,nrows=nr,ncols=nc).sum(axis=(1,2))
             
             game.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)))
@@ -547,6 +547,11 @@ def eval_mnist(mdl, valloader, trainloader,samples = 1,confusion = False, preds 
 def dmap_metrics(mdl, loader,n=10,mode='',null_filter=(a.args.sampler == 'weighted'),write=True):
     '''DMAP,COUNT,LOCALIZATION metrics'''
     
+    if mdl.density_map_w == 600 and not a.args.rrc:
+        width = 608
+    else:
+        width = 256
+    
     thres=mdl.sigma*2
     
     loader_check(mdl=mdl,loader=loader)
@@ -644,12 +649,12 @@ def dmap_metrics(mdl, loader,n=10,mode='',null_filter=(a.args.sampler == 'weight
                 ground_truth_point_map = point_maps[idx].cpu().detach().numpy()
                 gt_count = ground_truth_point_map.sum() / 3
             else:
-                ground_truth_point_map, _ = create_point_map(mdl=mdl,annotations=annotations[idx].cpu().detach().numpy()) 
-                gt_count = ground_truth_point_map.sum().round()
+                #ground_truth_point_map, _ = create_point_map(mdl=mdl,annotations=annotations[idx].cpu().detach().numpy()) 
+                gt_count = ground_truth_dmap.sum().round()
                 gt_coords = annotations[idx]
                 
                 if gt_coords.nelement() != 0:
-                    gt_coords = torch.stack([gt_coords[:,2]*mdl.density_map_w,gt_coords[:,1]*mdl.density_map_h]).cpu().detach().numpy()
+                    gt_coords = torch.stack([gt_coords[:,2]*width,gt_coords[:,1]*mdl.density_map_h]).cpu().detach().numpy()
                 else:
                     gt_coords = None
                 
@@ -688,14 +693,17 @@ def dmap_metrics(mdl, loader,n=10,mode='',null_filter=(a.args.sampler == 'weight
             l = 1 # cell size param - number of cells to split images into: 0 = 1, 1 = 4, 2 = 16, etc
             
             # this splits the density maps into cells for counting per cell
-            gt_dmap_split_counts = np_split(ground_truth_point_map,nrows=mdl.density_map_w//4**l,ncols=mdl.density_map_h//4**l).sum(axis=(1,2))
+            if a.args.rrc:
+                nr,nc = width//4**l,width//4**l
+            else:
+                #nr,nc = width//4**l,mdl.density_map_h//4**l
+                nr,nc = 800//4**l,608//4**l
             
-            #zambingo
-            
-            pred_dmap_split_counts = np_split(dmap_rev_np,nrows=mdl.density_map_w//4**l,ncols=mdl.density_map_h//4**l).sum(axis=(1,2))
-
+            gt_dmap_split_counts = np_split(ground_truth_dmap,nrows=nr,ncols=nc).sum(axis=(1,2))
+            pred_dmap_split_counts = np_split(dmap_rev_np,nrows=nr,ncols=nc).sum(axis=(1,2))
+        
             game.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)))
-            gampe.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)/np.maximum(np.ones(len(gt_dmap_split_counts)),gt_dmap_split_counts)))     
+            gampe.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)/np.maximum(np.ones(len(gt_dmap_split_counts)),gt_dmap_split_counts)))  
     
     localisation_dict,prs,rcs = gen_localisation_metrics(dlr=mdl.dlr_acd,thres=thres,y_coords=y_coords,y_hat_coords=y_hat_coords)
     write_localisation_data(mdl,prs,rcs,write=write)
@@ -720,7 +728,8 @@ def dmap_pr_curve(mdl, loader,n = 10,mode = ''):
     localisation_dists = []
     thresholds = np.arange(0, MAX_DISTANCE, STEP)
     
-    y = []; y_n = []; y_coords = []
+    # y = []; 
+    y_n = []; y_coords = []
     y_hat_n = [];  y_hat_coords = {'div2':[],'same':[],'mult2':[],'mult4':[]}
     
     mdl = mdl.to(c.device)

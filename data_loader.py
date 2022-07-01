@@ -994,14 +994,6 @@ class Resize(object):
         
         resize = T.Resize(size=(a.args.image_size,a.args.image_size))
         
-        # rint = random.randint(int(a.args.min_scaling*a.args.image_size),int(1*a.args.image_size))
-        # rint2 = random.randint(int(a.args.min_scaling*a.args.image_size),int(1*a.args.image_size))
-        
-        # i, j, h, w = T.RandomCrop.get_params(sample['image'], output_size=(rint,rint2))
-        # sample['image'] = TF.crop(sample['image'].unsqueeze(0), i, j, h, w)
-        # sample['density'] = TF.crop(sample['density'].unsqueeze(0).unsqueeze(0), i, j, h, w)
-        # sample['point_map']  = TF.crop(sample['point_map'].unsqueeze(0).unsqueeze(0), i, j, h, w) 
-        
         sample['image'] = resize(sample['image'].unsqueeze(0))
         
         # scale density up by downscaling amount, so counting still works
@@ -1321,19 +1313,19 @@ def make_loaders(transformed_dataset):
     # leave shuffle off for use of any samplers
     full_train_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 
                         num_workers=1,collate_fn=transformed_dataset.custom_collate_aerial,
-                        pin_memory=True,sampler=full_train_sampler)
+                        pin_memory=False,sampler=full_train_sampler)
 
     full_val_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 
                         num_workers=1,collate_fn=transformed_dataset.custom_collate_aerial,
-                        pin_memory=True,sampler=full_val_sampler)
+                        pin_memory=False,sampler=full_val_sampler)
     
     train_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 
                         num_workers=1,collate_fn=transformed_dataset.custom_collate_aerial,
-                        pin_memory=True,sampler=train_sampler)
+                        pin_memory=False,sampler=train_sampler)
 
     val_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 
                         num_workers=1,collate_fn=transformed_dataset.custom_collate_aerial,
-                        pin_memory=True,sampler=val_sampler)
+                        pin_memory=False,sampler=val_sampler)
     
     return full_train_loader, full_val_loader, train_loader, val_loader
 
