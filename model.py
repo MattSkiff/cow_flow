@@ -10,6 +10,7 @@ from torch import Tensor
 import torch.nn as nn
 from torchvision.models import alexnet, resnet18, vgg16_bn, efficientnet_b3   # feature extractors
 from torchvision.models.resnet import ResNet, BasicBlock
+from torchvision.models.vgg import VGG, make_layers, cfgs
 import torch.nn.functional as F
 import numpy as np
 import collections
@@ -101,6 +102,38 @@ class ResNetPyramid(ResNet):
 class NothingNet():
     def __init__(self):
         self.features = torch.nn.Identity()
+  
+class VGGPyramid(VGG):
+
+    def __init__(self):
+        super(VGGPyramid, self).__init__(make_layers(cfgs["D"]))
+        
+        if c.load_feat_extractor_str == '':
+            if a.args.fe_load_imagenet_weights:
+                self.load_state_dict(vgg16_bn(pretrained=c.pretrained,progress=False).state_dict())
+                num_ftrs = self.fc.in_features
+                self.fc = nn.Linear(num_ftrs, 2)  
+            
+        elif c.load_feat_extractor_str != '':
+            finetuned_fe = u.load_model(c.load_feat_extractor_str,loc=g.FEAT_MOD_DIR)
+            self.load_state_dict(finetuned_fe.state_dict())
+            num_ftrs = self.fc.in_features
+            self.fc = nn.Linear(num_ftrs, 2)  
+            del finetuned_fe
+    
+    def _forward_impl_my(self, x: torch.Tensor) -> torch.Tensor:
+        
+        x0 = self.features[0:7](x)
+        x1 = self.features[7:14](x0)
+        x2 = self.features[14:18](x1)
+        x3 = self.features[18:28](x2)
+        x4 = self.features[28:44](x3)
+
+        return [x0,x1,x2,x3,x4]    
+    
+    def forward(self, x):
+        
+        return self._forward_impl_my(x)
 
 # from https://github.com/VLL-HD/conditional_INNs
 def random_orthog(n):
@@ -133,7 +166,10 @@ def select_feat_extractor(feat_extractor,train_loader=None,valid_loader=None):
         elif c.feat_extractor == "none":
             feat_extractor = NothingNet()
     else:
-        feat_extractor = ResNetPyramid()
+        if c.feat_extractor == 'vgg16_bn':
+            feat_extractor = VGGPyramid()
+        else:
+            feat_extractor = ResNetPyramid()
         
         return feat_extractor
     
@@ -262,7 +298,11 @@ def nf_pyramid(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_fea
     assert a.args.subnet_type in g.SUBNETS
     assert not c.gap and not c.counts and not a.args.data == 'mnist'
     
-    mdl = ResNetPyramid()
+    if c.feat_extractor == 'resnet18':
+        mdl = ResNetPyramid()
+    else:
+        mdl = VGGPyramid()
+        
     # TODO: take out hardcoding activation channels (64)
     channels = 3
     feats = mdl(torch.randn(a.args.batch_size,channels,c.density_map_h,c.density_map_w,requires_grad=False))
@@ -533,7 +573,6 @@ class CowFlow(nn.Module):
         self.dmap_scaling = a.args.dmap_scaling
 
     def forward(self,images,labels,rev=False): # label = dmaps or counts
-        # no multi-scale architecture (yet) as per differnet paper
         
         if c.debug:
             print("images size..")
