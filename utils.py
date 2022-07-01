@@ -108,7 +108,7 @@ def ft_dims_select(mdl=None):
         
         if a.args.data == 'dlr_acd':
             ft_dims = (mdl.density_map_h // 2**5,mdl.density_map_w // 2**5) # 10, 10
-        elif fe in ['resnet18','ResNetPyramid'] or fe == 'Sequential':
+        elif fe in ['resnet18','ResNetPyramid',"VGGPyramid"] or fe == 'Sequential':
             if a.args.resize or a.args.rrc:
                 ft_dims = (8,8)
             else:

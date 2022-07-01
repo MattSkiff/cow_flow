@@ -31,7 +31,7 @@ pretrained = False
 feat_extractor = "resnet18" # alexnet, vgg16_bn,resnet18, none # TODO mnist_resnet, efficient net
 feat_extractor_epochs = 100
 train_feat_extractor = False # whether to finetune or load finetuned model # redundent
-load_feat_extractor_str = 'resnet18_FTE_100_02_05_2022_17_34_03_PT_True_BS_64_classification_head' # '' to train from scratch, loads FE  # 
+load_feat_extractor_str = 'resnet18_FTE_100_02_05_2022_17_34_03_PT_True_BS_64_classification_head' # '' - to train from scratch, loads FE  # 
 # nb: pretraining FE saves regardless of save flag
 
 ## Architecture Options ------
@@ -195,7 +195,7 @@ if counts and a.args.model_name == 'NF':
 
 if a.args.pyramid:
     assert n_coupling_blocks == 5 # for recording purposes
-    assert feat_extractor == 'resnet18'
+    assert feat_extractor in ['resnet18','vgg16_bn']
     assert downsampling # pyramid nf head has  downsmapling
     assert not train_feat_extractor # TODO
     # TODO - get pyramid working with other scales!
