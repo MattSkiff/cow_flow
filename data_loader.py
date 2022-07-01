@@ -502,6 +502,7 @@ class CowObjectsDataset(Dataset):
             dmap_path = g.DMAP_DIR+self.im_names[idx]
             
             if a.args.ram and not a.args.mode == 'store':
+                
                 if not os.path.exists(dmap_path):
                     ValueError("Dmaps must have been previously stored!")
                 
