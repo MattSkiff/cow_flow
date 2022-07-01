@@ -137,11 +137,12 @@ def train_baselines(model_name,train_loader,val_loader):
                         
                     v_loss = t2np(iter_loss)
                     val_loss.append(v_loss)
+                    
+                    l = l + 1
                 
             mean_train_loss = np.mean(train_loss)
             mean_val_loss = np.mean(val_loss)
-            l = l + 1
-            
+                
             if mean_val_loss < best_loss and c.save_model:
                 best_loss = mean_val_loss
                 # At this point also save a snapshot of the current model

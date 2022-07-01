@@ -160,13 +160,12 @@ def sub_conv2d_shallow(dims_in,dims_out,n_filters):
                 [
                     ("conv1", nn.Conv2d(dims_in, n_filters, kernel_size = 1,padding = 0)), 
                     ("relu1", nn.ReLU()),
-                    ("conv3", nn.Conv2d(n_filters, dims_out,kernel_size = 1,padding = 0)) # n_filters*2
+                    ("conv3", nn.Conv2d(n_filters, dims_out,kernel_size = 1,padding = 0)) 
                 ]
         )
     
     net = nn.Sequential(network_dict)
     net.apply(u.init_weights)
-  
     
     # zero init last subnet weights as per glow, cINNs paper
     net.conv3.weight = torch.nn.init.zeros_(net.conv3.weight)

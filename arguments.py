@@ -69,7 +69,7 @@ parser.add_argument("-npb","--n_pyramid_blocks",type=int,default=0)
 parser.add_argument('-nse',"--noise",help='amount of uniform noise (sample evenly from 0-x) | 0 for none',type=float,default=0)
 parser.add_argument('-f','--filters',help='width of conv subnetworks',type=int,default=0)
 parser.add_argument("-split", "--split_dimensions", help="split off half the dimensions after each block of coupling layers.", type=int, default=0)
-parser.add_argument("-subnet_type",help="type of subnet to use in flow [fc,conv,MCNN]",default ='')
+parser.add_argument("-subnet_type",help="type of subnet to use in flow [fc,conv,MCNN,UNet,conv_shallow]",default ='')
 
 parser.add_argument("-fe_load_imagenet_weights",help="load pt weights into FE",action='store_true',default=False)
 parser.add_argument('-fe_b1',help='fe_adam beta1',type=float,default=0.9)
@@ -90,42 +90,43 @@ host = socket.gethostname()
 
 # defaults for if running interactively
 if any('SPYDER' in name for name in os.environ):
-    args.model_name = "CSRNet"
+    args.model_name = "NF"
     args.data = 'cows'
     args.pyramid = True
     args.optim = "adamw"
     args.scheduler = 'none'
     args.sampler = 'anno'
-    args.mode = 'store' #'eval'
-    args.sub_epochs = 1
+    args.mode = 'train' #'eval'
+    args.sub_epochs = 10
     args.meta_epochs = 1
-    args.batch_size = 1
+    args.batch_size = 2
     args.learning_rate = 1e-3
     args.weight_decay = 1e-8
     args.tensorboard = False
     args.viz = True
     args.viz_freq = 100
-    args.skip_final_eval = False
     args.resize = False
-    args.rrc = True
+    args.rrc = False
     args.dmap_scaling = 1
     args.max_filter_size = 4
-    args.sigma = 9.0
-    args.noise = 0
+    args.sigma = 4.0
     args.mdl_path = '' #'final_9Z5_NF_quatern_BS64_LR_I0.0002_E10000_DIM256_OPTIMadam_FE_resnet18_NC5_anno_step_JO_PY_1_1x1_WD_0.001_10_05_2022_17_37_42'
     args.holdout = False
     args.all_in_one = False
     args.fixed1x1conv = False
-    args.filters = 0
-    args.n_pyramid_blocks = 0
     args.split_dimensions = 0
-    args.subnet_type = ''
+    
+    args.subnet_type = 'conv_shallow'
+    args.noise = 1e-3
+    args.filters = 64
+    args.n_pyramid_blocks = 1
+    args.skip_final_eval = False
 
     args.scheduler = 'none'
     args.expon_gamma = 0.99
     args.adam_b1 = 0.9
     args.adam_b2 = 0.999
-    args.ram = True
+    args.ram = False
     
     args.fe_lr = 1e-3
     args.fe_b1 = 0.9
@@ -187,6 +188,8 @@ if args.model_name == 'NF' and args.mode == 'train':
     
 if args.subnet_type in ['conv','conv_shallow']:
     assert args.filters != 0 # this argument only applies to regular conv subnets
+else:
+    assert args.filters == 0
 
 if args.fixed1x1conv and args.pyramid:
     assert args.freq_1x1 == 1
