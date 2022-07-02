@@ -11,7 +11,8 @@ from train import train
 
 from torch.utils.data.sampler import SubsetRandomSampler # RandomSampling
 
-empty_cache() # free up memory for cuda
+if c.gpu:
+    empty_cache() # free up memory for cuda
 
 def mnist(load_only=False):
 
