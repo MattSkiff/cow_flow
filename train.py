@@ -6,7 +6,7 @@ from torch.nn.utils import clip_grad_value_
 from torch.utils.tensorboard import SummaryWriter
 from torch.optim.lr_scheduler import ExponentialLR, StepLR
 import torch.nn.functional as TF
-from torchvision.models import resnet18, efficientnet_b3 
+from torchvision.models import vgg16_bn, resnet18, efficientnet_b3 
 
 # tensorboard
 from tqdm import tqdm # progress bar
@@ -565,7 +565,12 @@ def train_classification_head(mdl,full_trainloader,full_valloader,criterion = nn
         mdl.to(c.device) 
     else:
         mdl = types.SimpleNamespace()
-        mdl.classification_head = resnet18(pretrained=c.pretrained,progress=False)
+        
+        if c.feat_extractor == 'resnet18':
+            mdl.classification_head = resnet18(pretrained=c.pretrained,progress=False)
+        elif c.feat_extractor == 'vgg16_bn':
+            mdl.classification_head = vgg16_bn(pretrained=c.pretrained,progress=False)
+            
         mdl.classification_head.to(c.device)
     
     now = datetime.now() 

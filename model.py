@@ -7,7 +7,7 @@ from __future__ import print_function, division
 
 import torch
 from torch import Tensor
-import torch.nn as nn
+import torch.nn as nn 
 from torchvision.models import alexnet, resnet18, vgg16_bn, efficientnet_b3   # feature extractors
 from torchvision.models.resnet import ResNet, BasicBlock
 from torchvision.models.vgg import VGG, make_layers, cfgs
@@ -44,6 +44,33 @@ class ResNetPyramidClassificationHead(ResNet):
         x = torch.flatten(x, 1)
         x = self.fc(x)
         return x
+
+    def forward(self, x: Tensor) -> Tensor:
+        return self._forward_impl(x)
+    
+class VGGPyramidClassificationHead(VGG):
+
+    def __init__(self):
+        
+        super(VGGPyramidClassificationHead, self).__init__(make_layers(cfgs["D"]))
+        
+        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        self.classifier = nn.Sequential(
+            nn.Linear(512 * 7 * 7, 4096),
+            nn.ReLU(True),
+            nn.Dropout(p=True),
+            nn.Linear(4096, 4096),
+            nn.ReLU(True),
+            nn.Dropout(p=True),
+            nn.Linear(4096, 1),
+        )
+        
+    def _forward_impl(self, x: Tensor) -> Tensor:
+            x = self.features(x[4])
+            x = self.avgpool(x)
+            x = torch.flatten(x, 1)
+            x = self.classifier(x)
+            return x
 
     def forward(self, x: Tensor) -> Tensor:
         return self._forward_impl(x)
@@ -540,7 +567,10 @@ class CowFlow(nn.Module):
         else:
             self.nf = nf_head()  
         
-        self.classification_head = resnet18(pretrained=c.pretrained,progress=False) #ResNetPyramidClassificationHead()
+        if c.feat_extractor == 'resnet18':
+            self.classification_head = resnet18(pretrained=c.pretrained,progress=False) #ResNetPyramidClassificationHead()
+        else:
+            self.classification_head = vgg16_bn(pretrained=c.pretrained,progress=False)
         
         if a.args.data == 'dlr_acd':
             self.dlr_acd = True

@@ -17,7 +17,8 @@ from eval import dmap_metrics, eval_baselines
 from dlr_acd import dlr_acd
 from mnist import mnist
 
-empty_cache() # free up memory for cuda
+if c.gpu:
+    empty_cache() # free up memory for cuda
 
 if a.args.data == 'dlr':
     mdl, train_loader, val_loader = dlr_acd()

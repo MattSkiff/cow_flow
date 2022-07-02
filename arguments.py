@@ -133,6 +133,8 @@ if any('SPYDER' in name for name in os.environ):
     args.fe_b2 = 0.999
     args.fe_wd = 1e-8
     
+    args.bc_only=True
+    
 # checks
 assert args.mode in ['train','eval','store','plot']
 assert args.gpu_number > -1
