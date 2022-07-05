@@ -42,7 +42,7 @@ if a.args.data == 'cows':
     else:
         val_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=True, 
                             num_workers=4,collate_fn=transformed_dataset.custom_collate_aerial,
-                            pin_memory=True)
+                            pin_memory=False)
     
     if a.args.mode in ['plot','eval']:
         
