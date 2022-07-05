@@ -38,7 +38,7 @@ if a.args.data == 'cows':
     
     if not a.args.holdout:
         # create test train split
-        full_train_loader, full_val_loader, train_loader, val_loader = make_loaders(transformed_dataset)
+        full_train_loader, full_val_loader, train_loader, val_loader = make_loaders(transformed_dataset,is_eval=a.args.mode=='eval')
     else:
         val_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=True, 
                             num_workers=4,collate_fn=transformed_dataset.custom_collate_aerial,
@@ -51,7 +51,7 @@ if a.args.data == 'cows':
         if a.args.mode == 'eval':
             
             if a.args.model_name == 'NF':
-                dmap_metrics(mdl,val_loader,mode='val',n=50)
+                dmap_metrics(mdl,val_loader,mode='val',n=1)
             else:
                 eval_baselines(mdl,val_loader,mode='val',is_unet_seg=(a.args.model_name=='UNet_seg'))
     

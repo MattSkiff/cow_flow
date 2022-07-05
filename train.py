@@ -182,6 +182,9 @@ def train_baselines(model_name,train_loader,val_loader):
     mdl.to('cpu')
     mdl.to(c.device)
     
+    if a.args.save_final_mod:
+        save_model(mdl,"final"+"_"+modelname)
+    
     return mdl    
 
 def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,writer=None):

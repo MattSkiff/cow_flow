@@ -128,6 +128,7 @@ if any('SPYDER' in name for name in os.environ):
     args.adam_b1 = 0.9
     args.adam_b2 = 0.999
     args.ram = False
+    args.save_final_mod = True
     
     args.fe_lr = 1e-3
     args.fe_b1 = 0.9
