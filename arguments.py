@@ -15,6 +15,7 @@ parser.add_argument('-mod',"--model_name",help="Specify model (NF,CSRNet, UNet, 
 parser.add_argument("-fe_only", help="Trains the feature extractor only.", action="store_true",default=False)
 parser.add_argument("-bc_only", help="Trains the binary classifier only.", action="store_true",default=False)
 parser.add_argument("-skip_final_eval", help="Skips final eval.", action="store_true",default=False)
+parser.add_argument('-save_final_mod',help="Save final model",action="store_true",default=False)
 parser.add_argument("-uc", "--unconditional", help="Trains the model without labels.", action="store_true")
 parser.add_argument("-gn", "--gpu_number", help="Selects which GPU to train on.", type=int, default=0)
 
@@ -99,7 +100,7 @@ if any('SPYDER' in name for name in os.environ):
     args.mode = 'train' #'eval'
     args.sub_epochs = 10
     args.meta_epochs = 1
-    args.batch_size = 2
+    args.batch_size = 1
     args.learning_rate = 1e-3
     args.weight_decay = 1e-8
     args.tensorboard = False

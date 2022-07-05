@@ -534,13 +534,13 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
             mdl.hparam_dict = model_hparam_dict
             mdl.metric_dict = model_metric_dict
             
-            # save final model, unless models are being saved at end of every meta peoch
-            if c.save_model and not c.checkpoints:
+            # save model hparams, unless models are being saved at end of every meta peoch
+            if c.save_model:
                 
-                filename = "./models/"+"final"+modelname+".txt"
+                hp_filename = "./models/"+"hparams"+modelname+".txt"
                 
                 # could switch to using json and print params on model reload
-                with open(filename, 'w') as f:
+                with open(hp_filename, 'w') as f:
                     print(model_hparam_dict, file=f)
             
             if not a.args.data == 'dlr':
@@ -548,6 +548,9 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                 if not a.args.skip_final_eval:
                     final_metrics = dmap_metrics(mdl, train_loader,n=1,mode='train',null_filter = False)
                     print(final_metrics)
+            
+            if a.args.save_final_mod:
+                save_model(mdl,"final"+"_"+modelname)
             
             run_end = time.perf_counter()
             print("Finished Model: ",modelname)
@@ -618,7 +621,7 @@ def train_classification_head(mdl,full_trainloader,full_valloader,criterion = nn
                 optimizer.zero_grad()
                 
                 images = data[0].to(c.device)
-                binary_labels = data[3]
+                binary_labels = data[3].to(c.device)
                 
                 if c.debug:
                     print('feature extractor labels: ',binary_labels)
