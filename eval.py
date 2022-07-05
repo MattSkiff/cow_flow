@@ -21,7 +21,7 @@ from utils import ft_dims_select, np_split,is_baseline, create_point_map,loader_
 import config as c
 import gvars as g
 import arguments as a
-from data_loader import CustToTensor, AerialNormalize, Resize
+from data_loader import CustToTensor, AerialNormalize, Resize,UnNormalize
 from data_loader import CustResize, prep_transformed_dataset, preprocess_batch
  
 from lcfcn import lcfcn_loss
@@ -106,7 +106,7 @@ def eval_dataloaders(mdl):
     
     return dataloader
 
-def gen_localisation_metrics(dlr,thres, y_coords,y_hat_coords):
+def gen_localisation_metrics(dlr,thres, y_coords,y_hat_coords,test_dms=None,ac_dms=None):
     # localisation metrics (using kernalised dmaps)
     
     prs = []; rcs = []
@@ -148,7 +148,8 @@ def gen_localisation_metrics(dlr,thres, y_coords,y_hat_coords):
                 fp = pred_dmap.shape[0]-tp # unmatched points (in excess of n gt -> FP)
                 fn = gt_dmap.shape[0]-tp
                 
-                # DEBUG VIZ
+                # # DEBUG VIZ
+                # z=1
                 # unnorm = UnNormalize(mean=tuple(c.norm_mean),
                 #           std=tuple(c.norm_std))
                 # import matplotlib.pyplot as plt
@@ -160,6 +161,8 @@ def gen_localisation_metrics(dlr,thres, y_coords,y_hat_coords):
                 # ax[1].imshow(test_dms[z])
                 # ax[2].imshow(ac_dms[z].cpu().numpy())
                 # z+=1
+                
+                # 1/0
     
             else:
                 tp = 0 # set tp to zero for null annotations
@@ -294,7 +297,7 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True):
     dm_mae = []; dm_mse = []; dm_psnr = []; dm_ssim = []
     game = []; gampe = []
     
-    #test_dms = []; ac_dms = []; # del
+    test_dms = []; ac_dms = []; # del
     
     mdl = mdl.to(c.device)
     
@@ -325,8 +328,8 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True):
             dmap_np = dmap_np/mdl.dmap_scaling
             pred_count = dmap_np.sum() 
             
-            # test_dms.append(dmap_np)
-            # ac_dms.append(dmaps[idx]) 
+            test_dms.append(dmap_np)
+            ac_dms.append(dmaps[idx]) 
             
             ground_truth_dmap = dmaps[idx].squeeze().cpu().detach().numpy()
                        
@@ -417,7 +420,7 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True):
             dm_psnr.append(peak_signal_noise_ratio(ground_truth_dmap,dmap_np))
             dm_ssim.append(structural_similarity(ground_truth_dmap,dmap_np))
     
-    localisation_dict,prs,rcs = gen_localisation_metrics(dlr=False,thres=thres,y_coords=y_coords,y_hat_coords=y_hat_coords)
+    localisation_dict,prs,rcs = gen_localisation_metrics(dlr=False,thres=thres,y_coords=y_coords,y_hat_coords=y_hat_coords,test_dms=None,ac_dms=None)
     write_localisation_data(mdl,prs,rcs,write=write)
     metric_dict = gen_metrics(dm_mae,dm_mse,dm_ssim,dm_psnr,y_n,y_hat_n,game,gampe,localisation_dict,prs,rcs,mode)
     
@@ -547,10 +550,12 @@ def eval_mnist(mdl, valloader, trainloader,samples = 1,confusion = False, preds 
 def dmap_metrics(mdl, loader,n=10,mode='',null_filter=(a.args.sampler == 'weighted'),write=True):
     '''DMAP,COUNT,LOCALIZATION metrics'''
     
-    if mdl.density_map_w == 600 and not a.args.rrc:
+    if mdl.density_map_h == 608 and not a.args.rrc:
         width = 608
+        height = 800
     else:
         width = 256
+        height = 800
     
     thres=mdl.sigma*2
     
@@ -568,6 +573,8 @@ def dmap_metrics(mdl, loader,n=10,mode='',null_filter=(a.args.sampler == 'weight
     y_hat_n = [];  y_hat_n_dists = []; y_hat_coords = []
     dm_mae = []; dm_mse = []; dm_psnr = []; dm_ssim = [] #;dm_kl = []
     game = []; gampe = []; correct = 0; total = 0
+    
+    test_dms = []; ac_dms = []; # del
     
     mdl = mdl.to(c.device)
     
@@ -631,6 +638,9 @@ def dmap_metrics(mdl, loader,n=10,mode='',null_filter=(a.args.sampler == 'weight
             pred_count = dmap_rev_np.sum() # sum across channel, spatial dims for counts
             dist_counts  = x_agg[idx].sum((1,2,3)) 
             
+            test_dms.append(dmap_rev_np)
+            ac_dms.append(dmaps[idx]) 
+            
             # We 'DONT' evaluate using the GT dmap
             ground_truth_dmap = dmaps[idx].squeeze().cpu().detach().numpy()
             
@@ -654,7 +664,7 @@ def dmap_metrics(mdl, loader,n=10,mode='',null_filter=(a.args.sampler == 'weight
                 gt_coords = annotations[idx]
                 
                 if gt_coords.nelement() != 0:
-                    gt_coords = torch.stack([gt_coords[:,2]*width,gt_coords[:,1]*mdl.density_map_h]).cpu().detach().numpy()
+                    gt_coords = torch.stack([gt_coords[:,2]*width,gt_coords[:,1]*height]).cpu().detach().numpy()
                 else:
                     gt_coords = None
                 
@@ -677,7 +687,31 @@ def dmap_metrics(mdl, loader,n=10,mode='',null_filter=(a.args.sampler == 'weight
             
             if gt_coords is not None:
                 y_coords.append(gt_coords)
-                
+             
+            # print('len gt coords')
+            # print(len(gt_coords))
+            # print('sum dmap')
+            # print(dmaps[idx].sum())
+            # print('pred count')
+            # print(pred_count)
+            # print('---')
+            
+            # print(gt_coords.shape)
+            # print(coordinates.shape)
+            
+            # print(mdl.density_map_h)
+            # print(mdl.density_map_w)
+            # print(width)
+            
+            # gt_coords = np.swapaxes(gt_coords,1,0)
+            # import matplotlib.pyplot as plt
+            # fig, ax = plt.subplots(1,3, figsize=(30, 10))
+            # ax[0].scatter(coordinates[:,0], coordinates[:,1],label='Predicted coordinates')
+            # ax[0].scatter(gt_coords[:,0], gt_coords[:,1],c='red',marker='1',label='Ground truth coordinates')
+            # ax[1].imshow(dmap_rev_np)
+            # ax[2].imshow(dmaps[idx].cpu().numpy()) 
+            # 1/0
+
             y_hat_n.append(pred_count)
             y_hat_n_dists.append(dist_counts)
             y_hat_coords.append(coordinates) 
@@ -705,7 +739,7 @@ def dmap_metrics(mdl, loader,n=10,mode='',null_filter=(a.args.sampler == 'weight
             game.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)))
             gampe.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)/np.maximum(np.ones(len(gt_dmap_split_counts)),gt_dmap_split_counts)))  
     
-    localisation_dict,prs,rcs = gen_localisation_metrics(dlr=mdl.dlr_acd,thres=thres,y_coords=y_coords,y_hat_coords=y_hat_coords)
+    localisation_dict,prs,rcs = gen_localisation_metrics(dlr=mdl.dlr_acd,thres=thres,y_coords=y_coords,y_hat_coords=y_hat_coords,test_dms=test_dms,ac_dms=ac_dms)
     write_localisation_data(mdl,prs,rcs,write=write)
     metric_dict = gen_metrics(dm_mae,dm_mse,dm_ssim,dm_psnr,y_n,y_hat_n,game,gampe,localisation_dict,prs,rcs,mode)
     

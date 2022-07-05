@@ -1258,7 +1258,7 @@ def train_val_split(dataset,train_percent,oversample=False,annotations_only = Fa
     
     return t_indices, t_weights, v_indices, v_weights
 
-def prep_transformed_dataset():
+def prep_transformed_dataset(is_eval=False):
     
     transforms = [CustToTensor()]
     
@@ -1275,7 +1275,7 @@ def prep_transformed_dataset():
         transforms.append(RandomCrop())
     
     #if a.args.rrc:
-    if not a.args.mode == 'eval' and not a.args.holdout:
+    if not a.args.mode == 'eval' and not a.args.holdout and not a.args.mode == 'eval':
         transforms.append(RotateFlip())
         
     transforms.append(DmapAddUniformNoise())
@@ -1290,7 +1290,7 @@ def prep_transformed_dataset():
     
     return transformed_dataset
 
-def make_loaders(transformed_dataset):
+def make_loaders(transformed_dataset,is_eval=False):
 
     t_indices, t_weights, v_indices, v_weights  = train_val_split(dataset = transformed_dataset,
                                                       train_percent = c.test_train_split,
@@ -1326,6 +1326,11 @@ def make_loaders(transformed_dataset):
     val_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 
                         num_workers=1,collate_fn=transformed_dataset.custom_collate_aerial,
                         pin_memory=False,sampler=val_sampler)
+    
+    if is_eval:
+        val_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 
+                            num_workers=1,collate_fn=transformed_dataset.custom_collate_aerial,
+                            pin_memory=False,sampler=None)
     
     return full_train_loader, full_val_loader, train_loader, val_loader
 
