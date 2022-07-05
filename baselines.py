@@ -615,7 +615,7 @@ class MCNN(nn.Module):
                                      nn.Conv2d(16, 32, 7, padding='same'),
                                      nn.MaxPool2d(2),
                                      nn.Conv2d(32, 16, 7, padding='same'),
-                                     nn.Conv2d(16,  8, 7, padding='same'))
+                                     nn.Conv2d(16,  8, 6, padding='same'))
         
         self.branch2 = nn.Sequential(nn.Conv2d( dims_in, 20, 7, padding='same'),
                                      nn.MaxPool2d(2),
@@ -626,9 +626,9 @@ class MCNN(nn.Module):
         
         self.branch3 = nn.Sequential(nn.Conv2d( dims_in, 24, 5, padding='same'),
                                      nn.MaxPool2d(2),
-                                     nn.Conv2d(24, 48, 3, padding='same'),
+                                     nn.Conv2d(24, 50, 3, padding='same'),
                                      nn.MaxPool2d(2),
-                                     nn.Conv2d(48, 24, 3, padding='same'),
+                                     nn.Conv2d(50, 24, 3, padding='same'),
                                      nn.Conv2d(24, 12, 3, padding='same'))
         
         self.fuse = nn.Sequential(nn.Conv2d( 30, dims_out, 1, padding='same'))
@@ -636,12 +636,23 @@ class MCNN(nn.Module):
         initialize_weights(self.modules())   
         
     def forward(self, im_data):
+        
         x1 = self.branch1(im_data)
         x2 = self.branch2(im_data)
         x3 = self.branch3(im_data)
+        
         x = torch.cat((x1,x2,x3),1)
         x = self.fuse(x)
-        x = F.upsample(x,scale_factor=4)
+        
+        # really crappy hack to make dimensionality match feature pyramid
+        # only applied to make MCNN work on 800x600 data
+        if x.size()[3] == 12:
+            x = F.upsample(x,size=(38,50))
+        elif x.size()[3] == 6:
+            x = F.upsample(x,size=(19,25))
+        else:
+            x = F.upsample(x,scale_factor=4)
+        
         return x
     
 def initialize_weights(models):
