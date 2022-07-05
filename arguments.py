@@ -22,7 +22,7 @@ parser.add_argument("-gn", "--gpu_number", help="Selects which GPU to train on."
 # Choose Dataset
 parser.add_argument('-d','--data',help='Run the architecture on the [dlr,cows,mnist] dataset.',default='cows')
 
-parser.add_argument('-sampler',help='type of sampler to use [anno,weighted]',default='')
+parser.add_argument('-sampler',help='type of sampler to use [anno,weighted,none]',default='')
 parser.add_argument('-normalise',help='normalise aerial imagery supplied to model with img net mean & std dev',action='store_true',default=True)
 parser.add_argument('-resize',help='resize image to the specified img size',action="store_true",default=False)
 parser.add_argument('-rrc',help='perform random resize cropping',action="store_true",default=False)
@@ -117,9 +117,9 @@ if any('SPYDER' in name for name in os.environ):
     args.fixed1x1conv = False
     args.split_dimensions = 0
     
-    args.subnet_type = 'conv_shallow'
+    args.subnet_type = 'MCNN'
     args.noise = 1e-3
-    args.filters = 64
+    args.filters = 0
     args.n_pyramid_blocks = 1
     args.skip_final_eval = False
 
@@ -135,7 +135,7 @@ if any('SPYDER' in name for name in os.environ):
     args.fe_b2 = 0.999
     args.fe_wd = 1e-8
     
-    args.bc_only=True
+    args.bc_only=False
     
 # checks
 assert args.mode in ['train','eval','store','plot']
@@ -149,11 +149,12 @@ if args.split_dimensions:
 
 if args.mode == 'eval':
     assert args.mdl_path != ''
+    assert args.sampler=='none'
 
 if args.holdout:
     assert args.data == 'cows'
 
-assert args.sampler in ['weighted','anno']
+assert args.sampler in ['weighted','anno','none']
 
 if args.rrc:
     #assert args.min_scaling > 0 and args.min_scaling < 1

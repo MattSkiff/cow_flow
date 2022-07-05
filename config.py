@@ -28,7 +28,7 @@ scale = 1 # 4, 2 = downscale dmaps four/two fold, 1 = unchanged
 
 ## Feature Extractor Options ------
 pretrained = False
-feat_extractor = "vgg16_bn" # alexnet, vgg16_bn,resnet18, none # TODO mnist_resnet, efficient net
+feat_extractor = "resnet18" # alexnet, vgg16_bn,resnet18, none # TODO mnist_resnet, efficient net
 feat_extractor_epochs = 100
 train_feat_extractor = False # whether to finetune or load finetuned model # redundent
 load_feat_extractor_str = '' # 'resnet18_FTE_100_02_05_2022_17_34_03_PT_True_BS_64_classification_head' - to train from scratch, loads FE  # 

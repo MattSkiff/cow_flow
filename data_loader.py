@@ -1115,7 +1115,7 @@ class RandomCrop(object):
 
 class CustResize(object):
     """Resize density, according to config scale parameter (not img_size arg)."""
-
+        
     def __call__(self, sample):
             
         if 'density' in sample.keys():
@@ -1134,6 +1134,7 @@ class CustResize(object):
             if not a.args.resize:
                 pd = 8
                 
+                # can't resize this, as this will throw off any processing based on counts from point map
                 if 'point_map' in sample.keys():
                     point_map = TF.pad(img=point_map,fill=0,padding=[0,0,0,pd],padding_mode='constant')
             

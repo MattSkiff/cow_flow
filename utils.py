@@ -522,7 +522,7 @@ def plot_preds_baselines(mdl, loader,mode="",mdl_type='',writer=None,writer_epoc
 @torch.no_grad()
 def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
                hist=False,sampling="randn",plot_n=None,writer=None,writer_epoch=None,
-               writer_mode=None,include_empty=True,sample_n=10,null_filter=False):
+               writer_mode=None,include_empty=True,sample_n=50,null_filter=False):
     
     assert type(loader) == torch.utils.data.dataloader.DataLoader
     

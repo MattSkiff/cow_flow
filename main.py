@@ -30,7 +30,7 @@ if a.args.data == 'cows':
     # torchivsion inputs are 3x227x227, mnist_resnet 1x227...
     # 0.1307, 0.3081 = mean, std dev mnist
 
-    transformed_dataset = prep_transformed_dataset()
+    transformed_dataset = prep_transformed_dataset(is_eval=a.args.mode=='eval')
     
     # check dataloader if running interactively
     if any('SPYDER' in name for name in os.environ) and not a.args.mode == 'store':
