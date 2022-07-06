@@ -635,6 +635,7 @@ def dmap_metrics(mdl, loader,n=10,mode='',null_filter=(a.args.sampler == 'weight
         for idx in range(images.size()[0]):               
                 
             dmap_rev_np = x[idx].squeeze().cpu().detach().numpy()
+            dmap_rev_np = dmap_rev_np/mdl.dmap_scaling
             pred_count = dmap_rev_np.sum() # sum across channel, spatial dims for counts
             dist_counts  = x_agg[idx].sum((1,2,3)) 
             
