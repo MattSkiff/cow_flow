@@ -106,7 +106,7 @@ def eval_dataloaders(mdl):
     
     return dataloader
 
-def gen_localisation_metrics(dlr,thres, y_coords,y_hat_coords,test_dms=None,ac_dms=None):
+def gen_localisation_metrics(dlr,thres, y_coords,y_hat_coords): 
     # localisation metrics (using kernalised dmaps)
     
     prs = []; rcs = []
@@ -297,8 +297,6 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True):
     dm_mae = []; dm_mse = []; dm_psnr = []; dm_ssim = []
     game = []; gampe = []
     
-    test_dms = []; ac_dms = []; # del
-    
     mdl = mdl.to(c.device)
     
     for i, data in enumerate(tqdm(loader, disable=False)):
@@ -312,7 +310,7 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True):
         
         x = mdl(images)
         
-        if str(type(mdl)) == "<class 'baselines.LCFCN'>": #or is_unet_seg:
+        if str(type(mdl)) == "<class 'baselines.LCFCN'>": # or is_unet_seg:
             x = x.sigmoid().cpu().numpy() # logits -> probs
             
             blobs = lcfcn_loss.get_blobs(probs=x)
@@ -320,11 +318,9 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True):
             blob_counts = (np.unique(blobs)!=0).sum()
             pred_points = lcfcn_loss.blobs2points(blobs).squeeze()
             
-            print(pred_points.sum())
-            
         for idx in range(images.size()[0]):               
             
-            if str(type(mdl)) == "<class 'baselines.LCFCN'>": #or is_unet_seg:
+            if str(type(mdl)) == "<class 'baselines.LCFCN'>": # or is_unet_seg:
                 dmap_np = x[idx].squeeze()
             else:
                 dmap_np = x[idx].squeeze().cpu().detach().numpy()
@@ -332,19 +328,19 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True):
             dmap_np = dmap_np/mdl.dmap_scaling
             pred_count = dmap_np.sum() 
             
-            test_dms.append(dmap_np)
-            ac_dms.append(dmaps[idx]) 
+            # test_dms.append(dmap_np) # del
+            # ac_dms.append(dmaps[idx]) # del
             
             ground_truth_dmap = dmaps[idx].squeeze().cpu().detach().numpy()
                        
             gt_coords = annotations[idx]
             
             if gt_coords.nelement() != 0:
-                gt_coords = torch.stack([gt_coords[:,2]*height,gt_coords[:,1]*width]).cpu().detach().numpy()
+                gt_coords = torch.stack([gt_coords[:,2]*width,gt_coords[:,1]*height]).cpu().detach().numpy()
             else:
                 gt_coords = None
             
-            ground_truth_point_map, _ = create_point_map(mdl=mdl,annotations=annotations[idx].cpu().detach().numpy()) 
+            #ground_truth_point_map, _ = create_point_map(mdl=mdl,annotations=annotations[idx].cpu().detach().numpy()) 
             ground_truth_point_map = point_maps[idx].squeeze().cpu().detach().numpy()
             
             gt_count = ground_truth_point_map.sum() #.round()
@@ -357,7 +353,7 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True):
             gt_count -= loader_noise
             n_peaks=max(1,int(pred_count))
             
-            if str(type(mdl)) == "<class 'baselines.LCFCN'>": #or is_unet_seg:
+            if str(type(mdl)) == "<class 'baselines.LCFCN'>": # or is_unet_seg:
                 coordinates = np.argwhere(pred_points != 0)
                 
             elif is_unet_seg:
@@ -377,16 +373,18 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True):
             
             #if gt_coords is not None:
             y_coords.append(gt_coords)
-            gt_coords = np.swapaxes(gt_coords,1,0)
-            import matplotlib.pyplot as plt
-            fig, ax = plt.subplots(1,3, figsize=(30, 10))
-            ax[0].scatter(coordinates[:,0], coordinates[:,1],label='Predicted coordinates')
-            ax[0].scatter(gt_coords[:,0], gt_coords[:,1],c='red',marker='1',label='Ground truth coordinates')
-            ax[0].set_xlim([0, width])
-            ax[0].set_xlim([0, height])
-            ax[1].imshow(dmap_np)
-            ax[2].imshow(dmaps[idx].cpu().numpy())
-            1/0
+            
+            # DEBUG
+            # gt_coords = np.swapaxes(gt_coords,1,0)
+            # import matplotlib.pyplot as plt
+            # fig, ax = plt.subplots(1,3, figsize=(30, 10))
+            # ax[0].scatter(coordinates[:,0], coordinates[:,1],label='Predicted coordinates')
+            # ax[0].scatter(gt_coords[:,0], gt_coords[:,1],c='red',marker='1',label='Ground truth coordinates')
+            # ax[0].set_xlim([0, width])
+            # ax[0].set_ylim([0, height])
+            # ax[1].imshow(dmap_np)
+            # ax[2].imshow(dmaps[idx].cpu().numpy())
+            # 1/0
             
             if str(type(mdl)) == "<class 'baselines.LCFCN'>" or is_unet_seg:
                 y_hat_n.append(blob_counts)
@@ -423,7 +421,7 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True):
             dm_psnr.append(peak_signal_noise_ratio(ground_truth_dmap,dmap_np))
             dm_ssim.append(structural_similarity(ground_truth_dmap,dmap_np))
     
-    localisation_dict,prs,rcs = gen_localisation_metrics(dlr=False,thres=thres,y_coords=y_coords,y_hat_coords=y_hat_coords,test_dms=test_dms,ac_dms=ac_dms)
+    localisation_dict,prs,rcs = gen_localisation_metrics(dlr=False,thres=thres,y_coords=y_coords,y_hat_coords=y_hat_coords)
     write_localisation_data(mdl,prs,rcs,write=write)
     metric_dict = gen_metrics(dm_mae,dm_mse,dm_ssim,dm_psnr,y_n,y_hat_n,game,gampe,localisation_dict,prs,rcs,mode)
     
@@ -574,10 +572,8 @@ def dmap_metrics(mdl, loader,n=10,mode='',null_filter=(a.args.sampler == 'weight
     
     y_n = []; y_coords = []
     y_hat_n = [];  y_hat_n_dists = []; y_hat_coords = []
-    dm_mae = []; dm_mse = []; dm_psnr = []; dm_ssim = [] #;dm_kl = []
+    dm_mae = []; dm_mse = []; dm_psnr = []; dm_ssim = [] 
     game = []; gampe = []; correct = 0; total = 0
-    
-    test_dms = []; ac_dms = []; # del
     
     mdl = mdl.to(c.device)
     
@@ -642,8 +638,8 @@ def dmap_metrics(mdl, loader,n=10,mode='',null_filter=(a.args.sampler == 'weight
             pred_count = dmap_rev_np.sum() # sum across channel, spatial dims for counts
             dist_counts  = x_agg[idx].sum((1,2,3)) 
             
-            test_dms.append(dmap_rev_np)
-            ac_dms.append(dmaps[idx]) 
+            # test_dms.append(dmap_rev_np)
+            # ac_dms.append(dmaps[idx]) 
             
             # We 'DONT' evaluate using the GT dmap
             ground_truth_dmap = dmaps[idx].squeeze().cpu().detach().numpy()
@@ -708,14 +704,14 @@ def dmap_metrics(mdl, loader,n=10,mode='',null_filter=(a.args.sampler == 'weight
             # print(mdl.density_map_w)
             # print(width)
             
-            # gt_coords = np.swapaxes(gt_coords,1,0)
-            # import matplotlib.pyplot as plt
-            # fig, ax = plt.subplots(1,3, figsize=(30, 10))
-            # ax[0].scatter(coordinates[:,0], coordinates[:,1],label='Predicted coordinates')
-            # ax[0].scatter(gt_coords[:,0], gt_coords[:,1],c='red',marker='1',label='Ground truth coordinates')
-            # ax[1].imshow(dmap_rev_np)
-            # ax[2].imshow(dmaps[idx].cpu().numpy()) 
-            # 1/0
+            gt_coords = np.swapaxes(gt_coords,1,0)
+            import matplotlib.pyplot as plt
+            fig, ax = plt.subplots(1,3, figsize=(30, 10))
+            ax[0].scatter(coordinates[:,0], coordinates[:,1],label='Predicted coordinates')
+            ax[0].scatter(gt_coords[:,0], gt_coords[:,1],c='red',marker='1',label='Ground truth coordinates')
+            ax[1].imshow(dmap_rev_np)
+            ax[2].imshow(dmaps[idx].cpu().numpy()) 
+            1/0
 
             y_hat_n.append(pred_count)
             y_hat_n_dists.append(dist_counts)
@@ -744,7 +740,7 @@ def dmap_metrics(mdl, loader,n=10,mode='',null_filter=(a.args.sampler == 'weight
             game.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)))
             gampe.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)/np.maximum(np.ones(len(gt_dmap_split_counts)),gt_dmap_split_counts)))  
     
-    localisation_dict,prs,rcs = gen_localisation_metrics(dlr=mdl.dlr_acd,thres=thres,y_coords=y_coords,y_hat_coords=y_hat_coords,test_dms=test_dms,ac_dms=ac_dms)
+    localisation_dict,prs,rcs = gen_localisation_metrics(dlr=mdl.dlr_acd,thres=thres,y_coords=y_coords,y_hat_coords=y_hat_coords)
     write_localisation_data(mdl,prs,rcs,write=write)
     metric_dict = gen_metrics(dm_mae,dm_mse,dm_ssim,dm_psnr,y_n,y_hat_n,game,gampe,localisation_dict,prs,rcs,mode)
     

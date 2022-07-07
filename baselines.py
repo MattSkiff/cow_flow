@@ -644,14 +644,16 @@ class MCNN(nn.Module):
         x = torch.cat((x1,x2,x3),1)
         x = self.fuse(x)
         
+        # TODO: ensure this only triggers when MCNN is used as a subnet
+        
         # really crappy hack to make dimensionality match feature pyramid
         # only applied to make MCNN work on 800x600 data
-        if x.size()[3] == 12:
-            x = F.upsample(x,size=(38,50))
-        elif x.size()[3] == 6:
-            x = F.upsample(x,size=(19,25))
-        else:
-            x = F.upsample(x,scale_factor=4)
+        # if x.size()[3] == 12:
+        #     x = F.upsample(x,size=(38,50))
+        # elif x.size()[3] == 6:
+        #     x = F.upsample(x,size=(19,25))
+        # else:
+        x = F.upsample(x,scale_factor=4)
         
         return x
     
