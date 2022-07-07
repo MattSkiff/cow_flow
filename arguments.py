@@ -106,7 +106,7 @@ if any('SPYDER' in name for name in os.environ):
     args.tensorboard = False
     args.viz = True
     args.viz_freq = 100
-    args.resize = False
+    args.resize = True
     args.rrc = False
     args.dmap_scaling = 1
     args.max_filter_size = 4
@@ -149,7 +149,7 @@ if args.split_dimensions:
 
 if args.mode == 'eval':
     assert args.mdl_path != ''
-    assert args.sampler=='none'
+    #assert args.sampler=='none'
 
 if args.holdout:
     assert args.data == 'cows'
