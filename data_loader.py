@@ -1276,8 +1276,8 @@ def prep_transformed_dataset(is_eval=False):
         transforms.append(RandomCrop())
     
     #if a.args.rrc:
-    if not a.args.mode == 'eval' and not a.args.holdout and not a.args.mode == 'eval':
-        transforms.append(RotateFlip())
+    # if not a.args.mode == 'eval' and not a.args.holdout and not a.args.mode == 'eval':
+    #     transforms.append(RotateFlip())
         
     transforms.append(DmapAddUniformNoise())
     
@@ -1328,7 +1328,7 @@ def make_loaders(transformed_dataset,is_eval=False):
                         num_workers=1,collate_fn=transformed_dataset.custom_collate_aerial,
                         pin_memory=False,sampler=val_sampler)
     
-    if is_eval:
+    if is_eval and a.args.sampler == 'none':
         val_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 
                             num_workers=1,collate_fn=transformed_dataset.custom_collate_aerial,
                             pin_memory=False,sampler=None)

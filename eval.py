@@ -548,7 +548,7 @@ def eval_mnist(mdl, valloader, trainloader,samples = 1,confusion = False, preds 
     return  out # train, val
 
 @torch.no_grad()
-def dmap_metrics(mdl, loader,n=10,mode='',null_filter=(a.args.sampler == 'weighted'),write=True):
+def dmap_metrics(mdl, loader,n=50,mode='',null_filter=(a.args.bin_classifier_path != ''),write=True):
     '''DMAP,COUNT,LOCALIZATION metrics'''
     
     if mdl.density_map_h == 608 and not a.args.rrc:
@@ -556,7 +556,7 @@ def dmap_metrics(mdl, loader,n=10,mode='',null_filter=(a.args.sampler == 'weight
         height = 800
     else:
         width = 256
-        height = 800
+        height = 256
     
     thres=mdl.sigma*2
     
@@ -677,7 +677,7 @@ def dmap_metrics(mdl, loader,n=10,mode='',null_filter=(a.args.sampler == 'weight
             dist_counts -= constant
             gt_count -= loader_noise
             
-            coordinates = peak_local_max(dmap_rev_np,min_distance=int(mdl.sigma//2),num_peaks=max(1,int(pred_count)))
+            coordinates = peak_local_max(dmap_rev_np,min_distance=1,num_peaks=max(1,int(pred_count))) # int(mdl.sigma//2)
             
             if mdl.dlr_acd:
                 #y.append()
@@ -709,6 +709,8 @@ def dmap_metrics(mdl, loader,n=10,mode='',null_filter=(a.args.sampler == 'weight
             # fig, ax = plt.subplots(1,3, figsize=(30, 10))
             # ax[0].scatter(coordinates[:,0], coordinates[:,1],label='Predicted coordinates')
             # ax[0].scatter(gt_coords[:,0], gt_coords[:,1],c='red',marker='1',label='Ground truth coordinates')
+            # ax[0].set_xlim([0, width])
+            # ax[0].set_ylim([0, height])
             # ax[1].imshow(dmap_rev_np)
             # ax[2].imshow(dmaps[idx].cpu().numpy()) 
             # 1/0
@@ -728,7 +730,7 @@ def dmap_metrics(mdl, loader,n=10,mode='',null_filter=(a.args.sampler == 'weight
             l = 1 # cell size param - number of cells to split images into: 0 = 1, 1 = 4, 2 = 16, etc
             
             # this splits the density maps into cells for counting per cell
-            if a.args.rrc:
+            if a.args.rrc or a.args.resize:
                 nr,nc = width//4**l,width//4**l
             else:
                 #nr,nc = width//4**l,mdl.density_map_h//4**l
