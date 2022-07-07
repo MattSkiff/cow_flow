@@ -704,14 +704,14 @@ def dmap_metrics(mdl, loader,n=10,mode='',null_filter=(a.args.sampler == 'weight
             # print(mdl.density_map_w)
             # print(width)
             
-            gt_coords = np.swapaxes(gt_coords,1,0)
-            import matplotlib.pyplot as plt
-            fig, ax = plt.subplots(1,3, figsize=(30, 10))
-            ax[0].scatter(coordinates[:,0], coordinates[:,1],label='Predicted coordinates')
-            ax[0].scatter(gt_coords[:,0], gt_coords[:,1],c='red',marker='1',label='Ground truth coordinates')
-            ax[1].imshow(dmap_rev_np)
-            ax[2].imshow(dmaps[idx].cpu().numpy()) 
-            1/0
+            # gt_coords = np.swapaxes(gt_coords,1,0)
+            # import matplotlib.pyplot as plt
+            # fig, ax = plt.subplots(1,3, figsize=(30, 10))
+            # ax[0].scatter(coordinates[:,0], coordinates[:,1],label='Predicted coordinates')
+            # ax[0].scatter(gt_coords[:,0], gt_coords[:,1],c='red',marker='1',label='Ground truth coordinates')
+            # ax[1].imshow(dmap_rev_np)
+            # ax[2].imshow(dmaps[idx].cpu().numpy()) 
+            # 1/0
 
             y_hat_n.append(pred_count)
             y_hat_n_dists.append(dist_counts)
