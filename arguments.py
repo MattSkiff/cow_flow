@@ -91,7 +91,7 @@ host = socket.gethostname()
 
 # defaults for if running interactively
 if any('SPYDER' in name for name in os.environ):
-    args.model_name = "UNet_seg"
+    args.model_name = "NF"
     args.data = 'cows'
     args.pyramid = True
     args.optim = "adamw"
@@ -109,18 +109,18 @@ if any('SPYDER' in name for name in os.environ):
     args.resize = False
     args.rrc = False
     args.dmap_scaling = 1
-    args.max_filter_size = 3
-    args.sigma = 3.0
+    args.max_filter_size = 4
+    args.sigma = 4.0
     args.mdl_path = '' #'final_9Z5_NF_quatern_BS64_LR_I0.0002_E10000_DIM256_OPTIMadam_FE_resnet18_NC5_anno_step_JO_PY_1_1x1_WD_0.001_10_05_2022_17_37_42'
     args.holdout = False
     args.all_in_one = False
     args.fixed1x1conv = False
     args.split_dimensions = 0
     
-    args.subnet_type = ''
-    args.noise = 0
-    args.filters = 0
-    args.n_pyramid_blocks = 0
+    args.subnet_type = 'conv'
+    args.noise = 1e-3
+    args.filters = 32
+    args.n_pyramid_blocks = 1
     args.skip_final_eval = False
 
     args.scheduler = 'none'
