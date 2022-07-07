@@ -156,11 +156,9 @@ def gen_localisation_metrics(dlr,thres, y_coords,y_hat_coords,test_dms=None,ac_d
                 # fig, ax = plt.subplots(1,3, figsize=(30, 10))
                 # ax[0].scatter(pred_dmap[:,0], pred_dmap[:,1],label='Predicted coordinates')
                 # ax[0].scatter(gt_dmap[:,0], gt_dmap[:,1],c='red',marker='1',label='Ground truth coordinates')
-                # ax[0].set_ylim(0,256)
-                # ax[0].set_xlim(0,256)
                 # ax[1].imshow(test_dms[z])
                 # ax[2].imshow(ac_dms[z].cpu().numpy())
-                # z+=1
+                # 1/0
                 
                 # 1/0
     
@@ -277,10 +275,12 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True):
     
     thres=4*2 #mdl.sigma*2
 
-    if mdl.density_map_w and not a.args.rrc == 600:
+    if mdl.density_map_h == 608 and not a.args.rrc:
         width = 608
+        height = 800
     else:
         width = 256
+        height = 256
     
     loader_check(mdl=mdl,loader=loader)
     
@@ -312,15 +312,19 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True):
         
         x = mdl(images)
         
-        if str(type(mdl)) == "<class 'baselines.LCFCN'>":# or is_unet_seg:
+        if str(type(mdl)) == "<class 'baselines.LCFCN'>": #or is_unet_seg:
             x = x.sigmoid().cpu().numpy() # logits -> probs
+            
             blobs = lcfcn_loss.get_blobs(probs=x)
+            
             blob_counts = (np.unique(blobs)!=0).sum()
             pred_points = lcfcn_loss.blobs2points(blobs).squeeze()
             
+            print(pred_points.sum())
+            
         for idx in range(images.size()[0]):               
             
-            if str(type(mdl)) == "<class 'baselines.LCFCN'>":# or is_unet_seg:
+            if str(type(mdl)) == "<class 'baselines.LCFCN'>": #or is_unet_seg:
                 dmap_np = x[idx].squeeze()
             else:
                 dmap_np = x[idx].squeeze().cpu().detach().numpy()
@@ -334,14 +338,16 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True):
             ground_truth_dmap = dmaps[idx].squeeze().cpu().detach().numpy()
                        
             gt_coords = annotations[idx]
+            
             if gt_coords.nelement() != 0:
-                gt_coords = torch.stack([gt_coords[:,2]*width,gt_coords[:,1]*mdl.density_map_h]).cpu().detach().numpy()
+                gt_coords = torch.stack([gt_coords[:,2]*height,gt_coords[:,1]*width]).cpu().detach().numpy()
             else:
                 gt_coords = None
             
-            #ground_truth_point_map, _ = create_point_map(mdl=mdl,annotations=annotations[idx].cpu().detach().numpy()) 
-            #ground_truth_point_map = point_maps[idx].squeeze().cpu().detach().numpy()
-            gt_count = ground_truth_dmap.sum() #.round()
+            ground_truth_point_map, _ = create_point_map(mdl=mdl,annotations=annotations[idx].cpu().detach().numpy()) 
+            ground_truth_point_map = point_maps[idx].squeeze().cpu().detach().numpy()
+            
+            gt_count = ground_truth_point_map.sum() #.round()
             
             # subtract constrant for uniform noise
             constant = ((mdl.noise)/2)*ground_truth_dmap.shape[0]*ground_truth_dmap.shape[1] 
@@ -351,16 +357,18 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True):
             gt_count -= loader_noise
             n_peaks=max(1,int(pred_count))
             
-            if str(type(mdl)) == "<class 'baselines.LCFCN'>":
+            if str(type(mdl)) == "<class 'baselines.LCFCN'>": #or is_unet_seg:
                 coordinates = np.argwhere(pred_points != 0)
-            elif is_unet_seg:
-                coordinates = peak_local_max(dmap_np.squeeze(),min_distance=int(mdl.sigma//2),
-                                             num_peaks=np.inf,threshold_abs=0,threshold_rel=0.5)
-
-                pred_count = len(coordinates)
                 
-            elif str(type(mdl))  in ["<class 'baselines.CSRNet'>"]:
-                coordinates = np.array([[0,0]])
+            elif is_unet_seg:
+                # threshold absolute = 0 only works if passed through sigmoid transform
+                # in which case may as well use relative arg
+                coordinates = peak_local_max(dmap_np,min_distance=int(mdl.sigma//2),threshold_rel=0.5)
+                pred_count = len(coordinates)
+            
+            # just ignore localisation metrics for low resolution output models
+            # elif str(type(mdl))  in ["<class 'baselines.CSRNet'>"]:
+            #     coordinates = np.array([[0,0]])
             else:
                 coordinates = peak_local_max(dmap_np,min_distance=int(mdl.sigma//2),num_peaks=n_peaks)
                 
@@ -369,23 +377,18 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True):
             
             #if gt_coords is not None:
             y_coords.append(gt_coords)
+            gt_coords = np.swapaxes(gt_coords,1,0)
+            import matplotlib.pyplot as plt
+            fig, ax = plt.subplots(1,3, figsize=(30, 10))
+            ax[0].scatter(coordinates[:,0], coordinates[:,1],label='Predicted coordinates')
+            ax[0].scatter(gt_coords[:,0], gt_coords[:,1],c='red',marker='1',label='Ground truth coordinates')
+            ax[0].set_xlim([0, width])
+            ax[0].set_xlim([0, height])
+            ax[1].imshow(dmap_np)
+            ax[2].imshow(dmaps[idx].cpu().numpy())
+            1/0
             
-            # print('len gt coords')
-            # print(len(gt_coords))
-            # print('sum dmap')
-            # print(dmaps[idx].sum())
-            # print('---')
-            
-            # import matplotlib.pyplot as plt
-            # fig, ax = plt.subplots(1,3, figsize=(30, 10))
-            # ax[0].scatter(coordinates[:,0], coordinates[:,1],label='Predicted coordinates')
-            # #ax[0].scatter(gt_dmap[:,0], gt_dmap[:,1],c='red',marker='1',label='Ground truth coordinates')
-            # ax[0].set_ylim(0,256)
-            # ax[0].set_xlim(0,256)
-            # ax[1].imshow(dmap_np)
-            # ax[2].imshow(dmaps[idx].cpu().numpy())
-            
-            if str(type(mdl)) == "<class 'baselines.LCFCN'>":# or is_unet_seg:
+            if str(type(mdl)) == "<class 'baselines.LCFCN'>" or is_unet_seg:
                 y_hat_n.append(blob_counts)
             else:
                 y_hat_n.append(pred_count)
@@ -397,7 +400,7 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True):
             
             # this splits the density maps into cells for counting per cell
             
-            if a.args.rrc:
+            if a.args.rrc or a.args.resize:
                 nr,nc = width//4**l,width//4**l
             else:
                 #nr,nc = width//4**l,mdl.density_map_h//4**l
@@ -420,7 +423,7 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True):
             dm_psnr.append(peak_signal_noise_ratio(ground_truth_dmap,dmap_np))
             dm_ssim.append(structural_similarity(ground_truth_dmap,dmap_np))
     
-    localisation_dict,prs,rcs = gen_localisation_metrics(dlr=False,thres=thres,y_coords=y_coords,y_hat_coords=y_hat_coords,test_dms=None,ac_dms=None)
+    localisation_dict,prs,rcs = gen_localisation_metrics(dlr=False,thres=thres,y_coords=y_coords,y_hat_coords=y_hat_coords,test_dms=test_dms,ac_dms=ac_dms)
     write_localisation_data(mdl,prs,rcs,write=write)
     metric_dict = gen_metrics(dm_mae,dm_mse,dm_ssim,dm_psnr,y_n,y_hat_n,game,gampe,localisation_dict,prs,rcs,mode)
     
@@ -660,8 +663,9 @@ def dmap_metrics(mdl, loader,n=10,mode='',null_filter=(a.args.sampler == 'weight
                 ground_truth_point_map = point_maps[idx].cpu().detach().numpy()
                 gt_count = ground_truth_point_map.sum() / 3
             else:
-                #ground_truth_point_map, _ = create_point_map(mdl=mdl,annotations=annotations[idx].cpu().detach().numpy()) 
-                gt_count = ground_truth_dmap.sum().round()
+                ground_truth_point_map, _ = create_point_map(mdl=mdl,annotations=annotations[idx].cpu().detach().numpy()) 
+                gt_count = ground_truth_point_map.sum()
+                #gt_count = ground_truth_dmap.sum().round()
                 gt_coords = annotations[idx]
                 
                 if gt_coords.nelement() != 0:
