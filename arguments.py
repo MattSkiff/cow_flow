@@ -93,7 +93,7 @@ host = socket.gethostname()
 
 # defaults for if running interactively
 if any('SPYDER' in name for name in os.environ):
-    args.model_name = "UNet"
+    args.model_name = "CSRNet"
     args.data = 'cows'
     args.optim = "adamw"
     args.scheduler = 'none'
@@ -107,9 +107,9 @@ if any('SPYDER' in name for name in os.environ):
     args.tensorboard = False
     args.viz = True
     args.viz_freq = 100
-    args.resize = False
+    args.resize = True
     args.rrc = False
-    args.dmap_scaling = 1000
+    args.dmap_scaling = 1
     args.max_filter_size = 4
     args.sigma = 4.0
     args.mdl_path = '' #'final_9Z5_NF_quatern_BS64_LR_I0.0002_E10000_DIM256_OPTIMadam_FE_resnet18_NC5_anno_step_JO_PY_1_1x1_WD_0.001_10_05_2022_17_37_42'

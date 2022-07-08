@@ -627,9 +627,9 @@ class MCNN(nn.Module):
         
         self.branch3 = nn.Sequential(nn.Conv2d( dims_in, 24, 5, padding='same'),
                                      nn.MaxPool2d(2),
-                                     nn.Conv2d(24, 50, 3, padding='same'),
+                                     nn.Conv2d(24, 48, 3, padding='same'),
                                      nn.MaxPool2d(2),
-                                     nn.Conv2d(50, 24, 3, padding='same'),
+                                     nn.Conv2d(48, 24, 3, padding='same'),
                                      nn.Conv2d(24, 12, 3, padding='same'))
         
         self.fuse = nn.Sequential(nn.Conv2d( 30, dims_out, 1, padding='same'))
