@@ -35,12 +35,12 @@ def train_baselines(model_name,train_loader,val_loader):
     writer = SummaryWriter(log_dir='runs/'+a.args.schema+'/'+modelname)   
     
     #if not a.args.model_name == 'UNet':
-    if a.args.model_name == 'CSRNet':
-        loss = torch.nn.MSELoss(size_average=False)
-    elif a.args.model_name == 'UNet_seg':
+    # if a.args.model_name == 'CSRNet':
+    #     loss = torch.nn.MSELoss(size_average=False)
+    if a.args.model_name == 'UNet_seg':
         loss = torch.nn.BCEWithLogitsLoss()
     else:
-        loss = torch.nn.MSELoss()
+        loss = torch.nn.MSELoss(size_average=False)
     
     if a.args.model_name == "FCRN":
         mdl = b.FCRN_A(modelname=modelname)

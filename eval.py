@@ -305,12 +305,11 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True):
         # if i == 30:
         #     break
         
-        images,dmaps,labels,binary_labels,annotations,point_maps = data
-        images = images.float().to(c.device)
+        images,dmaps,labels, binary_labels, annotations,point_maps = preprocess_batch(data)
         
         x = mdl(images)
         
-        if str(type(mdl)) == "<class 'baselines.LCFCN'>" or is_unet_seg:
+        if str(type(mdl)) == "<class 'baselines.LCFCN'>": # or is_unet_seg:
             x = x.sigmoid().cpu().numpy() # logits -> probs
             
             blobs = lcfcn_loss.get_blobs(probs=x)
@@ -320,7 +319,7 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True):
             
         for idx in range(images.size()[0]):               
             
-            if str(type(mdl)) == "<class 'baselines.LCFCN'>" or is_unet_seg:
+            if str(type(mdl)) == "<class 'baselines.LCFCN'>": # or is_unet_seg:
                 dmap_np = x[idx].squeeze()
             else:
                 dmap_np = x[idx].squeeze().cpu().detach().numpy()
@@ -353,7 +352,7 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True):
             gt_count -= loader_noise
             n_peaks=max(1,int(pred_count))
             
-            if str(type(mdl)) == "<class 'baselines.LCFCN'>" or is_unet_seg:
+            if str(type(mdl)) == "<class 'baselines.LCFCN'>": # or is_unet_seg:
                 coordinates = np.argwhere(pred_points != 0)
                 
             elif is_unet_seg:
@@ -558,7 +557,7 @@ def dmap_metrics(mdl, loader,n=50,mode='',null_filter=(a.args.bin_classifier_pat
         width = 256
         height = 256
     
-    thres=mdl.sigma*2
+    thres=4*2 #mdl.sigma*2
     
     loader_check(mdl=mdl,loader=loader)
     
@@ -677,7 +676,7 @@ def dmap_metrics(mdl, loader,n=50,mode='',null_filter=(a.args.bin_classifier_pat
             dist_counts -= constant
             gt_count -= loader_noise
             
-            coordinates = peak_local_max(dmap_rev_np,min_distance=int(mdl.sigma//2),num_peaks=max(1,int(pred_count))) # int(mdl.sigma//2)
+            coordinates = peak_local_max(dmap_rev_np,min_distance=int(mdl.sigma),num_peaks=max(1,int(pred_count))) # int(mdl.sigma//2)
             
             if mdl.dlr_acd:
                 #y.append()
