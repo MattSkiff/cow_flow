@@ -88,6 +88,7 @@ def train_baselines(model_name,train_loader,val_loader):
                 
                 optimizer.zero_grad()
                 images,dmaps,labels, binary_labels, annotations,point_maps = preprocess_batch(data)
+                
                 results = mdl(images)
                 
                 if a.args.model_name == 'LCFCN':

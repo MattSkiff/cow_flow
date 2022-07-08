@@ -1123,6 +1123,7 @@ class CustResize(object):
             
             if 'point_map' in sample.keys():
                 point_map = sample['point_map']
+                
             #sz = list(density.size())
             sz = [c.density_map_h,c.density_map_w]
             
@@ -1142,17 +1143,17 @@ class CustResize(object):
             # point_map = TF.resize(point_map,(sz[0]//c.scale,sz[1]//c.scale))
             # point_map = point_map.squeeze().squeeze()
             
-            if a.args.pyramid:
+            #if a.args.pyramid:
                 # adding padding so high level features match dmap dims after downsampling (37,38)
-                image = sample['image']
-                image = TF.resize(image,(sz[0]//c.scale,sz[1]//c.scale))
-                sample['image'] =  image
+            image = sample['image']
+            image = TF.resize(image,(sz[0]//c.scale,sz[1]//c.scale))
+            sample['image'] =  image
             
             sample['density'] = density
             
             if 'point_map' in sample.keys():
                 sample['point_map'] = point_map
-        
+                
         return sample
 
 # Need to create lists of test and train indices
@@ -1276,8 +1277,8 @@ def prep_transformed_dataset(is_eval=False):
         transforms.append(RandomCrop())
     
     #if a.args.rrc:
-    # if not a.args.mode == 'eval' and not a.args.holdout and not a.args.mode == 'eval':
-    #     transforms.append(RotateFlip())
+    if not a.args.mode == 'eval' and not a.args.holdout:
+         transforms.append(RotateFlip())
         
     transforms.append(DmapAddUniformNoise())
     

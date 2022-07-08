@@ -39,6 +39,9 @@ path = '/home/mks29/clones/cow_flow/models/'
 # utils.predict_image(mdl_path,mdl_type='LCFCN',geo=False,image_path='/home/mks29/Desktop/BB34_5000_1006.jpg')
 
 # done - NF
-mdl_path = path + 'best_3KA_31x1_NF_hydra_BS64_LR_I0.0002_E10000_OPTIMadam_FE_resnet18_NC5_anno_step_JO_PT_PY_1_1x1_03_05_2022_14_18_36'
-utils.predict_image(mdl_path,mdl_type='NF',nf=True,geo=False,image_path='/home/mks29/Desktop/BB34_5000_1006.jpg')
+# mdl_path = path + 'best_3KA_31x1_NF_hydra_BS64_LR_I0.0002_E10000_OPTIMadam_FE_resnet18_NC5_anno_step_JO_PT_PY_1_1x1_03_05_2022_14_18_36'
+# utils.predict_image(mdl_path,mdl_type='NF',nf=True,geo=False,image_path='/home/mks29/Desktop/BB34_5000_1006.jpg')
+
+
+
 

@@ -677,7 +677,7 @@ def dmap_metrics(mdl, loader,n=50,mode='',null_filter=(a.args.bin_classifier_pat
             dist_counts -= constant
             gt_count -= loader_noise
             
-            coordinates = peak_local_max(dmap_rev_np,min_distance=int(mdl.sigma//2),num_peaks=pred_count) # int(mdl.sigma//2)
+            coordinates = peak_local_max(dmap_rev_np,min_distance=int(mdl.sigma//2),num_peaks=max(1,int(pred_count))) # int(mdl.sigma//2)
             
             if mdl.dlr_acd:
                 #y.append()

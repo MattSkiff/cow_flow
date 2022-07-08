@@ -93,9 +93,8 @@ host = socket.gethostname()
 
 # defaults for if running interactively
 if any('SPYDER' in name for name in os.environ):
-    args.model_name = "Res50"
+    args.model_name = "UNet"
     args.data = 'cows'
-    args.pyramid = True
     args.optim = "adamw"
     args.scheduler = 'none'
     args.sampler = 'anno'
@@ -124,7 +123,8 @@ if any('SPYDER' in name for name in os.environ):
     args.filters = 0
     args.n_pyramid_blocks = 0
     args.skip_final_eval = False
-    args.feat_extractor == 'resnet18'
+    args.feat_extractor = ''
+    args.pyramid = False
 
     args.scheduler = 'none'
     args.expon_gamma = 0.99
@@ -194,8 +194,6 @@ if args.model_name == 'NF' and args.mode == 'train':
     assert args.n_pyramid_blocks != 0
     assert args.subnet_type != ''
     
-
-if args.model_name == 'NF':
     if args.pyramid:
         assert args.feat_extractor in ['resnet18','vgg16_bn']
     else:
