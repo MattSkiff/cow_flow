@@ -61,9 +61,10 @@ parser.add_argument("-expon_gamma",help="gamma of expon scheduler",type=float,de
 parser.add_argument('-wd','--weight_decay',type=float,default=None) # differnet: 1e-5
 
 # NF only options
+parser.add_argument('-feat_extractor',help="type of feature extractor backbone to use in flow [resnet18, vgg16_bn]",default ='')
 parser.add_argument("-train_classification_head",action='store_true',default=False) # whether to train classification model for filtering null patches
 parser.add_argument("-all_in_one",action='store_true',default=False) # whether to use all in blocks (inc act norm)
-parser.add_argument("-pyramid",action='store_true',default=True) # whether to a feature pyramid for conditioning - only implemented for resnet18
+parser.add_argument("-pyramid",action='store_true',default=False) # whether to a feature pyramid for conditioning - only implemented for resnet18
 parser.add_argument("-fixed1x1conv",action='store_true',default=False) # whether to use 1x1 convs
 parser.add_argument("-freq_1x1",type=int,default=1) # 1 for always | how many x coupling blocks to have a 1x1 conv permutation layer
 parser.add_argument("-npb","--n_pyramid_blocks",type=int,default=0)
@@ -71,6 +72,7 @@ parser.add_argument('-nse',"--noise",help='amount of uniform noise (sample evenl
 parser.add_argument('-f','--filters',help='width of conv subnetworks',type=int,default=0)
 parser.add_argument("-split", "--split_dimensions", help="split off half the dimensions after each block of coupling layers.", type=int, default=0)
 parser.add_argument("-subnet_type",help="type of subnet to use in flow [fc,conv,MCNN,UNet,conv_shallow]",default ='')
+parser.add_argument("-batch_norm",help="Add batchnorm to subnets",action="store_true",default=False)
 
 parser.add_argument("-fe_load_imagenet_weights",help="load pt weights into FE",action='store_true',default=False)
 parser.add_argument('-fe_b1',help='fe_adam beta1',type=float,default=0.9)
@@ -91,7 +93,7 @@ host = socket.gethostname()
 
 # defaults for if running interactively
 if any('SPYDER' in name for name in os.environ):
-    args.model_name = "NF"
+    args.model_name = "Res50"
     args.data = 'cows'
     args.pyramid = True
     args.optim = "adamw"
@@ -106,9 +108,9 @@ if any('SPYDER' in name for name in os.environ):
     args.tensorboard = False
     args.viz = True
     args.viz_freq = 100
-    args.resize = True
+    args.resize = False
     args.rrc = False
-    args.dmap_scaling = 1
+    args.dmap_scaling = 1000
     args.max_filter_size = 4
     args.sigma = 4.0
     args.mdl_path = '' #'final_9Z5_NF_quatern_BS64_LR_I0.0002_E10000_DIM256_OPTIMadam_FE_resnet18_NC5_anno_step_JO_PY_1_1x1_WD_0.001_10_05_2022_17_37_42'
@@ -117,11 +119,12 @@ if any('SPYDER' in name for name in os.environ):
     args.fixed1x1conv = False
     args.split_dimensions = 0
     
-    args.subnet_type = 'conv'
-    args.noise = 1e-3
-    args.filters = 32
-    args.n_pyramid_blocks = 1
+    args.subnet_type = ''
+    args.noise = 0
+    args.filters = 0
+    args.n_pyramid_blocks = 0
     args.skip_final_eval = False
+    args.feat_extractor == 'resnet18'
 
     args.scheduler = 'none'
     args.expon_gamma = 0.99
@@ -190,6 +193,15 @@ if args.model_name == 'NF' and args.mode == 'train':
     assert args.noise != 0
     assert args.n_pyramid_blocks != 0
     assert args.subnet_type != ''
+    
+
+if args.model_name == 'NF':
+    if args.pyramid:
+        assert args.feat_extractor in ['resnet18','vgg16_bn']
+    else:
+        assert args.feat_extractor in ['alexnet', 'vgg16_bn','resnet18', 'none']
+else:
+    assert args.feat_extractor == ''
     
 if args.subnet_type in ['conv','conv_shallow']:
     assert args.filters != 0 # this argument only applies to regular conv subnets

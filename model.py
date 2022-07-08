@@ -181,19 +181,19 @@ def select_feat_extractor(feat_extractor,train_loader=None,valid_loader=None):
         feat_extractor = u.load_model(filename=c.load_feat_extractor_str,loc=g.FEAT_MOD_DIR)
     
     if not a.args.pyramid:
-        if c.feat_extractor == "alexnet":
+        if a.args.feat_extractor == "alexnet":
             feat_extractor = alexnet(pretrained=c.pretrained,progress=False).to(c.device)
-        elif c.feat_extractor == "resnet18":
+        elif a.args.feat_extractor == "resnet18":
              # last but one layer of resnet -> features
              feat_extractor = resnet18(pretrained=c.pretrained,progress=False)
-        elif c.feat_extractor == "vgg16_bn":
+        elif a.args.feat_extractor == "vgg16_bn":
             feat_extractor = vgg16_bn(pretrained=c.pretrained,progress=False).to(c.device)
-        elif c.feat_extractor == "mnist_resnet":
+        elif a.args.feat_extractor == "mnist_resnet":
             feat_extractor = MnistResNet()
-        elif c.feat_extractor == "none":
+        elif a.args.feat_extractor == "none":
             feat_extractor = NothingNet()
     else:
-        if c.feat_extractor == 'vgg16_bn':
+        if a.args.feat_extractor == 'vgg16_bn':
             feat_extractor = VGGPyramid()
         else:
             feat_extractor = ResNetPyramid()
@@ -202,10 +202,10 @@ def select_feat_extractor(feat_extractor,train_loader=None,valid_loader=None):
     
     if c.train_feat_extractor:
     # pretrain feature extractor with classification problem
-        if c.feat_extractor == "resnet18":
+        if a.args.feat_extractor == "resnet18":
             num_ftrs = feat_extractor.fc.in_features
             feat_extractor.fc = nn.Linear(num_ftrs, 2)  
-        elif c.feat_extractor == "vgg16_bn":
+        elif a.args.feat_extractor == "vgg16_bn":
             # find less horific model surgery
             num_ftrs = feat_extractor.classifier._modules['6'].in_features
             feat_extractor.classifier._modules['6'] = nn.Linear(num_ftrs, 2)
@@ -356,7 +356,7 @@ def nf_pyramid(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_fea
     assert a.args.subnet_type in g.SUBNETS
     assert not c.gap and not c.counts and not a.args.data == 'mnist'
     
-    if c.feat_extractor == 'resnet18':
+    if a.args.feat_extractor == 'resnet18':
         mdl = ResNetPyramid()
     else:
         mdl = VGGPyramid()
@@ -533,10 +533,10 @@ def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,m
     # haar downsampling to resolves input data only having a single channel (from unsqueezed singleton dimension)
     # affine coupling performs channel wise split
     # https://github.com/VLL-HD/FrEIA/issues/8
-    if (a.args.data == 'mnist' or (c.counts and not c.gap) or c.feat_extractor == 'none' or not c.downsampling) and a.args.subnet_type in g.SUBNETS:
+    if (a.args.data == 'mnist' or (c.counts and not c.gap) or a.args.feat_extractor == 'none' or not c.downsampling) and a.args.subnet_type in g.SUBNETS:
         nodes.append(Ff.Node(nodes[-1], Fm.HaarDownsampling, {}, name = 'Downsampling'))
         
-    elif not c.counts and c.feat_extractor != 'none' and c.downsampling:
+    elif not c.counts and a.args.feat_extractor != 'none' and c.downsampling:
             
         # downsamples density maps (not needed for counts)
         for i in range(c.levels):
@@ -582,7 +582,7 @@ class CowFlow(nn.Module):
     def __init__(self,modelname,feat_extractor):
         super(CowFlow,self).__init__()
         
-        if c.feat_extractor == 'resnet18' and not a.args.pyramid:
+        if a.args.feat_extractor == 'resnet18' and not a.args.pyramid:
             modules = list(feat_extractor.children())[:-2]
             self.feat_extractor = nn.Sequential(*modules)
         else:
@@ -593,12 +593,12 @@ class CowFlow(nn.Module):
                 self.nf = nf_pyramid_split() 
             else:
                 self.nf = nf_pyramid()   
-        elif c.feat_extractor == 'none':
+        elif a.args.feat_extractor == 'none':
             self.nf = nf_no_fe()
         else:
             self.nf = nf_head()  
         
-        if c.feat_extractor == 'resnet18':
+        if a.args.feat_extractor == 'resnet18':
             self.classification_head = resnet18(pretrained=c.pretrained,progress=False) #ResNetPyramidClassificationHead()
         else:
             self.classification_head = vgg16_bn(pretrained=c.pretrained,progress=False)
@@ -632,6 +632,7 @@ class CowFlow(nn.Module):
         self.seed = c.seed
         self.optim = a.args.optim
         self.dmap_scaling = a.args.dmap_scaling
+        self.batch_norm = a.args.batch_norm
 
     def forward(self,images,labels,rev=False): # label = dmaps or counts
         
@@ -680,7 +681,7 @@ class CowFlow(nn.Module):
         
         # adding spatial dimensions....
         # remove dimension of size one for concatenation in NF coupling layer squeeze()
-        if c.feat_extractor != "none" and a.args.subnet_type =='conv':
+        if a.args.feat_extractor != "none" and a.args.subnet_type =='conv':
         
             if self.gap:
                 feats = feats.unsqueeze(2).unsqueeze(3).expand(-1, -1, (c.density_map_h) // 2,(c.density_map_w) // 2)
@@ -718,7 +719,7 @@ class MNISTFlow(nn.Module):
     def __init__(self,modelname,feat_extractor):
         super(MNISTFlow,self).__init__()
         
-        if c.feat_extractor == 'resnet18':
+        if a.args.feat_extractor == 'resnet18':
             modules = list(feat_extractor.children())[:-2]
             self.feat_extractor = nn.Sequential(*modules)
         else:
@@ -740,7 +741,7 @@ class MNISTFlow(nn.Module):
         
         feat_cat = list()
         
-        if c.feat_extractor != "none":
+        if a.args.feat_extractor != "none":
             images = images.expand(-1,3,-1,-1) 
         
         if c.debug:
@@ -765,7 +766,7 @@ class MNISTFlow(nn.Module):
         # resnet
         #torch.Size([4, 512, 19, 25])
         
-        if c.feat_extractor != "none":
+        if a.args.feat_extractor != "none":
             
             if c.gap:
                 feat_cat.append(torch.mean(feat_s,dim = (2,3))) 
@@ -782,7 +783,7 @@ class MNISTFlow(nn.Module):
             print(feats.size(),"\n")
         
         if not rev:
-            if c.feat_extractor != "none" and a.args.subnet_type in g.SUBNETS:
+            if a.args.feat_extractor != "none" and a.args.subnet_type in g.SUBNETS:
                 if c.gap:
                     feats = feats.unsqueeze(2).unsqueeze(3).expand(-1, -1, c.density_map_h // 2,c.density_map_w // 2)
         
@@ -794,7 +795,7 @@ class MNISTFlow(nn.Module):
             print('labels size...')
             print(labels.size())   
         
-        if not c.gap and c.feat_extractor == 'none' and not c.one_hot:
+        if not c.gap and a.args.feat_extractor == 'none' and not c.one_hot:
             labels = labels.unsqueeze(2).unsqueeze(3).expand(-1, -1, c.density_map_h * 2,c.density_map_h * 2)
         
         if not rev:
