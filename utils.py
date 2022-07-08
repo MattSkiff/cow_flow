@@ -100,7 +100,7 @@ def is_baseline(mdl):
 def ft_dims_select(mdl=None):
     
     if mdl == None:
-        fe = c.feat_extractor
+        fe = a.args.feat_extractor
     else:
         fe = mdl.feat_extractor.__class__.__name__
     
@@ -1392,7 +1392,7 @@ def make_model_name(train_loader):
              "OPTIM"+str(a.args.optim)]
      
      if a.args.model_name not in g.BASELINE_MODEL_NAMES:
-         parts.append("FE_"+str(c.feat_extractor))    
+         parts.append("FE_"+str(a.args.feat_extractor))    
      
      if a.args.dmap_scaling != 1:
          parts.append('SC{}'.format(a.args.dmap_scaling))
@@ -1400,6 +1400,9 @@ def make_model_name(train_loader):
      if a.args.model_name == 'NF':
          parts.append('NC'+str(c.n_coupling_blocks))
          parts.append(a.args.subnet_type)
+         
+         if a.args.batch_norm:
+             parts.append('BN')
     
      if a.args.all_in_one:
          parts.append('IN1')
@@ -1479,7 +1482,7 @@ def make_hparam_dict(val_loader):
                         'annotations only?':a.args.sampler == 'anno',
                         'pretrained?':c.pretrained,
                         'feature pyramid?':a.args.pyramid,
-                        'feature extractor?':c.feat_extractor,
+                        'feature extractor?':a.args.feat_extractor,
                         '1x1convs?':a.args.fixed1x1conv,
                         'conv filters':a.args.filters,
                         'mcnn':a.args.subnet_type == 'MCNN',

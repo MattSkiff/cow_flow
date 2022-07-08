@@ -211,7 +211,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
             else:
                 writer = writer
             
-            feat_extractor = model.select_feat_extractor(c.feat_extractor,train_loader,val_loader)
+            feat_extractor = model.select_feat_extractor(a.args.feat_extractor,train_loader,val_loader)
             
             if a.args.data == 'mnist':
                 mdl = model.MNISTFlow(modelname=modelname,feat_extractor = feat_extractor)    
@@ -220,7 +220,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
             
             c_head_trained = False    
             
-            if c.joint_optim and c.feat_extractor != 'none':
+            if c.joint_optim and a.args.feat_extractor != 'none':
                 # TODO
                 if a.args.optim == 'adam':   
                     optimizer = torch.optim.Adam([
@@ -572,16 +572,16 @@ def train_classification_head(mdl,full_trainloader,full_valloader,criterion = nn
     else:
         mdl = types.SimpleNamespace()
         
-        if c.feat_extractor == 'resnet18':
+        if a.args.feat_extractor == 'resnet18':
             mdl.classification_head = resnet18(pretrained=c.pretrained,progress=False)
-        elif c.feat_extractor == 'vgg16_bn':
+        elif a.args.feat_extractor == 'vgg16_bn':
             mdl.classification_head = vgg16_bn(pretrained=c.pretrained,progress=False)
             
         mdl.classification_head.to(c.device)
     
     now = datetime.now() 
     filename = "_".join([
-                c.feat_extractor,
+                a.args.feat_extractor,
                 'FTE',str(c.feat_extractor_epochs),
                 str(now.strftime("%d_%m_%Y_%H_%M_%S")),
                 "PT",str(c.pretrained),
@@ -689,7 +689,7 @@ def train_feat_extractor(feat_extractor,trainloader,valloader,criterion = nn.Cro
     
     now = datetime.now() 
     filename = "_".join([
-                c.feat_extractor,
+                a.args.feat_extractor,
                 'FTE',str(c.feat_extractor_epochs),
                 str(now.strftime("%d_%m_%Y_%H_%M_%S")),
                 "PT",str(c.pretrained),

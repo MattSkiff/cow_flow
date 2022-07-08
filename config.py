@@ -28,7 +28,6 @@ scale = 1 # 4, 2 = downscale dmaps four/two fold, 1 = unchanged
 
 ## Feature Extractor Options ------
 pretrained = False
-feat_extractor = "resnet18" # alexnet, vgg16_bn,resnet18, none # TODO mnist_resnet, efficient net
 feat_extractor_epochs = 100
 train_feat_extractor = False # whether to finetune or load finetuned model # redundent
 load_feat_extractor_str = '' # 'resnet18_FTE_100_02_05_2022_17_34_03_PT_True_BS_64_classification_head' - to train from scratch, loads FE  # 
@@ -80,13 +79,16 @@ levels = 5
 #     levels = 3
 
 # "condition dim"
-if feat_extractor == "alexnet":
+if a.args.feat_extractor == '':
+    n_feat = -99
+
+if a.args.feat_extractor == "alexnet":
     n_feat = 256 
-elif feat_extractor == "vgg16_bn":
+elif a.args.feat_extractor == "vgg16_bn":
     n_feat = 512 
-elif feat_extractor == "resnet18":
+elif a.args.feat_extractor == "resnet18":
     n_feat = 512
-elif feat_extractor == "none":
+elif a.args.feat_extractor == "none":
     if a.args.data == 'mnist':
         n_feat = 1 
     else:
@@ -100,7 +102,7 @@ else:
 
 if one_hot:
     channels = 10 # onehot 1 num -> 0,0,0,1 etc
-elif a.args.data == 'mnist' or feat_extractor != "none":
+elif a.args.data == 'mnist' or a.args.feat_extractor != "none":
     channels = 1 # greyscale mnist, density maps
 elif counts:
     channels = 1 # duplication not needed (linear subnets)
@@ -113,7 +115,7 @@ if debug:
 
 if a.args.data == 'dlr':
     img_size = (a.args.image_size,a.args.image_size)
-elif a.args.data == 'mnist' and feat_extractor == "none":
+elif a.args.data == 'mnist' and a.args.feat_extractor == "none":
     img_size = (28,28)
 elif a.args.data == 'mnist':
     img_size = (228,228) # (28,28)
@@ -147,14 +149,14 @@ elif not a.args.data == 'mnist':
     # size of count expanded to map spatial feature dimensions
     density_map_h = 19 * 2 # need at least 2 channels, expand x2, then downsample (haar)
     density_map_w = 25 * 2 # TODO - rework so this ties to ft_dims (vgg,alexnet, resnet, etc)
-elif a.args.data == 'mnist' and feat_extractor != "none":
+elif a.args.data == 'mnist' and a.args.feat_extractor != "none":
     if gap:
         density_map_h = img_size[1] * 2
         density_map_w = img_size[0] * 2
     else:
         density_map_h = 6 * 2
         density_map_w = 6 * 2 # feature size x2 (account for downsampling)
-elif a.args.data == 'mnist' and feat_extractor == "none":
+elif a.args.data == 'mnist' and a.args.feat_extractor == "none":
     # minimum possible dimensionality of flow possible with coupling layers
     density_map_h = 4
     density_map_w = 4
@@ -173,11 +175,9 @@ if not a.args.resize:
 
 # TODO
 # assert not (pyramid and fixed1x1conv)
-assert not (feat_extractor == 'none' and gap == True)
+assert not (a.args.feat_extractor == 'none' and gap == True)
 #assert gap != downsampling
 assert n_splits >= 0 and n_splits < 6
-
-assert feat_extractor in ['none' ,'alexnet','vgg16_bn','resnet18']
 
 if a.args.subnet_type == 'fc' and a.args.model_name == 'NF':
     assert gap
@@ -195,7 +195,7 @@ if counts and a.args.model_name == 'NF':
 
 if a.args.pyramid:
     assert n_coupling_blocks == 5 # for recording purposes
-    assert feat_extractor in ['resnet18','vgg16_bn']
+    assert a.args.feat_extractor in ['resnet18','vgg16_bn']
     assert downsampling # pyramid nf head has  downsmapling
     assert not train_feat_extractor # TODO
     # TODO - get pyramid working with other scales!

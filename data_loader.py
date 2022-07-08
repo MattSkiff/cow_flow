@@ -1083,11 +1083,11 @@ class RandomCrop(object):
             
 #             pd = 0
             
-#             if c.feat_extractor == 'resnet18' and c.downsampling:
+#             if a.args.feat_extractor == 'resnet18' and c.downsampling:
 #                 pd = 8
-#             elif c.feat_extractor == 'alexnet' and c.downsampling:
+#             elif a.args.feat_extractor == 'alexnet' and c.downsampling:
 #                 density = density[:544,:768]
-# #            elif c.feat_extractor == 'vgg16_bn':
+# #            elif a.args.feat_extractor == 'vgg16_bn':
 # #                density = density[:544,:768]
             
 #             # (padding_left,padding_right, padding, padding, padding_top,padding_bottom)
