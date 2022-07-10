@@ -331,6 +331,7 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True):
             # ac_dms.append(dmaps[idx]) # del
             
             ground_truth_dmap = dmaps[idx].squeeze().cpu().detach().numpy()
+            ground_truth_dmap = ground_truth_dmap/mdl.dmap_scaling
                        
             gt_coords = annotations[idx]
             
@@ -642,6 +643,7 @@ def dmap_metrics(mdl, loader,n=50,mode='',null_filter=(a.args.bin_classifier_pat
             
             # We 'DONT' evaluate using the GT dmap
             ground_truth_dmap = dmaps[idx].squeeze().cpu().detach().numpy()
+            ground_truth_dmap = ground_truth_dmap/mdl.dmap_scaling
             
             # if pred_count > 0:
             #     thres = int(pred_count)
@@ -676,7 +678,7 @@ def dmap_metrics(mdl, loader,n=50,mode='',null_filter=(a.args.bin_classifier_pat
             dist_counts -= constant
             gt_count -= loader_noise
             
-            coordinates = peak_local_max(dmap_rev_np,min_distance=int(mdl.sigma),num_peaks=max(1,int(pred_count))) # int(mdl.sigma//2)
+            coordinates = peak_local_max(dmap_rev_np,min_distance=1,num_peaks=max(1,int(pred_count))) # int(mdl.sigma//2)
             
             if mdl.dlr_acd:
                 #y.append()
@@ -703,11 +705,13 @@ def dmap_metrics(mdl, loader,n=50,mode='',null_filter=(a.args.bin_classifier_pat
             # print(mdl.density_map_w)
             # print(width)
             
-            # gt_coords = np.swapaxes(gt_coords,1,0)
+            # if gt_coords is not None:
+            #     gt_coords = np.swapaxes(gt_coords,1,0)
             # import matplotlib.pyplot as plt
             # fig, ax = plt.subplots(1,3, figsize=(30, 10))
             # ax[0].scatter(coordinates[:,0], coordinates[:,1],label='Predicted coordinates')
-            # ax[0].scatter(gt_coords[:,0], gt_coords[:,1],c='red',marker='1',label='Ground truth coordinates')
+            # if gt_coords is not None:
+            #     ax[0].scatter(gt_coords[:,0], gt_coords[:,1],c='red',marker='1',label='Ground truth coordinates')
             # ax[0].set_xlim([0, width])
             # ax[0].set_ylim([0, height])
             # ax[1].imshow(dmap_rev_np)

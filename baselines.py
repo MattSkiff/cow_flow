@@ -224,7 +224,7 @@ class UNet(nn.Module):
         x3 = self.down2(x2)
         x4 = self.down3(x3)
         
-        if self.subnet:
+        if hasattr(self,'subnet') and self.subnet:
             x7 = self.up2(x4,x3) 
         else:
             x5 = self.down4(x4)
