@@ -1172,7 +1172,7 @@ def train_val_split(dataset,train_percent,oversample=False,annotations_only = Fa
         
     Notes:
         class balance (in terms of proportion of annotations in val & train) is preserved
-        iterates over entire dataset (inc. images, so quite slow)
+        iterates over entire dataset 
      
      '''
     
@@ -1307,7 +1307,7 @@ def make_loaders(transformed_dataset,is_eval=False):
                                                       oversample=False)
     
     train_sampler = SubsetRandomSampler(t_indices,generator=torch.Generator().manual_seed(c.seed))
-    val_sampler = SubsetRandomSampler(v_indices,generator=torch.Generator().manual_seed(c.seed))
+    val_sampler = SubsetRandomSampler(v_indices[:9],generator=torch.Generator().manual_seed(c.seed))
   
     full_train_sampler = SubsetRandomSampler(f_t_indices,generator=torch.Generator().manual_seed(c.seed))
     full_val_sampler = SubsetRandomSampler(f_v_indices,generator=torch.Generator().manual_seed(c.seed)) 
@@ -1328,11 +1328,6 @@ def make_loaders(transformed_dataset,is_eval=False):
     val_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 
                         num_workers=1,collate_fn=transformed_dataset.custom_collate_aerial,
                         pin_memory=False,sampler=val_sampler)
-    
-    if is_eval and a.args.sampler == 'none':
-        val_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 
-                            num_workers=1,collate_fn=transformed_dataset.custom_collate_aerial,
-                            pin_memory=False,sampler=None)
     
     return full_train_loader, full_val_loader, train_loader, val_loader
 
