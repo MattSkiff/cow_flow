@@ -165,15 +165,15 @@ def train_baselines(model_name,train_loader,val_loader):
             model_metric_dict.update(val_metric_dict)
             print(val_metric_dict)
     
-    writer.add_hparams(
-              hparam_dict = model_hparam_dict,
-              metric_dict = model_metric_dict,
-              # this will create an entry per meta epoch
-              run_name = "epoch_{}".format(meta_epoch)
-              )
-    
-    mdl.hparam_dict = model_hparam_dict
-    mdl.metric_dict = model_metric_dict
+        writer.add_hparams(
+                  hparam_dict = model_hparam_dict,
+                  metric_dict = model_metric_dict,
+                  # this will create an entry per meta epoch
+                  run_name = "epoch_{}".format(meta_epoch)
+                  )
+        
+        mdl.hparam_dict = model_hparam_dict
+        mdl.metric_dict = model_metric_dict
     
     filename = "./models/"+"final"+modelname+".txt"
     
@@ -459,6 +459,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                         plot_preds(mdl,train_loader,writer=writer,writer_epoch=meta_epoch,writer_mode='train',null_filter=False)
                         
                     train_metric_dict = dmap_metrics(mdl, train_loader,n=c.eval_n,mode='train')
+                    print(train_metric_dict)
                     model_metric_dict.update(train_metric_dict)
                     
                     if a.args.viz and mdl.dlr_acd and j % a.args.viz_freq == 0:

@@ -153,11 +153,6 @@ def gen_localisation_metrics(dlr,thres, y_coords,y_hat_coords):
                 # unnorm = UnNormalize(mean=tuple(c.norm_mean),
                 #           std=tuple(c.norm_std))
                 # import matplotlib.pyplot as plt
-                # fig, ax = plt.subplots(1,3, figsize=(30, 10))
-                # ax[0].scatter(pred_dmap[:,0], pred_dmap[:,1],label='Predicted coordinates')
-                # ax[0].scatter(gt_dmap[:,0], gt_dmap[:,1],c='red',marker='1',label='Ground truth coordinates')
-                # ax[1].imshow(test_dms[z])
-                # ax[2].imshow(ac_dms[z].cpu().numpy())
                 # 1/0
                 
                 # 1/0
@@ -166,6 +161,10 @@ def gen_localisation_metrics(dlr,thres, y_coords,y_hat_coords):
                 tp = 0 # set tp to zero for null annotations
                 fn = 0 # --- #
                 fp = pred_dmap.shape[0]   
+                
+            # fig, ax = plt.subplots(1,1, figsize=(10, 10))
+            # ax.scatter(pred_dmap[:,0], pred_dmap[:,1],label='Predicted coordinates')
+            # ax.scatter(gt_dmap[:,0], gt_dmap[:,1],c='red',marker='1',label='Ground truth coordinates')
             
             localisation_dict['tp'] += tp
             localisation_dict['fp'] += fp
@@ -177,6 +176,7 @@ def gen_localisation_metrics(dlr,thres, y_coords,y_hat_coords):
         else:
             prs.append(localisation_dict['tp']/( localisation_dict['tp']+localisation_dict['fp']))
             rcs.append(localisation_dict['tp']/( localisation_dict['tp']+localisation_dict['fn']))
+            
         # print('tp {} | fp {} | fn {}'.format(tp,fp,fn))
     
     # plt.show()
@@ -371,7 +371,6 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True):
             #y.append(labels[idx].cpu().detach().numpy())
             y_n.append(len(labels[idx]))
             
-            #if gt_coords is not None:
             y_coords.append(gt_coords)
             
             #DEBUG
@@ -674,11 +673,11 @@ def dmap_metrics(mdl, loader,n=50,mode='',null_filter=(a.args.bin_classifier_pat
             constant = ((mdl.noise)/2)*ground_truth_dmap.shape[0]*ground_truth_dmap.shape[1] 
             loader_noise = ((a.args.noise)/2)*ground_truth_dmap.shape[0]*ground_truth_dmap.shape[1] 
             
-            pred_count -= constant
+            pred_count -= constant            
             dist_counts -= constant
             gt_count -= loader_noise
             
-            coordinates = peak_local_max(dmap_rev_np,min_distance=1,num_peaks=max(1,int(pred_count))) # int(mdl.sigma//2)
+            coordinates = peak_local_max(dmap_rev_np,min_distance=int(mdl.sigma)//2,num_peaks=max(1,int(pred_count))) # int(mdl.sigma//2)
             
             if mdl.dlr_acd:
                 #y.append()
@@ -687,8 +686,7 @@ def dmap_metrics(mdl, loader,n=50,mode='',null_filter=(a.args.bin_classifier_pat
                 #y.append(labels[idx].cpu().detach().numpy())
                 y_n.append(len(labels[idx]))
             
-            if gt_coords is not None:
-                y_coords.append(gt_coords)
+            y_coords.append(gt_coords)
              
             # print('len gt coords')
             # print(len(gt_coords))

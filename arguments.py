@@ -138,7 +138,7 @@ if any('SPYDER' in name for name in os.environ):
     args.fe_b2 = 0.999
     args.fe_wd = 1e-8
     
-    args.bc_only=False
+    args.bc_only = False
     
 # checks
 assert args.mode in ['train','eval','store','plot']
