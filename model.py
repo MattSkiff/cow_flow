@@ -9,7 +9,7 @@ import torch
 from torch import Tensor
 import torch.nn as nn 
 from torchvision.models import alexnet, resnet18, resnet50, vgg16_bn, efficientnet_b3   # feature extractors
-from torchvision.models.resnet import ResNet, BasicBlock
+from torchvision.models.resnet import ResNet, BasicBlock, Bottleneck
 from torchvision.models.vgg import VGG, make_layers, cfgs
 import torch.nn.functional as F
 import numpy as np
@@ -94,11 +94,10 @@ class ResNetPyramid(ResNet):
     def __init__(self):
         
         if a.args.feat_extractor == 'resnet18':
-            blocks_init = [2, 2, 2, 2]
+            super(ResNetPyramid, self).__init__(BasicBlock,[2,2,2,2], num_classes=1000) 
         elif a.args.feat_extractor == 'resnet50':
-            blocks_init = [3, 4, 6, 3]
-        
-        super(ResNetPyramid, self).__init__(BasicBlock,blocks_init, num_classes=1000)
+            super(ResNetPyramid, self).__init__(Bottleneck,[3, 4, 6, 3], num_classes=1000) 
+
         #super(ResNetPyramid, self).__init__(BasicBlock, [2, 2, 2, 2], num_classes=1000)
         
         if c.load_feat_extractor_str == '':
