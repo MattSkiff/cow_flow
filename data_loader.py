@@ -487,6 +487,11 @@ class CowObjectsDataset(Dataset):
             """ computes and returns labels for a single annotation file"""
             labels = []
             
+            # print('len(self.im_paths)')
+            # print(len(self.im_paths))
+            # print('idx')
+            # print(idx)
+            
             img_path = os.path.join(self.root_dir,
                                     self.im_paths[idx])
             
@@ -635,7 +640,14 @@ class CowObjectsDataset(Dataset):
         if self.ram:
             out = len(self.images)
         else:
-            with open(os.path.join(self.root_dir,"train.txt")) as f:
+            
+            
+            if a.args.holdout:
+                txt_file = "holdout.txt"
+            else:
+                txt_file = "train.txt"
+            
+            with open(os.path.join(self.root_dir,txt_file)) as f:
                       train_ims = f.readlines()
                       
             out = len(train_ims)
@@ -1307,7 +1319,7 @@ def make_loaders(transformed_dataset,is_eval=False):
                                                       oversample=False)
     
     train_sampler = SubsetRandomSampler(t_indices,generator=torch.Generator().manual_seed(c.seed))
-    val_sampler = SubsetRandomSampler(v_indices[:9],generator=torch.Generator().manual_seed(c.seed))
+    val_sampler = SubsetRandomSampler(v_indices,generator=torch.Generator().manual_seed(c.seed))
   
     full_train_sampler = SubsetRandomSampler(f_t_indices,generator=torch.Generator().manual_seed(c.seed))
     full_val_sampler = SubsetRandomSampler(f_v_indices,generator=torch.Generator().manual_seed(c.seed)) 
@@ -1328,6 +1340,12 @@ def make_loaders(transformed_dataset,is_eval=False):
     val_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 
                         num_workers=1,collate_fn=transformed_dataset.custom_collate_aerial,
                         pin_memory=False,sampler=val_sampler)
+    
+    if a.args.mode == 'eval' and a.args.holdout:
+        val_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 
+                            num_workers=1,collate_fn=transformed_dataset.custom_collate_aerial,
+                            pin_memory=False,sampler=None)
+        
     
     return full_train_loader, full_val_loader, train_loader, val_loader
 

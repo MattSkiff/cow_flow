@@ -154,8 +154,6 @@ def gen_localisation_metrics(dlr,thres, y_coords,y_hat_coords):
                 #           std=tuple(c.norm_std))
                 # import matplotlib.pyplot as plt
                 # 1/0
-                
-                # 1/0
     
             else:
                 tp = 0 # set tp to zero for null annotations
@@ -385,7 +383,7 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True):
             # ax[2].imshow(dmaps[idx].cpu().numpy())
             # 1/0
             
-            if str(type(mdl)) == "<class 'baselines.LCFCN'>" or is_unet_seg:
+            if str(type(mdl)) == "<class 'baselines.LCFCN'>": # or is_unet_seg:
                 y_hat_n.append(blob_counts)
             else:
                 y_hat_n.append(pred_count)
