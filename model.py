@@ -8,7 +8,7 @@ from __future__ import print_function, division
 import torch
 from torch import Tensor
 import torch.nn as nn 
-from torchvision.models import alexnet, resnet18, vgg16_bn, efficientnet_b3   # feature extractors
+from torchvision.models import alexnet, resnet18, resnet50, vgg16_bn, efficientnet_b3   # feature extractors
 from torchvision.models.resnet import ResNet, BasicBlock
 from torchvision.models.vgg import VGG, make_layers, cfgs
 import torch.nn.functional as F
@@ -92,12 +92,21 @@ class MnistResNet(ResNet):
 class ResNetPyramid(ResNet):
 
     def __init__(self):
-        super(ResNetPyramid, self).__init__(BasicBlock, [2, 2, 2, 2], num_classes=1000)
+        
+        if a.args.feat_extractor == 'resnet18':
+            blocks_init = [2, 2, 2, 2]
+        elif a.args.feat_extractor == 'resnet50':
+            blocks_init = [3, 4, 6, 3]
+        
+        super(ResNetPyramid, self).__init__(BasicBlock,blocks_init, num_classes=1000)
         #super(ResNetPyramid, self).__init__(BasicBlock, [2, 2, 2, 2], num_classes=1000)
         
         if c.load_feat_extractor_str == '':
             if a.args.fe_load_imagenet_weights:
-                self.load_state_dict(resnet18(pretrained=c.pretrained).state_dict())
+                if a.args.feature_extractors == 'resnet18':
+                    self.load_state_dict(resnet18(pretrained=c.pretrained).state_dict())
+                else:
+                    self.load_state_dict(resnet50(pretrained=c.pretrained).state_dict())
                 num_ftrs = self.fc.in_features
                 self.fc = nn.Linear(num_ftrs, 2)  
             
@@ -356,7 +365,7 @@ def nf_pyramid(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_fea
     assert a.args.subnet_type in g.SUBNETS
     assert not c.gap and not c.counts and not a.args.data == 'mnist'
     
-    if a.args.feat_extractor == 'resnet18':
+    if a.args.feat_extractor in ['resnet18','resnet50']:
         mdl = ResNetPyramid()
     else:
         mdl = VGGPyramid()
