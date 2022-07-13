@@ -86,7 +86,7 @@ if a.args.feat_extractor == "alexnet":
     n_feat = 256 
 elif a.args.feat_extractor == "vgg16_bn":
     n_feat = 512 
-elif a.args.feat_extractor == "resnet18":
+elif a.args.feat_extractor in ["resnet18","resnet50"]:
     n_feat = 512
 elif a.args.feat_extractor == "none":
     if a.args.data == 'mnist':
@@ -195,7 +195,7 @@ if counts and a.args.model_name == 'NF':
 
 if a.args.pyramid:
     assert n_coupling_blocks == 5 # for recording purposes
-    assert a.args.feat_extractor in ['resnet18','vgg16_bn']
+    assert a.args.feat_extractor in ['resnet18','vgg16_bn','resnet50']
     assert downsampling # pyramid nf head has  downsmapling
     assert not train_feat_extractor # TODO
     # TODO - get pyramid working with other scales!
