@@ -93,8 +93,13 @@ class ResNetPyramid(ResNet):
 
     def __init__(self):
         
-        if a.args.feat_extractor == 'resnet18':
-            super(ResNetPyramid, self).__init__(BasicBlock,[2,2,2,2], num_classes=1000) 
+        if a.args.feat_extractor == 'resnet9':
+            block_init = [1,1,1,1]
+        elif a.args.feat_extractor == 'resnet18':
+            block_init = [2,2,2,2]
+        
+        if a.args.feat_extractor in ['resnet18','resnet9']:
+            super(ResNetPyramid, self).__init__(BasicBlock,block_init, num_classes=1000) 
         elif a.args.feat_extractor == 'resnet50':
             super(ResNetPyramid, self).__init__(Bottleneck,[3, 4, 6, 3], num_classes=1000) 
 
@@ -104,8 +109,11 @@ class ResNetPyramid(ResNet):
             if a.args.fe_load_imagenet_weights:
                 if a.args.feature_extractors == 'resnet18':
                     self.load_state_dict(resnet18(pretrained=c.pretrained).state_dict())
-                else:
+                elif a.args.feat_extractor == 'resnet50':
                     self.load_state_dict(resnet50(pretrained=c.pretrained).state_dict())
+                else:
+                    ValueError
+                    
                 num_ftrs = self.fc.in_features
                 self.fc = nn.Linear(num_ftrs, 2)  
             
@@ -364,7 +372,7 @@ def nf_pyramid(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_fea
     assert a.args.subnet_type in g.SUBNETS
     assert not c.gap and not c.counts and not a.args.data == 'mnist'
     
-    if a.args.feat_extractor in ['resnet18','resnet50']:
+    if a.args.feat_extractor in ['resnet18','resnet50','resnet9']:
         mdl = ResNetPyramid()
     else:
         mdl = VGGPyramid()

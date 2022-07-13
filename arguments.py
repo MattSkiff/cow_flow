@@ -61,7 +61,7 @@ parser.add_argument("-expon_gamma",help="gamma of expon scheduler",type=float,de
 parser.add_argument('-wd','--weight_decay',type=float,default=None) # differnet: 1e-5
 
 # NF only options
-parser.add_argument('-feat_extractor',help="type of feature extractor backbone to use in flow [resnet18, vgg16_bn]",default ='')
+parser.add_argument('-feat_extractor',help="type of feature extractor backbone to use in flow [resnet18, vgg16_bn,resnet50,resnet9]",default ='')
 parser.add_argument("-train_classification_head",action='store_true',default=False) # whether to train classification model for filtering null patches
 parser.add_argument("-all_in_one",action='store_true',default=False) # whether to use all in blocks (inc act norm)
 parser.add_argument("-pyramid",action='store_true',default=False) # whether to a feature pyramid for conditioning - only implemented for resnet18
@@ -194,7 +194,7 @@ if args.model_name == 'NF' and args.mode == 'train':
     assert args.subnet_type != ''
     
     if args.pyramid:
-        assert args.feat_extractor in ['resnet18','vgg16_bn','resnet50']
+        assert args.feat_extractor in ['resnet18','vgg16_bn','resnet50','resnet9']
     else:
         assert args.feat_extractor in ['alexnet', 'vgg16_bn','resnet18', 'none']
 elif args.model_name != 'NF':
