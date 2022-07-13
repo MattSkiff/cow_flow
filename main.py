@@ -34,7 +34,7 @@ if a.args.data == 'cows':
     
     # check dataloader if running interactively
     if any('SPYDER' in name for name in os.environ) and not a.args.mode == 'store':
-        transformed_dataset.show_annotations(5895) # 5895
+        transformed_dataset.show_annotations(1) # 5895
     
     if not a.args.holdout:
         # create test train split
@@ -43,6 +43,7 @@ if a.args.data == 'cows':
         val_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=True, 
                             num_workers=4,collate_fn=transformed_dataset.custom_collate_aerial,
                             pin_memory=False)
+        
     
     if a.args.mode in ['plot','eval']:
         
