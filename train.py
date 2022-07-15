@@ -318,7 +318,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                         else:
                             input_data = (images,labels)
                             
-                        z, log_det_jac = mdl(*input_data,jac=a.args.jacobian)
+                        z, log_det_jac = mdl(*input_data,jac=a.args.jac)
                             
                         # x: inputs (i.e. 'x-side' when rev is False, 'z-side' when rev is True) [FrEIA]
                         # i.e. what y (output) is depends on direction of flow
@@ -400,7 +400,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                                 else:
                                     images,labels = data
                             
-                                z, log_det_jac = mdl(*input_data,jac=a.args.jacobian)
+                                z, log_det_jac = mdl(*input_data,jac=a.args.jac)
                                     
                                 val_z.append(z)
                                 
@@ -462,7 +462,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                     print(train_metric_dict)
                     model_metric_dict.update(train_metric_dict)
                     
-                    if a.args.viz and mdl.dlr_acd and j % a.args.viz_freq == 0:
+                    if a.args.viz and mdl.dlr and j % a.args.viz_freq == 0:
                         plot_preds(mdl,train_loader,writer=writer,writer_epoch=meta_epoch,writer_mode='train',null_filter=False)
                     
                     if c.validation:
@@ -521,7 +521,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
             # visualise a random reconstruction
             if a.args.viz:
                 
-                if mdl.dlr_acd:
+                if mdl.dlr:
                     preds_loader = train_loader
                     dmap_pr_mode = 'train'
                 else:
@@ -549,11 +549,11 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                 with open(hp_filename, 'w') as f:
                     print(model_hparam_dict, file=f)
             
-            if not a.args.data == 'dlr':
-                print("Performing final evaluation without trained null classifier...")
-                if not a.args.skip_final_eval:
-                    final_metrics = dmap_metrics(mdl, train_loader,n=1,mode='train',null_filter = False)
-                    print(final_metrics)
+            #if not a.args.data == 'dlr':
+            print("Performing final evaluation without trained null classifier (train loader)...")
+            if not a.args.skip_final_eval:
+                final_metrics = dmap_metrics(mdl, train_loader,n=1,mode='train',null_filter = False)
+                print(final_metrics)
             
             if a.args.save_final_mod:
                 save_model(mdl,"final"+"_"+modelname)

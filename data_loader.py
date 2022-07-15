@@ -50,7 +50,7 @@ class DLRACD(Dataset):
         # this dict structure is only used for processing in init method,
         # switch to flat list at end
         self.count = False
-        self.dlr_acd = True
+        self.dlr = True
         self.classification = False # TODO - no null filtering - yet
         self.transform = transform
         self.overlap = overlap
@@ -296,7 +296,7 @@ class DLRACD(Dataset):
             patches.append(b['patch'])
             patch_densities.append(b['patch_density'])
             counts.append(b['counts']) 
-            point_maps.append(b['point_maps']) 
+            point_maps.append(b['point_map']) 
 
         patches = torch.stack(patches,dim = 0)
         patch_densities = torch.stack(patch_densities,dim = 0)
@@ -328,7 +328,7 @@ class DLRACDToTensor(object):
             sample['patch_density'] = torch.from_numpy(sample['patch_density']).to(c.device)
         if 'counts' in sample.keys():
             sample['counts'] = torch.from_numpy(np.array(sample['counts']).astype(float)).to(c.device)
-        if 'point_maps' in sample.keys():
+        if 'point_map' in sample.keys():
             sample['point_map']  = torch.from_numpy(sample['point_map'] ).to(c.device)
 
         return sample
@@ -370,6 +370,10 @@ class DLRACDCropRotateFlipScaling(object):
         # sample['patch_density'] = resize(sample['patch_density'])
         # sample['point_map']  = resize(sample['point_map'] )
         
+        sample['patch'] = sample['patch'].unsqueeze(0)
+        sample['patch_density']= sample['patch_density'].unsqueeze(0).unsqueeze(0)
+        sample['point_map'] = sample['point_map'].unsqueeze(0).unsqueeze(0)
+        
         if random.randint(0,1):
             sample['patch'] = torch.flip(sample['patch'],(3,))
             sample['patch_density'] = torch.flip(sample['patch_density'],(3,))
@@ -379,7 +383,7 @@ class DLRACDCropRotateFlipScaling(object):
             sample['patch'] = torch.flip(sample['patch'],(2,))
             sample['patch_density'] = torch.flip(sample['patch_density'],(2,))
             sample['point_map']  = torch.flip(sample['point_map'] ,(2,))
-            
+        
         rangle = float(random.randint(0,3)*90)
         sample['patch'] = TF.rotate(sample['patch'],angle=rangle)
         sample['patch_density'] = TF.rotate(sample['patch_density'],angle=rangle)
@@ -1369,21 +1373,30 @@ class UnNormalize(object):
 def preprocess_batch(data,dlr=False):
     '''move data to device and reshape image'''
     
-    images,dmaps,labels, binary_labels, annotations,point_maps = data
-    dmaps = dmaps * a.args.dmap_scaling
-    images,dmaps,labels, binary_labels, annotations,point_maps = images.to(c.device),dmaps.to(c.device),labels, binary_labels.to(c.device), annotations,point_maps
+    if not dlr:
+        images,dmaps,labels, binary_labels, annotations,point_maps = data
+        dmaps = dmaps * a.args.dmap_scaling
+        images,dmaps,labels, binary_labels, annotations,point_maps = images.to(c.device),dmaps.to(c.device),labels, binary_labels.to(c.device), annotations,point_maps
+    
+        if point_maps[0] != None:
+            point_maps = point_maps.to(c.device)
+    
+        images = images.float()
+        
+        return images,dmaps,labels,binary_labels,annotations,point_maps
     
     if dlr:
         images,dmaps,counts,point_maps = data
         images,dmaps,counts,point_maps = images.to(c.device),dmaps.to(c.device),counts.to(c.device),point_maps.to(c.device)
-        return images,dmaps,labels, binary_labels, annotations,point_maps
+        
+        if point_maps[0] != None:
+            point_maps = point_maps.to(c.device)
+            
+        images = images.float()
+        
+        return images,dmaps,counts,point_maps
     
-    if point_maps[0] != None:
-        point_maps = point_maps.to(c.device)
     
-    images = images.float()
-    
-    return images,dmaps,labels,binary_labels,annotations,point_maps
 
 def create_maps():
     if a.args.resize:
