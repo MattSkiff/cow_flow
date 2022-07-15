@@ -318,7 +318,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                         else:
                             input_data = (images,labels)
                             
-                        z, log_det_jac = mdl(*input_data)
+                        z, log_det_jac = mdl(*input_data,jac=a.args.jacobian)
                             
                         # x: inputs (i.e. 'x-side' when rev is False, 'z-side' when rev is True) [FrEIA]
                         # i.e. what y (output) is depends on direction of flow
@@ -326,7 +326,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                         # this loss needs to calc distance between predicted density and density map
                         # note: probably going to get an error with mnist or counts # TODO
                         dims = tuple(range(1, len(z.size())))
-                        loss = get_loss(z, log_det_jac,dims) # mdl.nf.jacobian(run_forward=False)
+                        loss = get_loss(z, log_det_jac,dims) 
                         k += 1
                         train_mb_iter += 1
                         
@@ -400,7 +400,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                                 else:
                                     images,labels = data
                             
-                                z, log_det_jac = mdl(*input_data)
+                                z, log_det_jac = mdl(*input_data,jac=a.args.jacobian)
                                     
                                 val_z.append(z)
                                 

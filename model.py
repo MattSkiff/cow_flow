@@ -650,7 +650,7 @@ class CowFlow(nn.Module):
         self.dmap_scaling = a.args.dmap_scaling
         self.batch_norm = a.args.batch_norm
 
-    def forward(self,images,labels,rev=False): # label = dmaps or counts
+    def forward(self,images,labels,rev=False,jac=False): # label = dmaps or counts
         
         if c.debug:
             print("images size..")
@@ -722,11 +722,11 @@ class CowFlow(nn.Module):
         
         if a.args.pyramid:
             # feats = list of 5 tensors
-            z = self.nf(x_or_z = labels,c = feats,rev=rev) # [-c.levels:]
+            z = self.nf(x_or_z = labels,c = feats,rev=rev,jac=jac) # [-c.levels:]
         elif self.unconditional:
-            z = self.nf(x_or_z = labels,rev=rev)
+            z = self.nf(x_or_z = labels,rev=rev,jac=jac)
         else:
-            z = self.nf(x_or_z = labels,c = feats,rev=rev)
+            z = self.nf(x_or_z = labels,c = feats,rev=rev,jac=jac)
           
         return z
 
