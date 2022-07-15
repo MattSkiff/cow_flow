@@ -1110,40 +1110,95 @@ def counts_preds_vs_actual(mdl,loader,plot=False,ignore_zeros=False):
     
     return means,actuals,r_squared
 
-def get_likelihood(mdl, loader, plot = True,save=False,digit=None,ood=False):
+def get_likelihood(mdl, loader, plot = True,save=False,digit=None,ood=False,empty_dmaps=False):
     # TODO - more sophisticated ood test of likelihood
     """"'ood' is simply magnifying the value of the image by 100 and checking the loglikelihood is lower"""
-    for i, data in enumerate(tqdm(loader, disable=c.hide_tqdm_bar)):
-        
-        if c.mnist:
+    
+    anamoly_scores = []; errors = []
+    n_cows = []; ldj_l = []
+    min_anamoly = 1e99; max_anamoly = 0
+    
+    for i, data in enumerate(tqdm(loader, disable=False)): # c.hide_tqdm_bar
+    
+        if a.args.data == 'mnist':
             images,labels = data
         else:
-            images,dmaps,labels,point_maps  = data
+            images,dmaps,labels,binary_labels , annotations, point_maps  = data_loader.preprocess_batch(data)
             
-        if labels[0] != digit and c.mnist and digit is not None:
+        if labels[0] != digit and a.args.data == 'mnist' and digit is not None:
             continue
         
-        if labels.size: # triggers only if there is at least one annotation
-            
-            z = labels
-            
-            images = images.float().to(c.device)
-            z = z.float().to(c.device)
+        unnorm = data_loader.UnNormalize(mean=tuple(c.norm_mean),
+                             std=tuple(c.norm_std))
+        #dmaps[:,:,:] = torch.zeros(1,mdl.density_map_h,mdl.density_map_w).to(c.device)
+        
+        for i in range(len(labels)):
             
             mdl = mdl.to(c.device)
             
-            x, log_det_jac = mdl(images,z,rev=False)
+            images_list = []
+            
+            # supply blank density map to model and see what conditional likelihood
+            # images_list.append(torch.flip(images[i].unsqueeze(0).unsqueeze(0),(3,)).squeeze(0).squeeze(0))
+            # images_list.append(torch.flip(images[i].unsqueeze(0).unsqueeze(0),(2,)).squeeze(0).squeeze(0))
+            images_list.append(images[i])
+            
+            # transformed_imgs = torch.stack(images_list).to(c.device)
+            # empty_dmaps = torch.zeros(len(transformed_imgs),mdl.density_map_h,mdl.density_map_w).to(c.device)
             
             if ood:
-                images_ood = images * 100
-                x_ood, log_det_jac_ood = mdl(images_ood,z,rev=False)
-                dmap_rev_np_ood = x_ood[0].squeeze().cpu().detach().numpy()
-                mean_ll_ood = x_ood[0].mean()
-
+                images[i] = images[i] * 100 # images_ood
+                # x_ood, log_det_jac_ood = mdl(images_ood,labels[i],rev=False)
+                # dmap_rev_np_ood = x_ood[0].squeeze().cpu().detach().numpy()
+                # mean_ll_ood = x_ood[0].mean()
             
-            dmap_rev_np = x[0].squeeze().cpu().detach().numpy()
+            z_l = []; ldj = []
             
-            mean_ll = x[0].mean()
+            for j in range(len(images_list)):
+                
+                if empty_dmaps:
+                    z, log_det_jac = mdl(images_list[j].unsqueeze(0),
+                                         torch.zeros(1,mdl.density_map_h,mdl.density_map_w).to(c.device),rev=False,jac=True)
+                else:
+                    z, log_det_jac = mdl(images_list[j].unsqueeze(0),dmaps[i].unsqueeze(0),rev=False,jac=True)
+                
+                z = z[0]#.squeeze().cpu().detach().numpy()
+                
+                # mean_ll = z[0].mean()
+                # sum_ll = np.sum(z)
+                z_l.append(z)
+                ldj.append(log_det_jac)
+                
+            z = torch.stack(z_l).cpu().detach().numpy()
+            anamoly_score = np.mean(z ** 2)
+            anamoly_scores.append(anamoly_score)
+            
+            im = unnorm(images[i])
+            im = im.permute(1,2,0).cpu().numpy()
+            
+            if anamoly_score > max_anamoly:
+                max_anamoly_score_im = im
+                max_anamoly = anamoly_score
+            
+            if anamoly_score < min_anamoly:
+                min_anamoly_score_im = im
+                min_anamoly = anamoly_score
+            
+            pred = dmaps[i].sum() - ((a.args.noise)/2)*dmaps[i].shape[0]*dmaps[i].shape[1]
+            
+            ldj_l.append(ldj[0].cpu().detach().numpy())
+            n_cows.append(len(labels[i]))
+            errors.append(np.abs(len(labels[i])-pred.cpu().detach().numpy()))
+            
+            # print('mean_ll')
+            # print(mean_ll)
+            # print('sum_ll')
+            # print(sum_ll)
+            # print('anamoly_score')
+            # print(anamoly_score)
+            # print('annoations n')
+            # print(len(labels[i]))
+            # print('----')
             
             if plot:
                 
@@ -1158,20 +1213,21 @@ def get_likelihood(mdl, loader, plot = True,save=False,digit=None,ood=False):
                 fig.set_size_inches(8*1,12*1)
                 fig.set_dpi(100)
                 
-                if c.mnist:
+                if a.args.data =='mnist':
                     im = images[0].squeeze().cpu().numpy()
                 else:
                     im = images[0].permute(1,2,0).cpu().numpy()
                 
-                if c.mnist:
+                if a.args.data =='mnist':
                     ax[0].imshow(im)
                 else:
                     ax[0].imshow((im * 255).astype(np.uint8))
+                    #ax[1].imshow(dmap_rev_np)
                 
-                ax[1].hist(dmap_rev_np.flatten(),bins = 30)
+                ax[1].hist(z.flatten(),bins = 30)
                 
-                if ood:
-                    ax[2].hist(dmap_rev_np_ood.flatten(),bins = 30)
+                # if ood:
+                #     ax[2].hist(dmap_rev_np_ood.flatten(),bins = 30)
                 
                 if save:
                     if not os.path.exists(g.VIZ_DIR):
@@ -1179,13 +1235,56 @@ def get_likelihood(mdl, loader, plot = True,save=False,digit=None,ood=False):
                     plt.savefig("{}/{}.jpg".format(g.VIZ_DIR,mdl.modelname), bbox_inches='tight', pad_inches = 0)
             
             break
-        
-    if ood:
-        out = mean_ll,mean_ll_ood # z[0],x[0], images_ood[0],x_ood[0]
-    else:
-        out = mean_ll # z[0],x[0],
-        
-    return out # x.size() #
+    
+    mean_ll = -99    
+    
+    # if ood:
+    #     out = mean_ll,mean_ll_ood # z[0],x[0], images_ood[0],x_ood[0]
+    # else:
+    #     out = mean_ll #mean_ll # z[0],x[0],
+    
+    fig, ax = plt.subplots(2,4)
+    plt.ioff()
+    fig.set_size_inches(8*6,8*1)
+    fig.set_dpi(100) 
+    
+    ax[0,0].scatter(ldj_l,n_cows)
+    ax[0,0].set_xlabel('Log det jac')
+    ax[0,0].set_ylabel('n cows')
+    
+    ax[0,1].scatter(anamoly_scores,n_cows)
+    ax[0,1].set_xlabel('anamoly scores')
+    ax[0,1].set_ylabel('n cows')
+
+    ax[0,2].scatter(anamoly_scores,ldj_l)
+    ax[0,2].set_xlabel('anamoly scores')
+    ax[0,2].set_ylabel('log det jac')
+
+    ax[0,3].scatter(anamoly_scores,errors)
+    ax[0,3].set_xlabel('anamoly_scores')
+    ax[0,3].set_ylabel('errors')
+    
+    ax[1,0].scatter(ldj_l,errors)
+    ax[1,0].set_xlabel('log det jac')
+    ax[1,0].set_ylabel('errors')
+    
+    ax[1,1].imshow((min_anamoly_score_im * 255).astype(np.uint8), aspect="auto")
+    ax[1,1].title.set_text('Min anamoly score')
+    
+    ax[1,2].imshow((max_anamoly_score_im * 255).astype(np.uint8), aspect="auto")
+    ax[1,2].title.set_text('Max anamoly score')
+    
+    ax[1,3].scatter(n_cows,errors)
+    ax[1,3].set_xlabel('n cows')
+    ax[1,3].set_ylabel('errors')
+    
+    fig.suptitle('LDJ / Anamoly / Error pair plots - Anno data',y=1.0,fontsize=16) 
+    
+    print(np.where(np.array(anamoly_scores) == np.amax(np.array(anamoly_scores))))
+    
+    plt.show()
+    
+    return #out # x.size() #
 
 # https://stackoverflow.com/questions/49201236/check-the-total-number-of-parameters-in-a-pytorch-model
 def count_parameters(mdl):
@@ -1403,6 +1502,9 @@ def make_model_name(train_loader):
          
          if a.args.batch_norm:
              parts.append('BN')
+             
+     if a.args.jac:
+         parts.append('JC')
     
      if a.args.all_in_one:
          parts.append('IN1')
@@ -1479,6 +1581,7 @@ def make_hparam_dict(val_loader):
                         'joint optimisation?':c.joint_optim,
                         'global average pooling?':c.gap,
                         'scale:':c.scale,
+                        'jac?:':a.args.jac,
                         'annotations only?':a.args.sampler == 'anno',
                         'pretrained?':c.pretrained,
                         'feature pyramid?':a.args.pyramid,

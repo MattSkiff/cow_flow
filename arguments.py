@@ -5,6 +5,8 @@ import os
 parser = argparse.ArgumentParser(description='Create dataloaders and train a model on MNIST, DLRACD or cow dataset.')
 
 parser.add_argument('-mode',help="Specify mode (train,eval,store).",default='')
+parser.add_argument('-get_likelihood',help='get and plot likelihoods / anamoly scores',action="store_true",default=False)
+parser.add_argument('-jac',help='enable the jacobian as part of training',action="store_true",default=False)
 parser.add_argument('-holdout',help="Use holdout data",action="store_true",default=False)
 
 parser.add_argument('-mdl_path',help="Specify mdl for eval",default='')
@@ -97,11 +99,11 @@ if any('SPYDER' in name for name in os.environ):
     args.data = 'cows'
     args.optim = "adamw"
     args.scheduler = 'none'
-    args.sampler = 'anno'
+    args.sampler = 'none'
     args.mode = 'train' #'eval'
     args.sub_epochs = 10
     args.meta_epochs = 1
-    args.batch_size = 1
+    args.batch_size = 2
     args.learning_rate = 1e-3
     args.weight_decay = 1e-8
     args.tensorboard = False
@@ -123,7 +125,7 @@ if any('SPYDER' in name for name in os.environ):
     args.filters = 32
     args.n_pyramid_blocks = 1
     args.skip_final_eval = False
-    args.feat_extractor = 'resnet50'
+    args.feat_extractor = 'vgg16_bn'
     args.pyramid = True
 
     args.expon_gamma = 0.99

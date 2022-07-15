@@ -12,7 +12,7 @@ import gvars as g
 import model
 from data_loader import prep_transformed_dataset, make_loaders
 from train import train, train_baselines, train_feat_extractor, train_classification_head
-from utils import load_model,plot_preds,plot_preds_baselines,plot_preds_multi
+from utils import load_model,plot_preds,plot_preds_baselines,plot_preds_multi, get_likelihood
 from eval import dmap_metrics, eval_baselines
 from dlr_acd import dlr_acd
 from mnist import mnist
@@ -53,13 +53,17 @@ if a.args.data == 'cows':
             
             if a.args.model_name == 'NF':
                 dmap_metrics(mdl,val_loader,mode='val',n=1)
+                
             else:
                 eval_baselines(mdl,val_loader,mode='val',is_unet_seg=(a.args.model_name=='UNet_seg'))
     
         if a.args.mode == 'plot':  
     
             if a.args.model_name == 'NF':
-                plot_preds(mdl,val_loader)
+                if a.args.get_likelihood:
+                    get_likelihood(mdl,val_loader,plot=False)
+                else:
+                    plot_preds(mdl,val_loader)
             elif a.args.model_name == 'ALL':
                 plot_preds_multi(mode='val',loader=val_loader)
             elif a.args.model_name in g.BASELINE_MODEL_NAMES:
