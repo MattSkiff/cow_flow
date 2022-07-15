@@ -96,12 +96,12 @@ host = socket.gethostname()
 # defaults for if running interactively
 if any('SPYDER' in name for name in os.environ):
     args.model_name = "NF"
-    args.data = 'cows'
+    args.data = 'dlr'
     args.optim = "adamw"
     args.scheduler = 'none'
     args.sampler = 'none'
     args.mode = 'train' #'eval'
-    args.sub_epochs = 10
+    args.sub_epochs = 1
     args.meta_epochs = 1
     args.batch_size = 2
     args.learning_rate = 1e-3
@@ -127,6 +127,9 @@ if any('SPYDER' in name for name in os.environ):
     args.skip_final_eval = False
     args.feat_extractor = 'vgg16_bn'
     args.pyramid = True
+    args.tb = True
+    
+    args.image_size = 320
 
     args.expon_gamma = 0.99
     args.adam_b1 = 0.9
@@ -145,11 +148,16 @@ if any('SPYDER' in name for name in os.environ):
 assert args.mode in ['train','eval','store','plot']
 assert args.gpu_number > -1
 
+
+
 if args.mode == 'store':
     assert args.ram
 
 if args.split_dimensions:
     assert not args.all_in_one
+
+if args.jac:
+    assert args.mod == "NF"
 
 if args.mode == 'eval':
     assert args.mdl_path != ''
@@ -230,6 +238,9 @@ if args.mode == 'train':
 # todo - find better way of checking NF only argument
 
 assert args.data in ['cows','dlr','mnist']
+
+if args.data == "dlr":
+    assert args.image_size == 320
 
 if host == 'hydra':
      assert args.gpu_number < 8

@@ -42,7 +42,7 @@ def dlr_acd(load_only=False):
                             pin_memory=False,sampler=val_sampler)
     
     if any('SPYDER' in name for name in os.environ):
-        dlr_dataset.show_annotations(2345)
+        dlr_dataset.show_annotations(1) #2345
     
     if not load_only:
         mdl = train(train_loader,val_loader)

@@ -94,7 +94,7 @@ class FCRN_A(nn.Module):
         """
        
         # these attr's are needed to make the model object independant of the config file
-        self.dlr_acd = a.args.data == 'dlr'
+        self.dlr = a.args.data == 'dlr'
         self.modelname = modelname
         self.unconditional = False
         self.count = False
@@ -169,7 +169,7 @@ class UNet(nn.Module):
         
         
         # these attr's are needed to make the model object independant of the config file
-        self.dlr_acd = a.args.data == 'dlr'
+        self.dlr = a.args.data == 'dlr'
         self.modelname = modelname
         self.unconditional = False
         self.count = False
@@ -321,7 +321,7 @@ class CSRNet(nn.Module):
         super(CSRNet, self).__init__()
         
         # these attr's are needed to make the model object independant of the config file
-        self.dlr_acd = a.args.data == 'dlr'
+        self.dlr = a.args.data == 'dlr'
         self.modelname = modelname
         self.unconditional = False
         self.count = False
@@ -399,7 +399,7 @@ class LCFCN(nn.Module):
         self.n_classes = 1
         
         # these attr's are needed to make the model object independant of the config file
-        self.dlr_acd = a.args.data == 'dlr'
+        self.dlr = a.args.data == 'dlr'
         self.modelname = modelname
         self.unconditional = False
         self.count = False
@@ -588,7 +588,7 @@ class MCNN(nn.Module):
         
         super(MCNN, self).__init__()
         
-        self.dlr_acd = a.args.data == 'dlr'
+        self.dlr = a.args.data == 'dlr'
         self.modelname = modelname
         self.unconditional = False
         self.count = False
@@ -705,7 +705,7 @@ class Res50(nn.Module):
     def __init__(self,  modelname, pretrained=True):
         super(Res50, self).__init__()
         
-        self.dlr_acd = a.args.data == 'dlr'
+        self.dlr = a.args.data == 'dlr'
         self.modelname = modelname
         self.unconditional = False
         self.count = False

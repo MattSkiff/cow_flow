@@ -619,10 +619,10 @@ class CowFlow(nn.Module):
         else:
             self.classification_head = vgg16_bn(pretrained=c.pretrained,progress=False)
         
-        if a.args.data == 'dlr_acd':
-            self.dlr_acd = True
+        if a.args.data == 'dlr':
+            self.dlr = True
         else:
-            self.dlr_acd = False
+            self.dlr = False
         
         # these attr's are needed to make the model object independant of the config file
         self.modelname = modelname

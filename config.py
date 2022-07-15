@@ -127,8 +127,9 @@ raw_img_size = (800, 600)
 img_dims = [3] + list(img_size) # RGB + x-y
 
 # TODO: rename this parameter
+# TODO - fix the garbage below
 # this effects the padding applied to the density maps
-if a.args.data == 'dlr_acd':
+if a.args.data == 'dlr':
     density_map_h,density_map_w = a.args.image_size,a.args.image_size
 elif not a.args.data == 'mnist' and not counts and downsampling:
     density_map_w = a.args.image_size//scale #img_size[0]
@@ -161,15 +162,15 @@ elif a.args.data == 'mnist' and a.args.feat_extractor == "none":
     density_map_h = 4
     density_map_w = 4
 
+if not a.args.resize and not a.args.data == 'dlr': 
+    img_size = (800,600)
+    density_map_w,density_map_h = (800,608)
+
 if gpu:
     device = torch.device("cuda:{}".format(a.args.gpu_number) if torch.cuda.is_available() else "cpu") # select gpu
 
 if a.args.gpu_number != 0:
     assert gpu
-
-if not a.args.resize: 
-    img_size = (800,600)
-    density_map_w,density_map_h = (800,608)
 
 # Checks ------ 
 

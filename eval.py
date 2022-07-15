@@ -428,7 +428,7 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True):
     
     return  metric_dict # localisation_dict
     
-def dlr_acd_whole_image_eval(mdl,loader):
+def dlr_whole_image_eval(mdl,loader):
     
     metric_dict = {'mae':None,
                    'mnae':None,
@@ -576,9 +576,9 @@ def dmap_metrics(mdl, loader,n=50,mode='',null_filter=(a.args.bin_classifier_pat
     
     for i, data in enumerate(tqdm(loader, disable=False)):
         
-        if not mdl.dlr_acd and not loader.dataset.classification:
+        if not mdl.dlr and not loader.dataset.classification:
             images,dmaps,labels,annotations, point_maps  = preprocess_batch(data,dlr=True)
-        elif not mdl.dlr_acd:
+        elif not mdl.dlr:
             images,dmaps,labels,binary_labels , annotations, point_maps  = preprocess_batch(data)
         else:
             images,dmaps,counts,point_maps = data
@@ -614,7 +614,7 @@ def dmap_metrics(mdl, loader,n=50,mode='',null_filter=(a.args.bin_classifier_pat
             x_agg = torch.stack(x_list,dim=1)
             x = x_agg.mean(dim=1) # take average of samples from models for mean reconstruction
             
-        if not mdl.dlr_acd:
+        if not mdl.dlr:
             #features = mdl.feat_extractor(images)
             #outputs = mdl.classification_head(features)
             if null_filter:
@@ -623,7 +623,7 @@ def dmap_metrics(mdl, loader,n=50,mode='',null_filter=(a.args.bin_classifier_pat
         
         # replace predicted densities with null predictions if not +ve pred from feature extractor
         if null_filter:
-            if not mdl.dlr_acd:
+            if not mdl.dlr:
                 correct += sum(preds == binary_labels)
                 total += len(binary_labels)
                 x[(preds == 1).bool(),:,:,:] = torch.zeros(1,mdl.density_map_h,mdl.density_map_w).to(c.device)
@@ -646,14 +646,14 @@ def dmap_metrics(mdl, loader,n=50,mode='',null_filter=(a.args.bin_classifier_pat
             #     thres = int(pred_count)
 
             # TODO- retrieve points from point annotated masks
-            if mdl.dlr_acd:
+            if mdl.dlr:
                 pm = point_maps[idx].squeeze().cpu().detach().numpy()
                 gt_coords = np.argwhere(pm != 0)
                 
             # else:
             #     anno = annotations[idx].cpu().detach().numpy()
             
-            if mdl.dlr_acd:
+            if mdl.dlr:
                 ground_truth_point_map = point_maps[idx].cpu().detach().numpy()
                 gt_count = ground_truth_point_map.sum() / 3
             else:
@@ -677,7 +677,7 @@ def dmap_metrics(mdl, loader,n=50,mode='',null_filter=(a.args.bin_classifier_pat
             
             coordinates = peak_local_max(dmap_rev_np,min_distance=int(mdl.sigma)//2,num_peaks=max(1,int(pred_count))) # int(mdl.sigma//2)
             
-            if mdl.dlr_acd:
+            if mdl.dlr:
                 #y.append()
                 y_n.append(gt_count)
             else:
@@ -731,9 +731,12 @@ def dmap_metrics(mdl, loader,n=50,mode='',null_filter=(a.args.bin_classifier_pat
             # this splits the density maps into cells for counting per cell
             if a.args.rrc or a.args.resize:
                 nr,nc = width//4**l,width//4**l
-            else:
+            elif a.args.data != 'dlr':
                 #nr,nc = width//4**l,mdl.density_map_h//4**l
                 nr,nc = 800//4**l,608//4**l
+            elif a.args.data == 'dlr':
+                nr,nc = 320//4**l,320//4**l
+                
             
             gt_dmap_split_counts = np_split(ground_truth_dmap,nrows=nr,ncols=nc).sum(axis=(1,2))
             pred_dmap_split_counts = np_split(dmap_rev_np,nrows=nr,ncols=nc).sum(axis=(1,2))
@@ -741,7 +744,7 @@ def dmap_metrics(mdl, loader,n=50,mode='',null_filter=(a.args.bin_classifier_pat
             game.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)))
             gampe.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)/np.maximum(np.ones(len(gt_dmap_split_counts)),gt_dmap_split_counts)))  
     
-    localisation_dict,prs,rcs = gen_localisation_metrics(dlr=mdl.dlr_acd,thres=thres,y_coords=y_coords,y_hat_coords=y_hat_coords)
+    localisation_dict,prs,rcs = gen_localisation_metrics(dlr=mdl.dlr,thres=thres,y_coords=y_coords,y_hat_coords=y_hat_coords)
     write_localisation_data(mdl,prs,rcs,write=write)
     metric_dict = gen_metrics(dm_mae,dm_mse,dm_ssim,dm_psnr,y_n,y_hat_n,game,gampe,localisation_dict,prs,rcs,mode)
     
@@ -772,9 +775,9 @@ def dmap_pr_curve(mdl, loader,n = 10,mode = ''):
     
     for i, data in enumerate(tqdm(loader, disable=False)):
         
-        if not mdl.dlr_acd and not loader.dataset.classification:
+        if not mdl.dlr and not loader.dataset.classification:
             images,dmaps,labels,annotations, point_maps  = data
-        elif not mdl.dlr_acd:
+        elif not mdl.dlr:
             images,dmaps,labels, _ , annotations, point_maps  = data # binary labels
         else:
             images,dmaps,counts,point_maps = data
@@ -813,7 +816,7 @@ def dmap_pr_curve(mdl, loader,n = 10,mode = ''):
             ground_truth_dmap = dmaps[idx].squeeze().cpu().detach().numpy()
             gt_count = ground_truth_dmap.sum().round()
             
-            if mdl.dlr_acd:
+            if mdl.dlr:
                 pm = point_maps[idx].squeeze().cpu().detach().numpy()
                 gt_coords = np.argwhere(pm != 0)#.tolist()
             else:
@@ -835,7 +838,7 @@ def dmap_pr_curve(mdl, loader,n = 10,mode = ''):
             
             #y.append(labels[idx].cpu().detach().numpy()) # TODO - rm?
             
-            if mdl.dlr_acd:
+            if mdl.dlr:
                 y_n.append(counts[idx])
             else:    
                 y_n.append(len(labels[idx]))
@@ -862,7 +865,7 @@ def dmap_pr_curve(mdl, loader,n = 10,mode = ''):
 
         for gt_dmap, pred_dmap in zip(y_coords, y_hat_coords[mid_d]):
             
-            if not mdl.dlr_acd:
+            if not mdl.dlr:
                 gt_dmap = np.swapaxes(gt_dmap,1,0)
                 
             if len(gt_dmap) == 0:   
