@@ -599,7 +599,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
             
             if mdl.mnist:
                 images,labels = data
-            elif mdl.dlr:
+            elif mdl.dlr_acd:
                 images,dmaps,counts,point_maps = data_loader.preprocess_batch(data,dlr=True)
             elif loader.dataset.count: # mdl.dataset.count
                 images,dmaps,labels,counts, point_maps = data
@@ -632,7 +632,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
                 if lb_idx == None:
                     continue  
             
-            elif not mdl.mnist and not mdl.dlr and not include_empty:
+            elif not mdl.mnist and not mdl.dlr_acd and not include_empty:
                 
                  # check annotations in batch aren't empty
                 lb_idx = None
@@ -716,7 +716,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
 
             if not mdl.mnist and not mdl.count and null_filter==True:
                 # subtract constrant for uniform noise
-                if not mdl.dlr:
+                if not mdl.dlr_acd:
                     # subtract constrant for uniform noise
                     print('replacing predicted densities with empty predictions from feature extractor')
                     outputs = mdl.classification_head(images)  
@@ -758,7 +758,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
                 if mdl.mnist or mdl.subnet_type in g.SUBNETS:
                     sum_pred = dmap_rev_np.sum()-constant #[lb_idx]
                     true_dmap_count = dmaps[lb_idx].sum()-loader_noise
-                    if not mdl.dlr:
+                    if not mdl.dlr_acd:
                         label_count = len(annotations[lb_idx])
                     else:
                         label_count = counts[lb_idx]
@@ -793,7 +793,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
                         unnorm = data_loader.UnNormalize(mean =tuple(c.norm_mean),
                                              std=tuple(c.norm_std))
                         
-                        if mdl.dlr:
+                        if mdl.dlr_acd:
                             im = images[lb_idx]
                         else:
                             im = unnorm(images[lb_idx])
@@ -878,7 +878,7 @@ def plot_peaks(mdl, loader,n=10):
     
     for i, data in enumerate(tqdm(loader, disable=False)):
         
-        if mdl.dlr:
+        if mdl.dlr_acd:
             images,dmaps,counts,point_maps = data
         elif loader.dataset.classification:
             images,dmaps,labels,binary_labels,annotations,point_maps = data
@@ -922,7 +922,7 @@ def plot_peaks(mdl, loader,n=10):
             
             ground_truth_dmap = dmaps[idx].squeeze().cpu().detach().numpy()
             
-            if mdl.dlr:
+            if mdl.dlr_acd:
                 point_map = point_maps[idx].squeeze().cpu().detach().numpy()
                 label_count = counts[idx]
             else:
@@ -947,7 +947,7 @@ def plot_peaks(mdl, loader,n=10):
             dist_counts -= constant 
             gt_count -= loader_noise
             
-            if mdl.dlr:
+            if mdl.dlr_acd:
                 # https://stackoverflow.com/questions/60782965/extract-x-y-coordinates-of-each-pixel-from-an-image-in-python
                 gt_coords = np.argwhere(point_map == 1)
             else:
@@ -955,7 +955,7 @@ def plot_peaks(mdl, loader,n=10):
                 
             coordinates = peak_local_max(dmap_rev_np,min_distance=4,num_peaks=max(1,int(sum_count)))
 
-            if mdl.dlr:
+            if mdl.dlr_acd:
                 im = images[idx]
             else:
                 im = unnorm(images[idx])
@@ -973,7 +973,7 @@ def plot_peaks(mdl, loader,n=10):
             if len(coordinates) != 0:
                 x_coords, y_coords = zip(*coordinates)
                 ax[1,2].scatter(y_coords, x_coords,label='Predicted coordinates')
-                if mdl.dlr:
+                if mdl.dlr_acd:
                    ax[1,2].scatter(gt_coords[:,1], gt_coords[:,0],c='red',marker='1',label='Ground truth coordinates') 
                 else:
                     ax[1,2].scatter(gt_coords[:,1]*mdl.density_map_w, gt_coords[:,2]*mdl.density_map_h,c='red',marker='1',label='Ground truth coordinates')

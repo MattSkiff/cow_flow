@@ -576,10 +576,10 @@ def dmap_metrics(mdl, loader,n=50,mode='',null_filter=(a.args.bin_classifier_pat
     
     for i, data in enumerate(tqdm(loader, disable=False)):
         
-        if not mdl.dlr and not loader.dataset.classification:
-            images,dmaps,labels,annotations, point_maps  = preprocess_batch(data,dlr=True)
-        elif not mdl.dlr:
-            images,dmaps,labels,binary_labels , annotations, point_maps  = preprocess_batch(data)
+        if not a.args.data=='cows' and not loader.dataset.classification:
+            images,dmaps,labels,annotations,point_maps = preprocess_batch(data,dlr=True)
+        elif a.args.data=='cows':
+            images,dmaps,labels,binary_labels,annotations,point_maps  = preprocess_batch(data)
         else:
             images,dmaps,counts,point_maps = data
 
