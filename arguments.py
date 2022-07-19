@@ -157,7 +157,7 @@ if args.split_dimensions:
     assert not args.all_in_one
 
 if args.jac:
-    assert args.mod == "NF"
+    assert args.model_name == "NF"
 
 if args.mode == 'eval':
     assert args.mdl_path != ''

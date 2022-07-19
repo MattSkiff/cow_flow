@@ -12,7 +12,7 @@ import gvars as g
 import model
 from data_loader import prep_transformed_dataset, make_loaders
 from train import train, train_baselines, train_feat_extractor, train_classification_head
-from utils import load_model,plot_preds,plot_preds_baselines,plot_preds_multi, get_likelihood
+from utils import load_model,plot_preds,plot_preds_baselines,plot_preds_multi,plot_peaks,get_likelihood
 from eval import dmap_metrics, eval_baselines
 from dlr_acd import dlr_acd
 from mnist import mnist
@@ -43,7 +43,6 @@ if a.args.data == 'cows':
         val_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=True, 
                             num_workers=4,collate_fn=transformed_dataset.custom_collate_aerial,
                             pin_memory=False)
-        
     
     if a.args.mode in ['plot','eval']:
         
@@ -62,8 +61,10 @@ if a.args.data == 'cows':
             if a.args.model_name == 'NF':
                 if a.args.get_likelihood:
                     get_likelihood(mdl,val_loader,plot=False)
-                else:
+                elif a.args.data == 'cows':
                     plot_preds(mdl,val_loader)
+                elif a.args.data == 'dlr':
+                    plot_peaks(mdl,val_loader)
             elif a.args.model_name == 'ALL':
                 plot_preds_multi(mode='val',loader=val_loader)
             elif a.args.model_name in g.BASELINE_MODEL_NAMES:

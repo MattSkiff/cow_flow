@@ -103,13 +103,13 @@ class DLRACD(Dataset):
                     os.makedirs(im_patch_path, exist_ok = False)
                     
                 # create image patches
-                for img_path in tqdm(images_list, desc="Loading and splitting {} images...".format(mode)):
+                for img_path in tqdm(images_list[:99], desc="Loading and splitting {} images...".format(mode)):
                     im = cv2.imread(os.path.join(self.root_dir,mode+"/Images/"+img_path))
                     im_patches = utils.split_image(im, save = patch_save, overlap=overlap,name = img_path[:-4],path = im_patch_path,frmt = 'jpg',dlr=True)
         
                 patches_list = sorted(os.listdir(os.path.join(self.root_dir,mode+"/Images/Patches/")))
                 
-                for patch_path in tqdm(patches_list, desc="Loading {} patches...".format(mode)):
+                for patch_path in tqdm(patches_list[:99], desc="Loading {} patches...".format(mode)):
                     
                     im_patch = cv2.imread(os.path.join(self.root_dir,mode+"/Images/Patches/"+patch_path))
                     self.patches[mode].append(im_patch) # (320, 320, 3) 
@@ -124,7 +124,7 @@ class DLRACD(Dataset):
                 
                 if overlap == 0:
     
-                    for anno_path in tqdm(annotation_list, desc="Loading and splitting annotations..."):
+                    for anno_path in tqdm(annotation_list[:99], desc="Loading and splitting annotations..."):
                         
                         # read in as greyscale (0 arg)
                         annotation = cv2.imread(os.path.join(self.root_dir,mode+"/Annotation/"+anno_path),0)
@@ -163,14 +163,14 @@ class DLRACD(Dataset):
                         os.makedirs(anno_patch_path, exist_ok = False)
                     
                     # create annotation patches
-                    for anno_path in tqdm(annotation_list, desc="Loading and splitting images..."):
+                    for anno_path in tqdm(annotation_list[:99], desc="Loading and splitting images..."):
                         anno = cv2.imread(os.path.join(self.root_dir,mode+"/Annotation/"+anno_path))
                         anno_patches = utils.split_image(anno,save=patch_save, overlap=overlap,name = anno_path[:-4],path = anno_patch_path,frmt = 'png',dlr=True)
                         self.anno_path[mode].extend([anno_path]*len(anno_patches))
                     
                     anno_patches_list = sorted(os.listdir(os.path.join(self.root_dir,mode+"/Annotation/Patches/")))
                     
-                    for anno_patch_path,anno_path in tqdm(zip(anno_patches_list,self.anno_path[mode]), desc="Loading annotation patches..."):
+                    for anno_patch_path,anno_path in tqdm(zip(anno_patches_list[:99],self.anno_path[mode]), desc="Loading annotation patches..."):
                         
                         # read in as greyscale (0 arg)
                         pm = cv2.imread(os.path.join(self.root_dir,mode+"/Annotation/Patches/"+anno_patch_path),0) 
