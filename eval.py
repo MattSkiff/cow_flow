@@ -762,8 +762,9 @@ def dmap_metrics(mdl, loader,n=50,mode='',null_filter=(a.args.bin_classifier_pat
             # if binary classifier replaces pred dmap
             # revert to original gt dmap
             # (instead of empty dmap with noise added)
-            if pred_count == 0 and gt_count == 0:
-                ground_truth_dmap += np.zeros([1,mdl.density_map_h,mdl.density_map_w]).to(c.device)
+            
+            if pred_count == 0 and len(annotations[idx]) == 0:
+                ground_truth_dmap = np.zeros([mdl.density_map_h,mdl.density_map_w],dtype=np.float32)
             
             y_hat_n.append(pred_count)
             y_hat_n_dists.append(dist_counts)
@@ -773,7 +774,7 @@ def dmap_metrics(mdl, loader,n=50,mode='',null_filter=(a.args.bin_classifier_pat
             dm_mae.append(sum(abs(dmap_rev_np-ground_truth_dmap)))
             dm_mse.append(sum(np.square(dmap_rev_np-ground_truth_dmap)))
             
-            dm_psnr.append(peak_signal_noise_ratio(ground_truth_dmap,dmap_rev_np)) #data_range=ground_truth_dmap.max()-ground_truth_dmap.min()))
+            dm_psnr.append(cv2.PSNR(ground_truth_dmap,dmap_rev_np)) #data_range=ground_truth_dmap.max()-ground_truth_dmap.min()))
             dm_ssim.append(structural_similarity(ground_truth_dmap,dmap_rev_np))
                         
             # local-count metrics # TODO
