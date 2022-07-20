@@ -758,7 +758,13 @@ def dmap_metrics(mdl, loader,n=50,mode='',null_filter=(a.args.bin_classifier_pat
             # ax[1].imshow(dmap_rev_np)
             # ax[2].imshow(dmaps[idx].cpu().numpy()) 
             # 1/0
-
+            
+            # if binary classifier replaces pred dmap
+            # revert to original gt dmap
+            # (instead of empty dmap with noise added)
+            if pred_count == 0 and gt_count == 0:
+                ground_truth_dmap += np.zeros([1,mdl.density_map_h,mdl.density_map_w]).to(c.device)
+            
             y_hat_n.append(pred_count)
             y_hat_n_dists.append(dist_counts)
             y_hat_coords.append(coordinates) 
