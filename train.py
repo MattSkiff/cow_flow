@@ -40,7 +40,7 @@ def train_baselines(model_name,train_loader,val_loader):
     if a.args.model_name == 'UNet_seg':
         loss = torch.nn.BCEWithLogitsLoss()
     else:
-        loss = torch.nn.MSELoss(size_average=False)
+        loss = torch.nn.MSELoss(size_average=True)
     
     if a.args.model_name == "FCRN":
         mdl = b.FCRN_A(modelname=modelname)
@@ -462,7 +462,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                     print(train_metric_dict)
                     model_metric_dict.update(train_metric_dict)
                     
-                    if a.args.viz and mdl.dlr and j % a.args.viz_freq == 0:
+                    if a.args.viz and mdl.dlr_acd and j % a.args.viz_freq == 0:
                         plot_preds(mdl,train_loader,writer=writer,writer_epoch=meta_epoch,writer_mode='train',null_filter=False)
                     
                     if c.validation:
@@ -521,7 +521,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
             # visualise a random reconstruction
             if a.args.viz:
                 
-                if mdl.dlr:
+                if mdl.dlr_acd:
                     preds_loader = train_loader
                     dmap_pr_mode = 'train'
                 else:

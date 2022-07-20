@@ -50,7 +50,7 @@ class DLRACD(Dataset):
         # this dict structure is only used for processing in init method,
         # switch to flat list at end
         self.count = False
-        self.dlr = True
+        self.dlr_acd = True
         self.classification = False # TODO - no null filtering - yet
         self.transform = transform
         self.overlap = overlap

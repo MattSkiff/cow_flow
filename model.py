@@ -124,6 +124,14 @@ class ResNetPyramid(ResNet):
             self.fc = nn.Linear(num_ftrs, 2)  
             del finetuned_fe
             
+        # borrowed from LCFCN
+        # # FREEZE BATCH NORMS
+        if a.args.freeze_bn:
+            for m in self.modules():
+                if isinstance(m, nn.BatchNorm2d):
+                    m.weight.requires_grad = False
+                    m.bias.requires_grad = False
+            
     def _forward_impl_my(self, x):
         # change forward here
         x = self.conv1(x)
@@ -163,6 +171,14 @@ class VGGPyramid(VGG):
             num_ftrs = self.fc.in_features
             self.fc = nn.Linear(num_ftrs, 2)  
             del finetuned_fe
+        
+        # borrowed from LCFCN
+        # # FREEZE BATCH NORMS
+        if a.args.freeze_bn:
+            for m in self.modules():
+                if isinstance(m, nn.BatchNorm2d):
+                    m.weight.requires_grad = False
+                    m.bias.requires_grad = False
     
     def _forward_impl_my(self, x: torch.Tensor) -> torch.Tensor:
         
@@ -327,13 +343,28 @@ def subnet(dims_in, dims_out):
         net = sub_mcnn(dims_in,dims_out,a.args.filters)
     if a.args.subnet_type == 'UNet':
         net = sub_unet(dims_in,dims_out,a.args.filters)
+    if a.args.subnet_type == 'nothing':
+        net = sub_null(dims_in,dims_out,a.args.filters)
         
 
     if c.debug:
         print('dims in: {}, dims out: {}'.format(dims_in,dims_out))
     
     return net
-   
+
+# TODO
+def sub_null(dims_in,dims_out,internal_size):
+    
+    net = nn.Sequential(
+        nn.Identity()
+        )
+    
+    return net
+
+def sub_nf(dims_in,dims_out,internal_size):
+    
+    return
+
 def sub_fc(dims_in,dims_out,internal_size):
     # debugging
     net = nn.Sequential(
