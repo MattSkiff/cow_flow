@@ -7,6 +7,7 @@ parser = argparse.ArgumentParser(description='Create dataloaders and train a mod
 parser.add_argument('-mode',help="Specify mode (train,eval,store).",default='')
 parser.add_argument('-get_likelihood',help='get and plot likelihoods / anamoly scores',action="store_true",default=False)
 parser.add_argument('-jac',help='enable the jacobian as part of training',action="store_true",default=False)
+parser.add_argument('-freeze_bn',help='freeze batch norms',action="store_true",default=False)
 parser.add_argument('-holdout',help="Use holdout data",action="store_true",default=False)
 
 parser.add_argument('-mdl_path',help="Specify mdl for eval",default='')
@@ -95,8 +96,8 @@ host = socket.gethostname()
 
 # defaults for if running interactively
 if any('SPYDER' in name for name in os.environ):
-    args.model_name = "NF"
-    args.data = 'dlr'
+    args.model_name = "CSRNet"
+    args.data = 'cows'
     args.optim = "adamw"
     args.scheduler = 'none'
     args.sampler = 'none'
@@ -109,7 +110,7 @@ if any('SPYDER' in name for name in os.environ):
     args.tensorboard = False
     args.viz = True
     args.viz_freq = 100
-    args.resize = False
+    args.resize = True
     args.rrc = False
     args.dmap_scaling = 1
     args.max_filter_size = 4
@@ -120,16 +121,16 @@ if any('SPYDER' in name for name in os.environ):
     args.fixed1x1conv = False
     args.split_dimensions = 0
     
-    args.subnet_type = 'conv'
-    args.noise = 1e-3
-    args.filters = 32
-    args.n_pyramid_blocks = 1
+    args.subnet_type = ''
+    args.noise = 0
+    args.filters = 0
+    args.n_pyramid_blocks = 0
     args.skip_final_eval = False
-    args.feat_extractor = 'vgg16_bn'
-    args.pyramid = True
-    args.tb = True
+    args.feat_extractor = ''
+    args.pyramid = False
+    args.tb = False
     
-    args.image_size = 320
+    args.image_size = 256
 
     args.expon_gamma = 0.99
     args.adam_b1 = 0.9

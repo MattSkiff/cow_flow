@@ -4,6 +4,7 @@ from torch.utils.data import DataLoader # Dataset
 
 import torch.nn as nn
 import os
+import sys
 
 # internal
 import config as c
@@ -16,6 +17,10 @@ from utils import load_model,plot_preds,plot_preds_baselines,plot_preds_multi,pl
 from eval import dmap_metrics, eval_baselines
 from dlr_acd import dlr_acd
 from mnist import mnist
+
+if a.args.n_pyramid_blocks > 32:
+    sys.setrecursionlimit(10000) # avoids error when saving model
+    # see here: https://discuss.pytorch.org/t/using-dataloader-recursionerror-maximum-recursion-depth-exceeded-while-calling-a-python-object/36947/5
 
 if c.gpu:
     empty_cache() # free up memory for cuda

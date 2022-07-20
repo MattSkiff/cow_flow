@@ -433,7 +433,9 @@ def predict_image(mdl_path,nf=False,geo=True,nf_n=500,mdl_type='',
 
 @torch.no_grad()
 def plot_preds_baselines(mdl, loader,mode="",mdl_type='',writer=None,writer_epoch=None,writer_mode=None):
-    
+        
+        is_unet_seg = a.args.model_name == "UNet_seg"
+        
         assert mode in ['train','val']
         assert mdl_type in g.BASELINE_MODEL_NAMES
         
@@ -446,34 +448,26 @@ def plot_preds_baselines(mdl, loader,mode="",mdl_type='',writer=None,writer_epoc
                 images,dmaps,labels,binary_labels , annotations, point_maps  = data_loader.preprocess_batch(data)
                 preds = mdl(images)
                 
-                if mdl_type == 'UNet_seg':
-                    coords = peak_local_max(preds.squeeze().cpu().numpy(),min_distance=1,
-                                            num_peaks=np.inf,threshold_abs=0,threshold_rel=0.5)
-
-                
                 if str(type(mdl)) == "<class 'baselines.LCFCN'>":#  or mdl_type == 'UNet_seg':
                     
                         probs = preds.sigmoid().cpu().numpy()
                         
-                        # if str(type(mdl)) == "<class 'baselines.LCFCN'>" :
                         pred_blobs = lcfcn_loss.get_blobs(probs=probs).squeeze()
-                        # else:
-                        #     probs = probs.squeeze()
-                        #     h, w = probs.shape
-                         
-                        #     pred_mask = (probs>0.5).astype('uint8')
-                        #     import matplotlib.pyplot as plt
-                        #     plt.hist(probs)
-                        #     blobs = np.zeros((h, w), int)
-    
-                        #     pred_blobs = morph.label(pred_mask == 1).squeeze()
-                        
+
                         pred_points = lcfcn_loss.blobs2points(pred_blobs).squeeze()
                         y_list, x_list = np.where(pred_points.squeeze())
                         pred_counts = (np.unique(pred_blobs)!=0).sum()
                         preds = preds.squeeze(0).sigmoid().permute(1,2,0).cpu().numpy() # 
                 else:
                     preds = preds[lb_idx].permute(1,2,0).cpu().numpy()
+                
+                if str(type(mdl)) == "<class 'baselines.LCFCN'>": # or is_unet_seg:
+                    coordinates = np.argwhere(pred_points != 0)
+                
+                elif is_unet_seg:
+                    # threshold absolute = 0 only works if passed through sigmoid transform
+                    # in which case may as well use relative arg
+                    coordinates = peak_local_max(preds,min_distance=int(mdl.sigma//2),threshold_rel=0.5)
                 
                 unnorm = data_loader.UnNormalize(mean=tuple(c.norm_mean),
                                      std=tuple(c.norm_std))
@@ -483,7 +477,7 @@ def plot_preds_baselines(mdl, loader,mode="",mdl_type='',writer=None,writer_epoc
                 im = unnorm(images[lb_idx])
                 im = im.permute(1,2,0).cpu().numpy()
 
-                fig, ax = plt.subplots(1,3)
+                fig, ax = plt.subplots(1,5)
                 plt.subplots_adjust(left=0.1, right=0.9, top=0.9, bottom=0.1)
                 fig.set_size_inches(24*1,7*1)
                 fig.set_dpi(100)
@@ -498,6 +492,31 @@ def plot_preds_baselines(mdl, loader,mode="",mdl_type='',writer=None,writer_epoc
                 ax[2].title.set_text('Ground Truth Density Map')
                 ax[2].imshow(plot_dmap.cpu().numpy())
                 
+                if mdl.density_map_h == 608 and not a.args.rrc:
+                    width = 800
+                    height = 608
+                else:
+                    width = 256
+                    height = 256
+                
+                gt_coords = annotations[lb_idx]
+                
+                if gt_coords.nelement() != 0:
+                    gt_coords = torch.stack([gt_coords[:,2]*width,gt_coords[:,1]*height]).cpu().detach().numpy()
+                    gt_coords = np.swapaxes(gt_coords,1,0)
+                else:
+                    gt_coords = None
+                
+                
+                ax[3].title.set_text('Ground Truth Annotations')
+                if gt_coords is not None:
+                    ax[3].scatter(gt_coords[:,0], gt_coords[:,1],c='red',marker='1',label='Ground truth coordinates')
+                else:
+                    ax[3].scatter([],[],label='Ground truth coordinates')
+                
+                ax[4].title.set_text('Predicted Points')
+                ax[4].scatter(coordinates[:,0], coordinates[:,1],label='Predicted coordinates')
+                
                 add_plot_tb(writer,fig,writer_mode,writer_epoch)
                 
                 print("\n Sum Pred Density Map: {} ".format(preds.sum()))
@@ -508,7 +527,7 @@ def plot_preds_baselines(mdl, loader,mode="",mdl_type='',writer=None,writer_epoc
                         print("%s predicted (LCFCN)" % (pred_counts))
                 
                 if mdl_type == 'UNet_seg':
-                        print("%s predicted (UNet_seg)" % (len(coords)))
+                        print("%s predicted (UNet_seg)" % (len(coordinates)))
                 
                 if hasattr(mdl, 'dmap_scaling'):
                     if mdl.dmap_scaling != 1:
@@ -1608,15 +1627,21 @@ def make_hparam_dict(val_loader):
     
     return hparam_dict
 
-def create_point_map(mdl,annotations):
+def create_point_map(mdl,annotations,pred=False):
     # add points onto basemap
-
+    
     if mdl == None:
         # error introduced here as float position annotation centre converted to int
         if a.args.resize:
             base_map = np.zeros((256,256), dtype=np.float32) # c.raw_img_size
         else:
-            base_map = np.zeros((c.raw_img_size[1], c.raw_img_size[0]), dtype=np.float32)
+            
+            if pred:
+                pd = 8
+                base_map = np.zeros((c.raw_img_size[1]+pd,c.raw_img_size[0]), dtype=np.float32)
+            else:
+                base_map = np.zeros((c.raw_img_size[1], c.raw_img_size[0]), dtype=np.float32)
+
     else:
         base_map = np.zeros((mdl.density_map_h,mdl.density_map_w), dtype=np.float32)    
 
@@ -1624,16 +1649,31 @@ def create_point_map(mdl,annotations):
     
     for point in annotations:
         
+        if pred:
+            point = np.insert(point, 0, 0., axis=0)
+        
         offset = 1
         
-        point_flags.append(point[0])
+        if not pred:
+            point_flags.append(point[0])
         
         # subtract 1 to account for 0 indexing
         # NOTE: this overrides duplicate annotation points (4 out of 22k)
-        if a.args.resize:
-            base_map[int(round((point[2])*256)-offset),int(round((point[1])*256)-offset)] = 1 # +=1
+        if pred:
+            
+            if a.args.resize:
+                base_map[int(round((point[2]))-offset),int(round((point[1]))-offset)] = 1 # +=1
+            else:
+                #base_map[int(round((point[2])*c.raw_img_size[1])-offset),int(round((point[1])*c.raw_img_size[0])-offset)] = 1 # +=1
+                base_map[int(round((point[1]))-offset),int(round((point[2]))-offset)] = 1 # +=1
         else:
-            base_map[int(round((point[2])*c.raw_img_size[1])-offset),int(round((point[1])*c.raw_img_size[0])-offset)] = 1 # +=1
+        
+            # subtract 1 to account for 0 indexing
+            # NOTE: this overrides duplicate annotation points (4 out of 22k)
+            if a.args.resize:
+                base_map[int(round((point[2])*256)-offset),int(round((point[1])*256)-offset)] = 1 # +=1
+            else:
+                base_map[int(round((point[2])*c.raw_img_size[1])-offset),int(round((point[1])*c.raw_img_size[0])-offset)] = 1 # +=1
             
     return base_map, point_flags
 

@@ -9,6 +9,7 @@ from scipy.optimize import linear_sum_assignment
 import torch
 from torch import randn
 from torch.utils.data import DataLoader # Dataset  
+import cv2 # test PSNR
 
 import random
 import os
@@ -17,7 +18,7 @@ import time
 import matplotlib.pyplot as plt
 
 # Internal
-from utils import ft_dims_select, np_split,is_baseline, create_point_map,loader_check
+from utils import ft_dims_select, np_split,is_baseline, create_point_map,loader_check,create_point_map
 import config as c
 import gvars as g
 import arguments as a
@@ -307,7 +308,7 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True):
         
         x = mdl(images)
         
-        if str(type(mdl)) == "<class 'baselines.LCFCN'>": # or is_unet_seg:
+        if str(type(mdl)) == "<class 'baselines.LCFCN'>": 
             x = x.sigmoid().cpu().numpy() # logits -> probs
             
             blobs = lcfcn_loss.get_blobs(probs=x)
@@ -317,7 +318,7 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True):
             
         for idx in range(images.size()[0]):               
             
-            if str(type(mdl)) == "<class 'baselines.LCFCN'>": # or is_unet_seg:
+            if str(type(mdl)) == "<class 'baselines.LCFCN'>": 
                 dmap_np = x[idx].squeeze()
             else:
                 dmap_np = x[idx].squeeze().cpu().detach().numpy()
@@ -351,7 +352,7 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True):
             gt_count -= loader_noise
             n_peaks=max(1,int(pred_count))
             
-            if str(type(mdl)) == "<class 'baselines.LCFCN'>": # or is_unet_seg:
+            if str(type(mdl)) == "<class 'baselines.LCFCN'>": 
                 coordinates = np.argwhere(pred_points != 0)
                 
             elif is_unet_seg:
@@ -383,7 +384,7 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True):
             # ax[2].imshow(dmaps[idx].cpu().numpy())
             # 1/0
             
-            if str(type(mdl)) == "<class 'baselines.LCFCN'>": # or is_unet_seg:
+            if str(type(mdl)) == "<class 'baselines.LCFCN'>": 
                 y_hat_n.append(blob_counts)
             else:
                 y_hat_n.append(pred_count)
@@ -401,9 +402,20 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True):
                 #nr,nc = width//4**l,mdl.density_map_h//4**l
                 nr,nc = 800//4**l,608//4**l
             
-            gt_dmap_split_counts = np_split(ground_truth_dmap,nrows=nr,ncols=nc).sum(axis=(1,2))
-            pred_dmap_split_counts = np_split(dmap_np,nrows=nr,ncols=nc).sum(axis=(1,2))
-            
+            if a.args.model_name in ['LCFCN','UNet_seg']:
+                
+                pred_coord_pmap, point_flag = create_point_map(mdl=None,annotations=coordinates,pred=True)
+                gt_pmap = point_maps[idx].squeeze().cpu().detach().numpy()
+                
+                # print(pred_coord_pmap.shape)
+                # print(gt_pmap.shape)
+                
+                gt_dmap_split_counts = np_split(pred_coord_pmap,nrows=nr,ncols=nc).sum(axis=(1,2))
+                pred_dmap_split_counts = np_split(gt_pmap,nrows=nr,ncols=nc).sum(axis=(1,2))
+            else:
+                gt_dmap_split_counts = np_split(ground_truth_dmap,nrows=nr,ncols=nc).sum(axis=(1,2))
+                pred_dmap_split_counts = np_split(dmap_np,nrows=nr,ncols=nc).sum(axis=(1,2))
+                
             game.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)))
             gampe.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)/np.maximum(np.ones(len(gt_dmap_split_counts)),gt_dmap_split_counts)))  
             
@@ -415,7 +427,7 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True):
             #if pdmap_divisor == 0:
             #    normalised_pdmap = (dmap_np - np.min(dmap_np)) / pdmap_divisor
             #normalised_gdmap = (ground_truth_dmap - np.min(ground_truth_dmap)) / (np.max(ground_truth_dmap)-np.min(ground_truth_dmap))
-            dm_psnr.append(peak_signal_noise_ratio(ground_truth_dmap,dmap_np))
+            dm_psnr.append(cv2.PSNR(ground_truth_dmap,dmap_np)) #peak_signal_noise_ratio
             dm_ssim.append(structural_similarity(ground_truth_dmap,dmap_np))
     
     localisation_dict,prs,rcs = gen_localisation_metrics(dlr=False,thres=thres,y_coords=y_coords,y_hat_coords=y_hat_coords)
@@ -427,7 +439,38 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True):
     print(metric_dict)
     
     return  metric_dict # localisation_dict
+
+@torch.no_grad()
+def get_psnr(mdl,loader):
     
+    loader_check(mdl=mdl,loader=loader)
+    
+    assert not mdl.count
+    assert c.data_prop == 1
+    
+    dm_psnr = []    
+    mdl = mdl.to(c.device)
+    
+    for i, data in enumerate(tqdm(loader, disable=False)):
+        
+        images,dmaps,labels, binary_labels, annotations,point_maps = preprocess_batch(data)
+        x = mdl(images)
+            
+        for idx in range(images.size()[0]):               
+            
+            dmap_np = x[idx].squeeze().cpu().detach().numpy()
+            dmap_np = dmap_np/mdl.dmap_scaling            
+            ground_truth_dmap = dmaps[idx].squeeze().cpu().detach().numpy()
+            ground_truth_dmap = ground_truth_dmap/mdl.dmap_scaling
+            dm_psnr.append(cv2.PSNR(ground_truth_dmap,dmap_np)) #peak_signal_noise_ratio
+        
+        av_psnr = np.mean(np.array(dm_psnr))
+    
+    return  av_psnr 
+    
+    
+
+@torch.no_grad()
 def dlr_whole_image_eval(mdl,loader):
     
     metric_dict = {'mae':None,
@@ -671,9 +714,11 @@ def dmap_metrics(mdl, loader,n=50,mode='',null_filter=(a.args.bin_classifier_pat
             constant = ((mdl.noise)/2)*ground_truth_dmap.shape[0]*ground_truth_dmap.shape[1] 
             loader_noise = ((a.args.noise)/2)*ground_truth_dmap.shape[0]*ground_truth_dmap.shape[1] 
             
-            pred_count -= constant            
-            dist_counts -= constant
-            gt_count -= loader_noise
+            # only subtract constant if binary classifier has been used
+            if pred_count != 0:
+                pred_count -= constant            
+                dist_counts -= constant
+                gt_count -= loader_noise
             
             coordinates = peak_local_max(dmap_rev_np,min_distance=int(mdl.sigma)//2,num_peaks=max(1,int(pred_count))) # int(mdl.sigma//2)
             
