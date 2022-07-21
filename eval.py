@@ -270,9 +270,9 @@ def gen_metrics(dm_mae,dm_mse,dm_ssim,dm_psnr,y_n,y_hat_n,game,gampe,localisatio
     return metric_dict
     
 @torch.no_grad()
-def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True):
+def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True,null_filter=(a.args.bin_classifier_path != '')):
     
-    thres=4*2 #mdl.sigma*2
+    thres=4*2 ; correct = 0; total = 0 #mdl.sigma*2
 
     if mdl.density_map_h == 608 and not a.args.rrc:
         width = 608
@@ -307,6 +307,14 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True):
         images,dmaps,labels, binary_labels, annotations,point_maps = preprocess_batch(data)
         
         x = mdl(images)
+        
+        if null_filter:
+            outputs = mdl.classification_head(images)  
+            _, preds = torch.max(outputs, 1)  
+            correct += sum(preds == binary_labels)
+            total += len(binary_labels)
+            x[(preds == 1).bool(),:,:,:] = torch.zeros(1,mdl.density_map_h,mdl.density_map_w).to(c.device)
+            
         
         if str(type(mdl)) == "<class 'baselines.LCFCN'>": 
             x = x.sigmoid().cpu().numpy() # logits -> probs
@@ -345,11 +353,12 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True):
             gt_count = ground_truth_point_map.sum() #.round()
             
             # subtract constrant for uniform noise
-            constant = ((mdl.noise)/2)*ground_truth_dmap.shape[0]*ground_truth_dmap.shape[1] 
-            loader_noise = ((a.args.noise)/2)*ground_truth_dmap.shape[0]*ground_truth_dmap.shape[1] 
-            
-            pred_count -= constant
-            gt_count -= loader_noise
+            if a.args.noise != 0:
+                constant = ((mdl.noise)/2)*ground_truth_dmap.shape[0]*ground_truth_dmap.shape[1] 
+                loader_noise = ((a.args.noise)/2)*ground_truth_dmap.shape[0]*ground_truth_dmap.shape[1] 
+                pred_count -= constant
+                gt_count -= loader_noise
+                
             n_peaks=max(1,int(pred_count))
             
             if str(type(mdl)) == "<class 'baselines.LCFCN'>": 
@@ -436,6 +445,7 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True):
     
     t2 = time.perf_counter()
     print("Dmap evaluation finished. Wall time: {}".format(round(t2-t1,2)))
+    print('correct binary classifier preds: {}/{}'.format(correct,total))
     print(metric_dict)
     
     return  metric_dict # localisation_dict
@@ -642,7 +652,9 @@ def dmap_metrics(mdl, loader,n=50,mode='',null_filter=(a.args.bin_classifier_pat
                     
         ## sample from model per aerial image ---
         for i in range(n):
-            dummy_z = (randn(images.size()[0], in_channels,ft_dims[0],ft_dims[1])).to(c.device)
+            #dummy_z = (randn(images.size()[0], in_channels,ft_dims[0],ft_dims[1])).to(c.device)
+            dummy_z = (torch.full((images.size()[0], in_channels,ft_dims[0],ft_dims[1]),0.5)).to(c.device)
+
         
             # feature extractor pre filtering
             # currently only on cow dataset
