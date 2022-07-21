@@ -61,7 +61,7 @@ class ConvCat(nn.Module):
         super(ConvCat, self).__init__()
         self.conv = nn.Sequential(
             conv_block(channels, size, stride, N),
-            nn.Upsample(scale_factor=2)
+            nn.functional.interpolate(scale_factor=2)
         )
 
     def forward(self, to_conv: torch.Tensor, to_cat: torch.Tensor):
@@ -132,13 +132,13 @@ class FCRN_A(nn.Module):
             conv_block(channels=(128, 512), size=(3, 3), N=N),
 
             # upsampling
-            nn.Upsample(scale_factor=2),
+            nn.functional.interpolate(scale_factor=2),
             conv_block(channels=(512, 128), size=(3, 3), N=N),
 
-            nn.Upsample(scale_factor=2),
+            nn.functional.interpolate(scale_factor=2),
             conv_block(channels=(128, 64), size=(3, 3), N=N),
 
-            nn.Upsample(scale_factor=2),
+            nn.functional.interpolate(scale_factor=2),
             conv_block(channels=(64, 1), size=(3, 3), N=N),
         )
 
@@ -293,7 +293,7 @@ class Up(nn.Module):
 
         # if bilinear, use the normal convolutions to reduce the number of channels
         if bilinear:
-            self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
+            self.up = nn.functional.interpolate(scale_factor=2, mode='bilinear', align_corners=True)
             self.conv = DoubleConv(in_channels, out_channels, in_channels // 2)
         else:
             self.up = nn.ConvTranspose2d(in_channels, in_channels // 2, kernel_size=2, stride=2)
@@ -359,7 +359,7 @@ class CSRNet(nn.Module):
         x = self.frontend(x)
         x = self.backend(x)
         x = self.output_layer(x)
-        x = F.upsample(x,scale_factor=8)
+        x = F.interpolate(x,scale_factor=8)
         return x
     
     def _initialize_weights(self):
@@ -646,15 +646,14 @@ class MCNN(nn.Module):
         x = self.fuse(x)
         
         # TODO: ensure this only triggers when MCNN is used as a subnet
-        
         # really crappy hack to make dimensionality match feature pyramid
         # only applied to make MCNN work on 800x600 data
         # if x.size()[3] == 12:
-        #     x = F.upsample(x,size=(38,50))
+        #     x = F.interpolate(x,size=(38,50))
         # elif x.size()[3] == 6:
-        #     x = F.upsample(x,size=(19,25))
+        #     x = F.interpolate(x,size=(19,25))
         # else:
-        x = F.upsample(x,scale_factor=4)
+        x = F.interpolate(x,scale_factor=4)
         
         return x
     
@@ -752,7 +751,7 @@ class Res50(nn.Module):
 
         x = self.de_pred(x)
 
-        x = F.upsample(x,scale_factor=8)
+        x = F.interpolate(x,scale_factor=8)
         return x
 
     def _initialize_weights(self):

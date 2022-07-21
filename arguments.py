@@ -233,6 +233,7 @@ if args.model_name in ['UNet_seg','LCFCN']:
     assert args.max_filter_size == args.sigma
 
 if args.mode == 'train':
+    assert args.meta_epochs and args.sub_epochs >= 1
     assert args.scheduler in ['exponential','step','none']
     assert args.optim in ['sgd','adam','adamw']
 
@@ -251,3 +252,4 @@ elif host == 'quatern' or host == 'deuce':
     assert args.gpu_number < 2
 else:
     assert args.gpu_number < 1 
+    

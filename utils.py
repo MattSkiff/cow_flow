@@ -62,7 +62,7 @@ def load_model(filename,loc=g.MODEL_DIR):
     
     bc_path = os.path.join(g.FEAT_MOD_DIR, a.args.bin_classifier_path)
     
-    if a.args.bin_classifier_path != '' and a.args.model_name == 'NF':
+    if a.args.bin_classifier_path != '': # and a.args.model_name == 'NF':
         mdl.classification_head = torch.load(bc_path, pickle_module=dill)
     
     print("model {} loaded from {}".format(filename,loc))
