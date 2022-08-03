@@ -308,9 +308,18 @@ def sub_conv2d_deep(dims_in,dims_out,n_filters):
                     ('batchnorm1',nn.BatchNorm2d(n_filters)),
                     ("relu1", nn.ReLU()),
                     # use small filters in subnet per glow paper
-                    ("conv2", nn.Conv2d(a.args.filters, n_filters*2, kernel_size = 1,padding = 0)),
-                    ('batchnorm2',nn.BatchNorm2d(n_filters*2)),
+                    ("conv2", nn.Conv2d(n_filters, n_filters, kernel_size = 1,padding = 0)),
+                    ('batchnorm2',nn.BatchNorm2d(n_filters)),
                     ("relu2", nn.ReLU()),
+                    
+                    ("conv3", nn.Conv2d(n_filters,n_filters, kernel_size = 1,padding = 0)),
+                    ('batchnorm3',nn.BatchNorm2d(n_filters)),
+                    ("relu2", nn.ReLU()),
+                        
+                    ("conv4", nn.Conv2d(n_filters,n_filters*2, kernel_size = 1,padding = 0)),
+                    ('batchnorm4',nn.BatchNorm2d(n_filters*2)),
+                    ("relu4", nn.ReLU()),
+                    
                     ("conv3", nn.Conv2d(n_filters*2, dims_out,kernel_size = 3,padding = 1))
                 ]
         )
@@ -319,6 +328,8 @@ def sub_conv2d_deep(dims_in,dims_out,n_filters):
     if not c.batchnorm:
         del network_dict['batchnorm1']
         del network_dict['batchnorm2']
+        del network_dict['batchnorm3']
+        del network_dict['batchnorm4']
     
     net = nn.Sequential(network_dict)
     net.apply(u.init_weights)
@@ -337,6 +348,8 @@ def subnet(dims_in, dims_out):
         net = sub_conv2d(dims_in,dims_out,a.args.filters)
     if a.args.subnet_type == 'conv_shallow':
         net = sub_conv2d_shallow(dims_in,dims_out,a.args.filters)
+    if a.args.subnet_type == 'conv_deep':
+        net = sub_conv2d_deep(dims_in,dims_out,a.args.filters)
     if a.args.subnet_type == 'fc':
         net = sub_fc(dims_in,dims_out,c.width)
     if a.args.subnet_type == 'MCNN':
@@ -541,7 +554,7 @@ def nf_no_fe(input_dim=(c.density_map_h,c.density_map_w),condition_dim=3,mnist=F
 
     for k in range(c.n_coupling_blocks):
                   
-        #nodes.append(Ff.Node(nodes[-1], Fm.PermuteRandom, {'seed': k}, name='permute_{}'.format(k)))
+        nodes.append(Ff.Node(nodes[-1], Fm.PermuteRandom, {'seed': k}, name='permute_{}'.format(k)))
         
         nodes.append(Ff.Node(nodes[-1], Fm.GLOWCouplingBlock,{'clamp': c.clamp_alpha, 'subnet_constructor':subnet},conditions=condition,
                             name = 'couple_{}'.format(k)))
@@ -635,16 +648,6 @@ class CowFlow(nn.Module):
         else:
             self.feat_extractor = feat_extractor
         
-        if a.args.pyramid:
-            if a.args.split_dimensions:
-                self.nf = nf_pyramid_split() 
-            else:
-                self.nf = nf_pyramid()   
-        elif a.args.feat_extractor == 'none':
-            self.nf = nf_no_fe()
-        else:
-            self.nf = nf_head()  
-        
         if a.args.feat_extractor == 'resnet18':
             self.classification_head = resnet18(pretrained=c.pretrained,progress=False) #ResNetPyramidClassificationHead()
         else:
@@ -680,6 +683,16 @@ class CowFlow(nn.Module):
         self.optim = a.args.optim
         self.dmap_scaling = a.args.dmap_scaling
         self.batch_norm = a.args.batch_norm
+
+        if a.args.pyramid:
+            if a.args.split_dimensions:
+                self.nf = nf_pyramid_split() 
+            else:
+                self.nf = nf_pyramid(input_dim=(self.density_map_h,self.density_map_w))   
+        elif a.args.feat_extractor == 'none':
+            self.nf = nf_no_fe()
+        else:
+            self.nf = nf_head()  
 
     def forward(self,images,labels,rev=False,jac=False): # label = dmaps or counts
         

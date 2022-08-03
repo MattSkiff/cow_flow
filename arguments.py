@@ -6,6 +6,7 @@ parser = argparse.ArgumentParser(description='Create dataloaders and train a mod
 
 parser.add_argument('-mode',help="Specify mode (train,eval,store).",default='')
 parser.add_argument('-get_likelihood',help='get and plot likelihoods / anamoly scores',action="store_true",default=False)
+parser.add_argument('-get_grad_maps',help='dev',action="store_true",default=False)
 parser.add_argument('-jac',help='enable the jacobian as part of training',action="store_true",default=False)
 parser.add_argument('-freeze_bn',help='freeze batch norms',action="store_true",default=False)
 parser.add_argument('-holdout',help="Use holdout data",action="store_true",default=False)
@@ -74,7 +75,7 @@ parser.add_argument("-npb","--n_pyramid_blocks",type=int,default=0)
 parser.add_argument('-nse',"--noise",help='amount of uniform noise (sample evenly from 0-x) | 0 for none',type=float,default=0)
 parser.add_argument('-f','--filters',help='width of conv subnetworks',type=int,default=0)
 parser.add_argument("-split", "--split_dimensions", help="split off half the dimensions after each block of coupling layers.", type=int, default=0)
-parser.add_argument("-subnet_type",help="type of subnet to use in flow [fc,conv,MCNN,UNet,conv_shallow]",default ='')
+parser.add_argument("-subnet_type",help="type of subnet to use in flow [fc,conv,MCNN,UNet,conv_shallow,conv_deep]",default ='')
 parser.add_argument("-batch_norm",help="Add batchnorm to subnets",action="store_true",default=False)
 
 parser.add_argument("-fe_load_imagenet_weights",help="load pt weights into FE",action='store_true',default=False)
@@ -116,7 +117,7 @@ if any('SPYDER' in name for name in os.environ):
     args.max_filter_size = 4
     args.sigma = 4.0
     args.mdl_path = '' # 'final_9Z5_NF_quatern_BS64_LR_I0.0002_E10000_DIM256_OPTIMadam_FE_resnet18_NC5_anno_step_JO_PY_1_1x1_WD_0.001_10_05_2022_17_37_42'
-    args.holdout = False
+    args.holdout = True
     args.all_in_one = False
     args.fixed1x1conv = False
     args.split_dimensions = 0
@@ -211,7 +212,7 @@ if args.model_name == 'NF' and args.mode == 'train':
 elif args.model_name != 'NF':
     assert args.feat_extractor == ''
     
-if args.subnet_type in ['conv','conv_shallow']:
+if args.subnet_type in ['conv','conv_shallow','conv_deep']:
     assert args.filters != 0 # this argument only applies to regular conv subnets
 else:
     assert args.filters == 0

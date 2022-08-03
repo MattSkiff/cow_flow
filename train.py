@@ -317,7 +317,11 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                             input_data = (images,counts) 
                         else:
                             input_data = (images,labels)
-                            
+                        
+                        
+                        # print(images.size())
+                        # print(dmaps.size())
+                        # 1/0
                         z, log_det_jac = mdl(*input_data,jac=a.args.jac)
                             
                         # x: inputs (i.e. 'x-side' when rev is False, 'z-side' when rev is True) [FrEIA]

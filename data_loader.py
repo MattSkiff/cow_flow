@@ -402,7 +402,8 @@ class DLRACDCropRotateFlipScaling(object):
 class CowObjectsDataset(Dataset):
     """Cow Objects dataset."""
     
-    def __init__(self, root_dir,transform=None,convert_to_points=False,generate_density=False,count=False,classification=False,ram=False,holdout=False):
+    def __init__(self, root_dir,transform=None,convert_to_points=False,generate_density=False,
+                 count=False,classification=False,ram=False,holdout=False,resize=a.args.resize):
         """
         Args:
             root_dir (string): Directory with the following structure:
@@ -439,6 +440,7 @@ class CowObjectsDataset(Dataset):
         self.count_list = []
         self.binary_labels_list = []
         self.im_names = []
+        self.resize = resize
         
         names = []
         with open(os.path.join(self.root_dir,"object.names")) as f:
@@ -476,14 +478,14 @@ class CowObjectsDataset(Dataset):
             
         self.im_paths = im_paths
         
-        def compute_labels(idx):
+        def compute_labels(idx,resize=False):
             
             if a.args.model_name in ['UNet_seg','LCFCN']:  #a.args.dmap_type == 'max':
                 dmap_type = '_max'
             else:
                 dmap_type = '' # _gauss
                 
-            if a.args.resize:
+            if resize:
                 dmap_size = '_resized'
             else:
                 dmap_size = '' # _gauss
@@ -559,10 +561,10 @@ class CowObjectsDataset(Dataset):
                         # set density map image size equal to data image size
                         
                         # TODO - this is possibly massively inefficient
-                        density_map, point_map = create_maps()
+                        density_map, point_map = create_maps(resize=resize)
                         
                         # add points onto basemap
-                        base_map, point_flag = utils.create_point_map(mdl=None,annotations=annotations)
+                        base_map, point_flag = utils.create_point_map(mdl=None,annotations=annotations,resize=resize)
                         
                         point_map = base_map
                         
@@ -681,7 +683,7 @@ class CowObjectsDataset(Dataset):
             sample['annotations'] = self.annotations_list[idx]
                 
         else:
-            sample = self.compute_labels(idx)
+            sample = self.compute_labels(idx,resize=self.resize)
             
         if self.transform:
             sample = self.transform(sample)
@@ -1141,7 +1143,9 @@ class CustResize(object):
                 point_map = sample['point_map']
                 
             #sz = list(density.size())
-            sz = [c.density_map_h,c.density_map_w]
+            #sz = [c.density_map_h,c.density_map_w]
+            sz = [608,800]
+
             
             # channels, height, width | alias off by default, bilinear default
             density = density.unsqueeze(0).unsqueeze(0)
@@ -1276,24 +1280,24 @@ def train_val_split(dataset,train_percent,oversample=False,annotations_only = Fa
     
     return t_indices, t_weights, v_indices, v_weights
 
-def prep_transformed_dataset(is_eval=False):
+def prep_transformed_dataset(is_eval=False,resize=a.args.resize):
     
     transforms = [CustToTensor()]
     
     if a.args.normalise:
         transforms.append(AerialNormalize())
     
-    if a.args.resize:
+    if resize:
         transforms.append(Resize())
     
-    if not a.args.resize:
+    if not resize:
          transforms.append(CustResize())
     
     if a.args.rrc:
         transforms.append(RandomCrop())
     
     #if a.args.rrc:
-    if not a.args.mode == 'eval' and not a.args.holdout:
+    if not a.args.mode == 'eval' and not a.args.holdout and not a.args.get_grad_maps:
          transforms.append(RotateFlip())
         
     transforms.append(DmapAddUniformNoise())
@@ -1304,7 +1308,7 @@ def prep_transformed_dataset(is_eval=False):
     transformed_dataset = CowObjectsDataset(root_dir=c.proj_dir,transform = dmaps_pre,
                                             convert_to_points=True,generate_density=True,
                                             count = c.counts, 
-                                            classification = True,ram=a.args.ram, holdout=a.args.holdout)
+                                            classification = True,ram=a.args.ram, holdout=a.args.holdout,resize=resize)
     
     return transformed_dataset
 
@@ -1398,13 +1402,13 @@ def preprocess_batch(data,dlr=False):
     
     
 
-def create_maps():
-    if a.args.resize:
+def create_maps(resize=False):
+    if resize:
         density_map = np.zeros((256,256), dtype=np.float32) # c.raw_img_size
     else:
         density_map = np.zeros((c.raw_img_size[1], c.raw_img_size[0]), dtype=np.float32) # c.raw_img_size  
      
-    if not a.args.resize or a.args.rrc:
+    if not resize or a.args.rrc:
     #if (not a.args.resize and a.args.model_name in ['LCFCN','UNet_seg']) or a.args.rrc:
         point_map = np.zeros((c.raw_img_size[1], c.raw_img_size[0]), dtype=np.float32) # c.raw_img_size
     else: #elif a.args.model_name in ['LCFCN','UNet_seg']:

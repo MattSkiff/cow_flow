@@ -257,7 +257,6 @@ class DoubleConv(nn.Module):
                         ("conv2",nn.Conv2d(mid_channels, out_channels, kernel_size=3, padding=1, bias=False)),
                         ('batchnorm2',nn.BatchNorm2d(out_channels)),
                         ("relu2", nn.ReLU(inplace=True))
-                   
                     ]
             )
         

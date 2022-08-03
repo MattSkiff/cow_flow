@@ -21,6 +21,7 @@ from sklearn.preprocessing import StandardScaler
 from lcfcn import lcfcn_loss
 from skimage.feature import peak_local_max # 
 from skimage import morphology as morph
+import scipy
 
 import torchvision.transforms.functional as TF
 import torchvision.transforms as T
@@ -162,8 +163,7 @@ def add_plot_tb(writer,fig,writer_mode,writer_epoch):
 
 # TODO - edit to include UNet seg and LCFCN, MCNN?
 @torch.no_grad()
-def plot_preds_multi(mode,loader,model_path_dict=g.BEST_MODEL_PATH_DICT,sample_n=5): 
-    
+def plot_preds_multi(mode,loader,loader_86,model_path_dict=g.BEST_MODEL_PATH_DICT,sample_n=5,anno=a.args.sampler=='anno',n=10): 
     UNet = load_model(model_path_dict['UNet'])
     UNet_seg = load_model(model_path_dict['UNet_seg'])
     CSRNet = load_model(model_path_dict['CSRNet'])
@@ -173,26 +173,44 @@ def plot_preds_multi(mode,loader,model_path_dict=g.BEST_MODEL_PATH_DICT,sample_n
     MCNN = load_model(model_path_dict['MCNN'])
     Res50 = load_model(model_path_dict['Res50'])
     NF = load_model(model_path_dict['NF'])
+        
+    titles=['UNet(d)','FCRN','ResNet50','UNet(s)','CSRNet',
+            'MCNN','LC-FCN','NF','Conditioning Aerial Image',]
     
-    count_odict = OrderedDict([('UNet',0),('CSRNet',0),('FCRN',0),('MCNN',0),('Res50',0),('UNet_seg',0),('LCFCN',0),('NF',0)])
-    
-    assert len(count_odict) == len(g.BEST_MODEL_PATH_DICT)
     assert mode in ['train','val']
     
     lb_idx = random.randint(0,loader.batch_size-1)
-
+    
+    z = 0
     for i, data in enumerate(tqdm(loader, disable=c.hide_tqdm_bar)):
             
+            if z==1:
+                break
+            
+            images,dmaps,labels,binary_labels,annotations,point_maps  = data_loader.preprocess_batch(data)
+            
+            if len(annotations[lb_idx]) == 0 or i<n:
+                print('pass')
+                continue
+            
+            if n in [350,275]:
+                text_x, text_y = 0.95, 0.83
+            else:
+                text_x, text_y = 0.95, 0.01
+
+            # create resized seg map for labels quad plot
+            seg_map_rs = scipy.ndimage.filters.maximum_filter(point_maps[lb_idx].cpu().numpy(),size = (4,4))
+            
             j = 0
-            fig = plt.figure()
-            fig.subplots_adjust(left=0.1, right=0.9, top=0.9, bottom=0.1)
-            fig.set_size_inches(35*1,7*1)
+            fig, axs = plt.subplots(4, 4)
+            fig.subplots_adjust(left=0.05, right=0.95, top=0.95, bottom=0.05,hspace=0.15,wspace=0.05)
+            fig.set_size_inches(10*1,10*1)
             fig.set_dpi(100)
-            fig.suptitle('Baseline Comparisons {}'.format(mode.capitalize()),y=1.0,fontsize=16) # :.2f
             
-            images,dmaps,labels,binary_labels , annotations, point_maps  = data_loader.preprocess_batch(data)
+            z = z+1
+            tuples = [(0,0),(0,1),(0,2),(0,3),(1,0),(1,1),(1,2),(1,3)]
             
-            for mdl in [UNet,CSRNet,FCRN,MCNN,Res50,UNet_seg]:
+            for mdl in [UNet,FCRN,Res50,UNet_seg,CSRNet]:
                 
                 plot_dmap = dmaps[lb_idx]/mdl.dmap_scaling
                 
@@ -202,87 +220,169 @@ def plot_preds_multi(mode,loader,model_path_dict=g.BEST_MODEL_PATH_DICT,sample_n
                 # todo - retrain models with noise attr and uncomment below
                 constant = ((mdl.noise)/2)*plot_dmap.shape[0]*plot_dmap.shape[1]
                 
-                if j != 5:
-                    count_odict[list(count_odict.keys())[j]] = ((preds.sum()/mdl.dmap_scaling)-constant)
-                else:
-                    count_odict[list(count_odict.keys())[j]] = len(peak_local_max(preds.squeeze(),min_distance=1,
-                                            num_peaks=np.inf,threshold_abs=0,threshold_rel=0.5))
+                count = np.round(((preds.sum()/mdl.dmap_scaling)-constant),1)
                 
-                ax = plt.subplot(2,5,j+1); ax.set_axis_off()
-                ax.title.set_text('{}'.format(str(type(mdl))))
-                ax.imshow(preds)
+                #unet(s)
+                if titles[j] == 'UNet(s)':
+                    count = len(peak_local_max(preds.squeeze(),min_distance=1,num_peaks=np.inf,threshold_abs=0,threshold_rel=0.5))
                 
-                j = j + 1
+                axs[tuples[j]].set_axis_off()
+                axs[tuples[j]].title.set_text('{}'.format(titles[j]))#str(type(mdl))))
+                axs[tuples[j]].text(text_x,text_y, 'Count: {:.1f}'.format(count),
+                    verticalalignment='bottom', horizontalalignment='right',
+                    transform=axs[tuples[j]].transAxes,
+                    color='green', fontsize=15)
+                axs[tuples[j]].imshow(preds)
+                j+=1
                 
-            for mdl in [LCFCN]:
-                
-                    mdl.to(c.device)
-                    preds = mdl(images)
-                    probs = preds.sigmoid().cpu().numpy()
-                    pred_blobs = lcfcn_loss.get_blobs(probs=probs).squeeze()
-                    pred_points = lcfcn_loss.blobs2points(pred_blobs).squeeze()
-                    y_list, x_list = np.where(pred_points.squeeze())
-                    count_odict[list(count_odict.keys())[j]] = (np.unique(pred_blobs)!=0).sum()
-                    preds = preds.squeeze(0).sigmoid().permute(1,2,0).cpu().numpy() 
-                    ax = plt.subplot(2,5,j+1); ax.set_axis_off()
-                    ax.title.set_text('{}'.format(str(type(mdl))))
-                    ax.imshow(preds)
-                    
-                    j = j + 1
+    dmap_rs = dmaps[lb_idx]
+    
+    z = 0
+    for i, data in enumerate(tqdm(loader_86, disable=c.hide_tqdm_bar)):        
+    
+        if z==1:
+            break    
         
-            mdl = NF; mdl.to(c.device)
+        images,dmaps,labels,binary_labels,annotations,point_maps = data_loader.preprocess_batch(data)
+
+        if len(annotations[lb_idx]) == 0 or i<n:
+            continue
+        
+        # create full sized seg map for labels quad plot
+        seg_map_frs = scipy.ndimage.filters.maximum_filter(point_maps[lb_idx].cpu().numpy(),size = (4,4))
+        
+        dmap_frs = dmaps[lb_idx]
+        z = z+1
+        
+        for mdl in [MCNN]:
             
-            # NF prediction
-            x_list = []
+            plot_dmap = dmaps[lb_idx]/mdl.dmap_scaling
             
-            for i in range(sample_n):
-                                    
-                in_channels = c.channels*4**5 # n_ds=5
-                ft_dims = ft_dims_select(mdl)
+            mdl.to(c.device)
+            preds = mdl(images)
+            preds = preds[lb_idx].permute(1,2,0).cpu().numpy()
+            # todo - retrain models with noise attr and uncomment below
+            constant = ((mdl.noise)/2)*plot_dmap.shape[0]*plot_dmap.shape[1]
+            
+            count = np.round(((preds.sum()/mdl.dmap_scaling)-constant),1)
+            
+            axs[tuples[j]].set_axis_off()
+            axs[tuples[j]].title.set_text('{}'.format(titles[j]))#str(type(mdl))))
+            axs[tuples[j]].text(text_x,text_y, 'Count: {:.1f}'.format(count),
+                verticalalignment='bottom', horizontalalignment='right',
+                transform=axs[tuples[j]].transAxes,
+                color='green', fontsize=15)
+            axs[tuples[j]].imshow(preds)
+            j+=1            
+    
+        for mdl in [LCFCN]:
+            
+                mdl.to(c.device)
+                preds = mdl(images)
+                probs = preds.sigmoid().cpu().numpy()
+                pred_blobs = lcfcn_loss.get_blobs(probs=probs).squeeze()
+                pred_points = lcfcn_loss.blobs2points(pred_blobs).squeeze()
+                y_list, x_list = np.where(pred_points.squeeze())
+                count = np.round((np.unique(pred_blobs)!=0).sum(),1)
+                preds = preds.squeeze(0).sigmoid().permute(1,2,0).cpu().numpy() 
+                axs[tuples[j]].set_axis_off()
+                axs[tuples[j]].title.set_text('{}'.format(titles[j]))#str(type(mdl))))
+                axs[tuples[j]].text(text_x,text_y, 'Count: {:.1f}'.format(count),
+                    verticalalignment='bottom', horizontalalignment='right',
+                    transform=axs[tuples[j]].transAxes,
+                    color='green', fontsize=15)
+                axs[tuples[j]].imshow(preds)
+                j+=1                
+                
+        mdl = NF; mdl.to(c.device)
+            
+        # NF prediction
+        x_list = []
+        
+        for i in range(sample_n):
                                 
-                dummy_z = (randn(images.size()[0], in_channels,ft_dims[0],ft_dims[1])).to(c.device)
-                dummy_z = dummy_z.float().to(c.device)
-                x, log_det_jac = mdl(images,dummy_z,rev=True)
-                x_list.append(x)
-                        
-                x_agg = torch.stack(x_list,dim=1)
-                x = x_agg.mean(dim=1) # take average of samples from models for mean reconstruction
+            in_channels = c.channels*4**5 # n_ds=5
+            a.args.resize = False
+            ft_dims = ft_dims_select(mdl)
+            dummy_z = (randn(images.size()[0], in_channels,ft_dims[0],ft_dims[1])).to(c.device)
+            dummy_z = dummy_z.float().to(c.device)
+            x, log_det_jac = mdl(images,dummy_z,rev=True)
+            x_list.append(x)
                     
-            # replace predicted densities with null predictions if not +ve pred from feature extractor
-            # subtract constant for uniform noise
-            # outputs = mdl.classification_head(images)  
-            # _, preds = torch.max(outputs, 1)  
-            # x[(preds == 1).bool(),:,:,:] = torch.zeros(1,mdl.density_map_h,mdl.density_map_w).to(c.device)
+            x_agg = torch.stack(x_list,dim=1)
+            x = x_agg.mean(dim=1) # take average of samples from models for mean reconstruction
                      
             dmap_rev_np = x[lb_idx].squeeze().cpu().detach().numpy()
-            
-            ax = plt.subplot(2,5,j+1); ax.set_axis_off()
-            ax.title.set_text('{}'.format(str(type(mdl))))
-            ax.imshow(dmap_rev_np)
-            
             constant = ((mdl.noise)/2)*plot_dmap.shape[0]*plot_dmap.shape[1]
-            count_odict[list(count_odict.keys())[j]] = (dmap_rev_np.sum()-constant)
+            count = np.round((dmap_rev_np.sum()-constant),1)
+            
+            axs[tuples[j]].set_axis_off()
+            axs[tuples[j]].title.set_text('{}'.format(titles[j]))#str(type(mdl))))
+            axs[tuples[j]].text(text_x,text_y, 'Count: {:.1f}'.format(count),
+                verticalalignment='bottom', horizontalalignment='right',
+                transform=axs[tuples[j]].transAxes,
+                color='green', fontsize=15)
+            axs[tuples[j]].imshow(dmap_rev_np)
+            
+
             j+=1
                 
             break
     
+    label_titles = ['Density (256x256)','Density (800x600)',
+                    'Seg. Map (256x256)','Seg. Map (800x600)']
+        
+    lb_tuples = [(2,0),(2,1),(3,0),(3,1)]
+    
+    axs[lb_tuples[0]].imshow(dmap_rs.cpu().numpy())
+    axs[lb_tuples[1]].imshow(dmap_frs.cpu().numpy())
+    axs[lb_tuples[2]].imshow(seg_map_rs)
+    axs[lb_tuples[3]].imshow(seg_map_frs)
+    
+    axs[lb_tuples[0]].set_axis_off()
+    axs[lb_tuples[1]].set_axis_off()
+    axs[lb_tuples[2]].set_axis_off()
+    axs[lb_tuples[3]].set_axis_off()
+    
+    axs[lb_tuples[0]].title.set_text('{}'.format(label_titles[0]))
+    axs[lb_tuples[1]].title.set_text('{}'.format(label_titles[1]))
+    axs[lb_tuples[2]].title.set_text('{}'.format(label_titles[2]))
+    axs[lb_tuples[3]].title.set_text('{}'.format(label_titles[3]))
+    
+    count = np.round(dmap_rs.cpu().numpy().sum(),1)
+    axs[lb_tuples[0]].text(text_x,text_y, 'Count: {:.1f}'.format(count),
+        verticalalignment='bottom', horizontalalignment='right',
+        transform=axs[lb_tuples[0]].transAxes,
+        color='green', fontsize=15)
+    
+    count = np.round((dmap_frs.cpu().numpy().sum()),1)
+    axs[lb_tuples[1]].text(text_x,text_y, 'Count: {:.1f}'.format(count),
+        verticalalignment='bottom', horizontalalignment='right',
+        transform=axs[lb_tuples[1]].transAxes,
+        color='green', fontsize=15)
+    
+    # no count annotation for segmentation maps
+    
+    # conditioning aerial image
     unnorm = data_loader.UnNormalize(mean=tuple(c.norm_mean),
                          std=tuple(c.norm_std))
     im = unnorm(images[lb_idx])
     im = im.permute(1,2,0).cpu().numpy()
     
-    ax = plt.subplot(2,5,j+1); ax.set_axis_off(); j+=1
-    ax.title.set_text('Conditioning Aerial Image')
-    ax.imshow((im * 255).astype(np.uint8))
+    gs = axs[2, 2].get_gridspec()
+    # remove the underlying axes
+    axs[2,2].remove(); axs[2,3].remove()
+    axs[3,2].remove(); axs[3,3].remove()
+        
+    axbig = fig.add_subplot(gs[2:,2:])
     
-    ax = plt.subplot(2,5,j+1); ax.set_axis_off(); j+=1
-    ax.title.set_text('Ground Truth Density Map')
-    ax.imshow(dmaps[lb_idx].cpu().numpy())
+    axbig.title.set_text('Conditioning Aerial Image')
+    axbig.imshow((im * 255).astype(np.uint8))
+    axbig.set_axis_off()
     
-    plt.show()
-    print(count_odict)
-    
-    return count_odict
+    plt.savefig('/home/mks29/Desktop/multi_preds/combined_mult_anno_{}.png'.format(n))   
+
+    return 
     # TODO - show pred counts
 
 @torch.no_grad()
@@ -1627,12 +1727,12 @@ def make_hparam_dict(val_loader):
     
     return hparam_dict
 
-def create_point_map(mdl,annotations,pred=False):
+def create_point_map(mdl,annotations,pred=False,resize=False):
     # add points onto basemap
     
     if mdl == None:
         # error introduced here as float position annotation centre converted to int
-        if a.args.resize:
+        if resize:
             base_map = np.zeros((256,256), dtype=np.float32) # c.raw_img_size
         else:
             
@@ -1661,7 +1761,7 @@ def create_point_map(mdl,annotations,pred=False):
         # NOTE: this overrides duplicate annotation points (4 out of 22k)
         if pred:
             
-            if a.args.resize:
+            if resize:
                 base_map[int(round((point[2]))-offset),int(round((point[1]))-offset)] = 1 # +=1
             else:
                 #base_map[int(round((point[2])*c.raw_img_size[1])-offset),int(round((point[1])*c.raw_img_size[0])-offset)] = 1 # +=1
@@ -1670,7 +1770,7 @@ def create_point_map(mdl,annotations,pred=False):
         
             # subtract 1 to account for 0 indexing
             # NOTE: this overrides duplicate annotation points (4 out of 22k)
-            if a.args.resize:
+            if resize:
                 base_map[int(round((point[2])*256)-offset),int(round((point[1])*256)-offset)] = 1 # +=1
             else:
                 base_map[int(round((point[2])*c.raw_img_size[1])-offset),int(round((point[1])*c.raw_img_size[0])-offset)] = 1 # +=1
