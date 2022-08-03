@@ -652,8 +652,8 @@ def dmap_metrics(mdl, loader,n=50,mode='',null_filter=(a.args.bin_classifier_pat
                     
         ## sample from model per aerial image ---
         for i in range(n):
-            #dummy_z = (randn(images.size()[0], in_channels,ft_dims[0],ft_dims[1])).to(c.device)
-            dummy_z = (torch.full((images.size()[0], in_channels,ft_dims[0],ft_dims[1]),0.5)).to(c.device)
+            dummy_z = (randn(images.size()[0], in_channels,ft_dims[0],ft_dims[1])).to(c.device)
+            #dummy_z = (torch.full((images.size()[0], in_channels,ft_dims[0],ft_dims[1]),0.5)).to(c.device)
 
         
             # feature extractor pre filtering
@@ -772,7 +772,7 @@ def dmap_metrics(mdl, loader,n=50,mode='',null_filter=(a.args.bin_classifier_pat
             # 1/0
             
             # if binary classifier replaces pred dmap
-            # revert to original gt dmap
+            # revert to original gt dmap (for metric calc)
             # (instead of empty dmap with noise added)
             
             if pred_count == 0 and len(annotations[idx]) == 0:
@@ -783,6 +783,8 @@ def dmap_metrics(mdl, loader,n=50,mode='',null_filter=(a.args.bin_classifier_pat
             y_hat_coords.append(coordinates) 
             
             # dmap metrics (we do use the kernalised dmap for this)
+            
+            # TODO - need to disable noise for dmaps when predicting empty patch
             dm_mae.append(sum(abs(dmap_rev_np-ground_truth_dmap)))
             dm_mse.append(sum(np.square(dmap_rev_np-ground_truth_dmap)))
             

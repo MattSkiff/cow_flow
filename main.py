@@ -3,6 +3,9 @@ from torch.cuda import empty_cache
 from torch.utils.data import DataLoader # Dataset                                                                                                                                                                    
 
 import torch.nn as nn
+import torch
+import random
+import numpy as np
 import os
 import sys
 
@@ -11,6 +14,7 @@ import config as c
 import arguments as a
 import gvars as g
 import model
+from localisation import export_gradient_maps
 from data_loader import prep_transformed_dataset, make_loaders
 from train import train, train_baselines, train_feat_extractor, train_classification_head
 from utils import load_model,plot_preds,plot_preds_baselines,plot_preds_multi,plot_peaks,get_likelihood
@@ -45,13 +49,21 @@ if a.args.data == 'cows':
         # create test train split
         full_train_loader, full_val_loader, train_loader, val_loader = make_loaders(transformed_dataset,is_eval=a.args.mode=='eval')
     else:
-        val_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=True, 
+        
+        val_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 
                             num_workers=4,collate_fn=transformed_dataset.custom_collate_aerial,
                             pin_memory=False)
+        
+        if a.args.model_name == 'ALL':
+            transformed_dataset_86 = prep_transformed_dataset(is_eval=a.args.mode=='eval',resize=False)
+            val_loader_86 = DataLoader(transformed_dataset_86, batch_size=a.args.batch_size,shuffle=False, 
+                                num_workers=4,collate_fn=transformed_dataset.custom_collate_aerial,
+                                pin_memory=False)
     
     if a.args.mode in ['plot','eval']:
         
-        mdl = load_model(a.args.mdl_path)
+        if a.args.model_name != 'ALL':
+            mdl = load_model(a.args.mdl_path)
     
         if a.args.mode == 'eval':
             
@@ -66,12 +78,15 @@ if a.args.data == 'cows':
             if a.args.model_name == 'NF':
                 if a.args.get_likelihood:
                     get_likelihood(mdl,val_loader,plot=False)
+                elif a.args.get_grad_maps:
+                    export_gradient_maps(mdl,val_loader)
                 elif a.args.data == 'cows':
                     plot_preds(mdl,val_loader)
                 elif a.args.data == 'dlr':
                     plot_peaks(mdl,val_loader)
             elif a.args.model_name == 'ALL':
-                plot_preds_multi(mode='val',loader=val_loader)
+                for n in  range(0, 500,25):
+                    plot_preds_multi(mode='val',loader=val_loader,loader_86=val_loader_86,n=n)
             elif a.args.model_name in g.BASELINE_MODEL_NAMES:
                 plot_preds_baselines(mdl, val_loader,mode="val",mdl_type=a.args.model_name)
             
