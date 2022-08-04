@@ -1,5 +1,6 @@
 classes= 2
 train  = data/train.txt
 holdout = data/holdout.txt
+satellite = data/satellite.txt
 names = data/obj.names
 backup = backup/
