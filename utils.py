@@ -193,7 +193,7 @@ def plot_preds_multi(mode,loader,loader_86,model_path_dict=g.BEST_MODEL_PATH_DIC
                 print('pass')
                 continue
             
-            if n in [350,275]:
+            if n in [350,275,250,125]:
                 text_x, text_y = 0.95, 0.83
             else:
                 text_x, text_y = 0.95, 0.01

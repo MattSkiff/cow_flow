@@ -3,9 +3,6 @@ from torch.cuda import empty_cache
 from torch.utils.data import DataLoader # Dataset                                                                                                                                                                    
 
 import torch.nn as nn
-import torch
-import random
-import numpy as np
 import os
 import sys
 
@@ -45,7 +42,7 @@ if a.args.data == 'cows':
     if any('SPYDER' in name for name in os.environ) and not a.args.mode == 'store':
         transformed_dataset.show_annotations(1) # 5895
     
-    if not a.args.holdout:
+    if not (a.args.holdout or a.args.sat):
         # create test train split
         full_train_loader, full_val_loader, train_loader, val_loader = make_loaders(transformed_dataset,is_eval=a.args.mode=='eval')
     else:
@@ -90,7 +87,7 @@ if a.args.data == 'cows':
             elif a.args.model_name in g.BASELINE_MODEL_NAMES:
                 plot_preds_baselines(mdl, val_loader,mode="val",mdl_type=a.args.model_name)
             
-    if a.args.mode == 'train' and not a.args.holdout:
+    if a.args.mode == 'train' and not (a.args.holdout or a.args.sat):
         
         if a.args.bc_only:
             train_classification_head(None,train_loader,val_loader,criterion = nn.CrossEntropyLoss())

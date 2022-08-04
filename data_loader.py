@@ -403,7 +403,7 @@ class CowObjectsDataset(Dataset):
     """Cow Objects dataset."""
     
     def __init__(self, root_dir,transform=None,convert_to_points=False,generate_density=False,
-                 count=False,classification=False,ram=False,holdout=False,resize=a.args.resize):
+                 count=False,classification=False,ram=False,holdout=False,sat=False,resize=a.args.resize):
         """
         Args:
             root_dir (string): Directory with the following structure:
@@ -426,6 +426,7 @@ class CowObjectsDataset(Dataset):
         self.classification = classification
         self.ram = ram
         self.holdout = holdout
+        self.sat = sat
         
         if not self.density:
             self.sigma = 0
@@ -460,11 +461,14 @@ class CowObjectsDataset(Dataset):
         self.data = data
         self.train_path = os.path.join(self.root_dir,os.path.split(self.data["train"])[1])
         self.holdout_path = os.path.join(self.root_dir,os.path.split(self.data["holdout"])[1])
+        self.sat_path = os.path.join(self.root_dir,os.path.split(self.data["satellite"])[1])
         
         im_paths = [] 
            
         if self.holdout:
             path = self.holdout_path 
+        elif self.sat:
+            path = self.sat_path
         else:
             path = self.train_path
     
@@ -650,6 +654,8 @@ class CowObjectsDataset(Dataset):
             
             if a.args.holdout:
                 txt_file = "holdout.txt"
+            elif a.args.sat:
+                txt_file = "satellite.txt"
             else:
                 txt_file = "train.txt"
             
@@ -1297,7 +1303,7 @@ def prep_transformed_dataset(is_eval=False,resize=a.args.resize):
         transforms.append(RandomCrop())
     
     #if a.args.rrc:
-    if not a.args.mode == 'eval' and not a.args.holdout and not a.args.get_grad_maps:
+    if not a.args.mode == 'eval' and not (a.args.holdout or a.args.sat) and not a.args.get_grad_maps:
          transforms.append(RotateFlip())
         
     transforms.append(DmapAddUniformNoise())
@@ -1308,7 +1314,7 @@ def prep_transformed_dataset(is_eval=False,resize=a.args.resize):
     transformed_dataset = CowObjectsDataset(root_dir=c.proj_dir,transform = dmaps_pre,
                                             convert_to_points=True,generate_density=True,
                                             count = c.counts, 
-                                            classification = True,ram=a.args.ram, holdout=a.args.holdout,resize=resize)
+                                            classification = True,ram=a.args.ram, holdout=a.args.holdout,sat=a.args.sat,resize=resize)
     
     return transformed_dataset
 
@@ -1349,7 +1355,7 @@ def make_loaders(transformed_dataset,is_eval=False):
                         num_workers=1,collate_fn=transformed_dataset.custom_collate_aerial,
                         pin_memory=False,sampler=val_sampler)
     
-    if a.args.mode == 'eval' and a.args.holdout:
+    if a.args.mode == 'eval' and (a.args.holdout or a.args.sat):
         val_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 
                             num_workers=1,collate_fn=transformed_dataset.custom_collate_aerial,
                             pin_memory=False,sampler=None)
