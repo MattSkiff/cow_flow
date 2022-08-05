@@ -611,25 +611,36 @@ class MCNN(nn.Module):
         
         # todo: re add option for batch norm
         self.branch1 = nn.Sequential(nn.Conv2d( dims_in, 16, 9, padding='same'),
+                                     nn.ReLU(inplace=True),
                                      nn.MaxPool2d(2),
                                      nn.Conv2d(16, 32, 7, padding='same'),
+                                     nn.ReLU(inplace=True),
                                      nn.MaxPool2d(2),
                                      nn.Conv2d(32, 16, 7, padding='same'),
-                                     nn.Conv2d(16,  8, 6, padding='same'))
+                                     nn.ReLU(inplace=True),
+                                     nn.Conv2d(16,  8, 6, padding='same'),
+                                     nn.ReLU(inplace=True))
         
         self.branch2 = nn.Sequential(nn.Conv2d( dims_in, 20, 7, padding='same'),
+                                     nn.ReLU(inplace=True),
                                      nn.MaxPool2d(2),
                                      nn.Conv2d(20, 40, 5, padding='same'),
+                                     nn.ReLU(inplace=True),
                                      nn.MaxPool2d(2),
                                      nn.Conv2d(40, 20, 5, padding='same'),
+                                     nn.ReLU(inplace=True),
                                      nn.Conv2d(20, 10, 5, padding='same'))
         
         self.branch3 = nn.Sequential(nn.Conv2d( dims_in, 24, 5, padding='same'),
+                                     nn.ReLU(inplace=True),
                                      nn.MaxPool2d(2),
                                      nn.Conv2d(24, 48, 3, padding='same'),
+                                     nn.ReLU(inplace=True),
                                      nn.MaxPool2d(2),
                                      nn.Conv2d(48, 24, 3, padding='same'),
-                                     nn.Conv2d(24, 12, 3, padding='same'))
+                                     nn.ReLU(inplace=True),
+                                     nn.Conv2d(24, 12, 3, padding='same'),
+                                     nn.ReLU(inplace=True))
         
         self.fuse = nn.Sequential(nn.Conv2d( 30, dims_out, 1, padding='same'))
 

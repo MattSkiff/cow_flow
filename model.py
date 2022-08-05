@@ -1,4 +1,4 @@
-# edited from:
+ # edited from:
 # https://pytorch.org/tutorials/beginner/transfer_learning_tutorial.html
 # author: Sasank Chilamkurthy
 

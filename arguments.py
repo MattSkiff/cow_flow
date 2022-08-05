@@ -10,6 +10,7 @@ parser.add_argument('-get_grad_maps',help='dev',action="store_true",default=Fals
 parser.add_argument('-jac',help='enable the jacobian as part of training',action="store_true",default=False)
 parser.add_argument('-freeze_bn',help='freeze batch norms',action="store_true",default=False)
 parser.add_argument('-holdout',help="Use holdout data",action="store_true",default=False)
+parser.add_argument('-sat',help="Use satellite data",action="store_true",default=False)
 
 parser.add_argument('-mdl_path',help="Specify mdl for eval",default='')
 parser.add_argument('-bin_classifier_path', default='')
