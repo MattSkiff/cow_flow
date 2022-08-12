@@ -505,7 +505,11 @@ class CowObjectsDataset(Dataset):
             img_path = os.path.join(self.root_dir,
                                     self.im_paths[idx])
             
-            txt_path = img_path[:-3]+'txt'
+            if a.args.sat:
+                txt_path = img_path[:-4]+'txt'
+            else:
+                txt_path = img_path[:-3]+'txt'
+                
             image = io.imread(img_path)
             
             # check if annotations file is empty

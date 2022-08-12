@@ -666,7 +666,11 @@ class MCNN(nn.Module):
         x = F.interpolate(x,scale_factor=4)
         
         return x
-    
+
+# end mcnn implementation
+
+# res50 implementation - helper funcs from C3
+
 def initialize_weights(models):
     for model in models:
         real_init_weights(model)
