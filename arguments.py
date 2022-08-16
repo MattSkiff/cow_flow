@@ -10,6 +10,8 @@ parser.add_argument('-get_grad_maps',help='dev',action="store_true",default=Fals
 parser.add_argument('-jac',help='enable the jacobian as part of training',action="store_true",default=False)
 parser.add_argument('-jo','--joint_optim',help='jointly optimse feat extractor and flow',action="store_true",default=False)
 parser.add_argument('-pt','--pretrained',help='load imagenet weights into feat extractor',action="store_true",default=False)
+parser.add_argument('-bc','--binary_classifier',help='add binary classifier network to model',action="store_true",default=False)
+
 
 parser.add_argument('-freeze_bn',help='freeze batch norms',action="store_true",default=False)
 parser.add_argument('-holdout',help="Use holdout data",action="store_true",default=False)

@@ -648,10 +648,12 @@ class CowFlow(nn.Module):
         else:
             self.feat_extractor = feat_extractor
         
-        if a.args.feat_extractor == 'resnet18':
+        if a.args.feat_extractor == 'resnet18' and a.args.binary_classifier:
             self.classification_head = resnet18(pretrained=a.args.pretrained,progress=False) #ResNetPyramidClassificationHead()
-        else:
+        elif a.args.binary_classifier:
             self.classification_head = vgg16_bn(pretrained=a.args.pretrained,progress=False)
+        else:
+            self.classification_head = None
         
         if a.args.data == 'dlr':
             self.dlr_acd = True
