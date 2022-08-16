@@ -27,7 +27,6 @@ test_train_split = 70 # percentage of data to allocate to train set
 scale = 1 # 4, 2 = downscale dmaps four/two fold, 1 = unchanged
 
 ## Feature Extractor Options ------
-pretrained = False
 feat_extractor_epochs = 100
 train_feat_extractor = False # whether to finetune or load finetuned model # redundent
 load_feat_extractor_str = '' # 'resnet18_FTE_100_02_05_2022_17_34_03_PT_True_BS_64_classification_head' - to train from scratch, loads FE  # 
@@ -45,7 +44,6 @@ width = 400 # fc ('128' recommended min)
 dropout_p = 0.0 # fc only param - 0 for no dropout
 
 # Hyper Params and Optimisation ------
-joint_optim = True # jointly optimse feature extractor and flow
 clip_value = 1  # gradient clipping
 clamp_alpha = 1.9
 
