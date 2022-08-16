@@ -27,12 +27,16 @@ import baselines as b
 from data_loader import preprocess_batch
 from eval import eval_mnist, dmap_metrics, dmap_pr_curve, eval_baselines
                
-def train_baselines(model_name,train_loader,val_loader):
+def train_baselines(model_name,train_loader,val_loader,writer=None):
 
     model_metric_dict = {}
     modelname = make_model_name(train_loader)
     model_hparam_dict = make_hparam_dict(val_loader)
-    writer = SummaryWriter(log_dir='runs/'+a.args.schema+'/'+modelname)   
+    
+    if a.args.tensorboard:
+        writer = SummaryWriter(log_dir='runs/'+a.args.schema+'/'+modelname)
+    else:
+        writer = writer
     
     #if not a.args.model_name == 'UNet':
     # if a.args.model_name == 'CSRNet':
@@ -160,7 +164,7 @@ def train_baselines(model_name,train_loader,val_loader):
             writer.add_scalar('loss/epoch_train',mean_train_loss, l)
             writer.add_scalar('loss/epoch_val',mean_val_loss, l)
         
-        if not a.args.skip_final_eval:
+        if writer != None:
             val_metric_dict = eval_baselines(mdl,val_loader,mode='val')
             model_metric_dict.update(val_metric_dict)
             print(val_metric_dict)
@@ -186,6 +190,11 @@ def train_baselines(model_name,train_loader,val_loader):
     
     if a.args.save_final_mod:
         save_model(mdl,"final"+"_"+modelname)
+        
+    if not a.args.skip_final_eval:
+        val_metric_dict = eval_baselines(mdl,val_loader,mode='val')
+        model_metric_dict.update(val_metric_dict)
+        print(val_metric_dict)
     
     return mdl    
 
