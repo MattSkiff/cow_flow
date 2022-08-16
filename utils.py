@@ -1697,7 +1697,7 @@ def make_model_name(train_loader):
      if a.args.data == 'mnist':
          parts.append('MNIST')
      
-     if a.args.model_name == 'NF' and c.joint_optim:
+     if a.args.model_name == 'NF' and a.args.joint_optim:
          parts.append('JO')
          
      if a.args.model_name == 'NF' and a.args.pretrained:
