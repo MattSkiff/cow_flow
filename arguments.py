@@ -8,6 +8,9 @@ parser.add_argument('-mode',help="Specify mode (train,eval,store).",default='')
 parser.add_argument('-get_likelihood',help='get and plot likelihoods / anamoly scores',action="store_true",default=False)
 parser.add_argument('-get_grad_maps',help='dev',action="store_true",default=False)
 parser.add_argument('-jac',help='enable the jacobian as part of training',action="store_true",default=False)
+parser.add_argument('-jo','--joint_optim',help='jointly optimse feat extractor and flow',action="store_true",default=False)
+parser.add_argument('-pt','--pretrained',help='load imagenet weights into feat extractor',action="store_true",default=False)
+
 parser.add_argument('-freeze_bn',help='freeze batch norms',action="store_true",default=False)
 parser.add_argument('-holdout',help="Use holdout data",action="store_true",default=False)
 parser.add_argument('-sat',help="Use satellite data",action="store_true",default=False)
@@ -43,7 +46,7 @@ parser.add_argument('-test','--test_run',help='use only a small fraction of data
 # parser.add_argument("-c", "--counts", help="Train a model that predicts only counts.", action="store_true")
 
 parser.add_argument("-name","--schema",type=str,default='debug') # if debug, ignored
-parser.add_argument("-tb","--tensorboard",help='calc and write metrics, hyper params to tb files',action="store_true",default=False)
+parser.add_argument("-tb","--tensorboard",help='calc and write metrics, hyper params to tb files (if off no eval in train loop)',action="store_true",default=False)
 parser.add_argument("-viz",help='visualise outputs and stats',action="store_true",default=False)
 parser.add_argument("-viz_freq",help='how many epochs per viz',type=int,default=25)
 
@@ -254,4 +257,6 @@ elif host == 'quatern' or host == 'deuce':
     assert args.gpu_number < 2
 else:
     assert args.gpu_number < 1 
+    
+assert not (args.holdout and args.sat)
     

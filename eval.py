@@ -413,7 +413,7 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True,null_filter=(a.a
             
             if a.args.model_name in ['LCFCN','UNet_seg']:
                 
-                pred_coord_pmap, point_flag = create_point_map(mdl=None,annotations=coordinates,pred=True)
+                pred_coord_pmap, point_flag = create_point_map(mdl=None,annotations=coordinates,pred=True,resize=a.args.resize)
                 gt_pmap = point_maps[idx].squeeze().cpu().detach().numpy()
                 
                 # print(pred_coord_pmap.shape)
