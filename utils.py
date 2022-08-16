@@ -1700,7 +1700,7 @@ def make_model_name(train_loader):
      if a.args.model_name == 'NF' and c.joint_optim:
          parts.append('JO')
          
-     if a.args.model_name == 'NF' and c.pretrained:
+     if a.args.model_name == 'NF' and a.args.pretrained:
          parts.append('PT')
          
      if a.args.model_name == 'NF' and a.args.pyramid:
@@ -1750,12 +1750,12 @@ def make_hparam_dict(val_loader):
                         'batch size':val_loader.batch_size,
                         'image height':c.density_map_h,
                         'image width':c.density_map_w,
-                        'joint optimisation?':c.joint_optim,
+                        'joint optimisation?':a.args.joint_optim,
                         'global average pooling?':c.gap,
                         'scale:':c.scale,
                         'jac?:':a.args.jac,
                         'annotations only?':a.args.sampler == 'anno',
-                        'pretrained?':c.pretrained,
+                        'pretrained?':a.args.pretrained,
                         'feature pyramid?':a.args.pyramid,
                         'feature extractor?':a.args.feat_extractor,
                         '1x1convs?':a.args.fixed1x1conv,

@@ -214,12 +214,12 @@ def select_feat_extractor(feat_extractor,train_loader=None,valid_loader=None):
     
     if not a.args.pyramid:
         if a.args.feat_extractor == "alexnet":
-            feat_extractor = alexnet(pretrained=c.pretrained,progress=False).to(c.device)
+            feat_extractor = alexnet(pretrained=a.args.pretrained,progress=False).to(c.device)
         elif a.args.feat_extractor == "resnet18":
              # last but one layer of resnet -> features
-             feat_extractor = resnet18(pretrained=c.pretrained,progress=False)
+             feat_extractor = resnet18(pretrained=a.args.pretrained,progress=False)
         elif a.args.feat_extractor == "vgg16_bn":
-            feat_extractor = vgg16_bn(pretrained=c.pretrained,progress=False).to(c.device)
+            feat_extractor = vgg16_bn(pretrained=a.args.pretrained,progress=False).to(c.device)
         elif a.args.feat_extractor == "mnist_resnet":
             feat_extractor = MnistResNet()
         elif a.args.feat_extractor == "none":
@@ -649,9 +649,9 @@ class CowFlow(nn.Module):
             self.feat_extractor = feat_extractor
         
         if a.args.feat_extractor == 'resnet18':
-            self.classification_head = resnet18(pretrained=c.pretrained,progress=False) #ResNetPyramidClassificationHead()
+            self.classification_head = resnet18(pretrained=a.args.pretrained,progress=False) #ResNetPyramidClassificationHead()
         else:
-            self.classification_head = vgg16_bn(pretrained=c.pretrained,progress=False)
+            self.classification_head = vgg16_bn(pretrained=a.args.pretrained,progress=False)
         
         if a.args.data == 'dlr':
             self.dlr_acd = True
@@ -666,8 +666,8 @@ class CowFlow(nn.Module):
         self.mnist = False
         self.gap = c.gap
         self.n_coupling_blocks = c.n_coupling_blocks
-        self.joint_optim = c.joint_optim
-        self.pretrained = c.pretrained
+        self.joint_optim = a.args.joint_optim
+        self.pretrained = a.args.pretrained
         self.finetuned = c.train_feat_extractor
         self.scheduler = a.args.scheduler
         self.pyramid = a.args.pyramid
@@ -793,8 +793,8 @@ class MNISTFlow(nn.Module):
         self.gap = c.gap
         self.n_coupling_blocks = c.n_coupling_blocks
         self.fixed1x1conv = a.args.fixed1x1conv
-        self.joint_optim = c.joint_optim
-        self.pretrained = c.pretrained
+        self.joint_optim = a.args.joint_optim
+        self.pretrained = a.args.pretrained
         self.scheduler = a.args.scheduler
 
     def forward(self,images,labels,rev=False):
