@@ -320,16 +320,16 @@ class DLRACDToTensor(object):
         patch = torch.from_numpy(patch)
         patch = patch.permute(2,0,1)
             
-        patch = patch.float().div(255).to(c.device)
+        patch = patch.float().div(255)#.to(c.device)
         
         sample['patch'] =  patch.float()
         
         if 'patch_density' in sample.keys():
-            sample['patch_density'] = torch.from_numpy(sample['patch_density']).to(c.device)
+            sample['patch_density'] = torch.from_numpy(sample['patch_density'])#.to(c.device)
         if 'counts' in sample.keys():
-            sample['counts'] = torch.from_numpy(np.array(sample['counts']).astype(float)).to(c.device)
+            sample['counts'] = torch.from_numpy(np.array(sample['counts']).astype(float))#.to(c.device)
         if 'point_map' in sample.keys():
-            sample['point_map']  = torch.from_numpy(sample['point_map'] ).to(c.device)
+            sample['point_map']  = torch.from_numpy(sample['point_map'] )#.to(c.device)
 
         return sample
     
@@ -345,7 +345,7 @@ class DLRACDAddUniformNoise(object):
         
         if 'patch_density' in sample.keys():
             pass
-            sample['patch_density'] =  sample['patch_density'] + torch.FloatTensor(sample['patch_density'].size()).uniform_(self.r1, self.r2).to(c.device)
+            sample['patch_density'] =  sample['patch_density'] + torch.FloatTensor(sample['patch_density'].size()).uniform_(self.r1, self.r2)#.to(c.device)
         
             if c.debug:
                 print("uniform noise ({},{}) added to patch density".format(self.r1, self.r2))
