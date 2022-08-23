@@ -105,20 +105,20 @@ class ResNetPyramid(ResNet):
 
         #super(ResNetPyramid, self).__init__(BasicBlock, [2, 2, 2, 2], num_classes=1000)
         
-        if c.load_feat_extractor_str == '':
+        if a.args.load_feat_extractor_str == '':
             if a.args.fe_load_imagenet_weights:
                 if a.args.feature_extractors == 'resnet18':
-                    self.load_state_dict(resnet18(pretrained=c.pretrained).state_dict())
+                    self.load_state_dict(resnet18(pretrained=a.args.pretrained).state_dict())
                 elif a.args.feat_extractor == 'resnet50':
-                    self.load_state_dict(resnet50(pretrained=c.pretrained).state_dict())
+                    self.load_state_dict(resnet50(pretrained=a.args.pretrained).state_dict())
                 else:
                     ValueError
                     
                 num_ftrs = self.fc.in_features
                 self.fc = nn.Linear(num_ftrs, 2)  
             
-        elif c.load_feat_extractor_str != '':
-            finetuned_fe = u.load_model(c.load_feat_extractor_str,loc=g.FEAT_MOD_DIR)
+        elif a.args.load_feat_extractor_str != '':
+            finetuned_fe = u.load_model(a.args.load_feat_extractor_str,loc=g.FEAT_MOD_DIR)
             self.load_state_dict(finetuned_fe.state_dict())
             num_ftrs = self.fc.in_features
             self.fc = nn.Linear(num_ftrs, 2)  
@@ -159,14 +159,14 @@ class VGGPyramid(VGG):
     def __init__(self):
         super(VGGPyramid, self).__init__(make_layers(cfgs["D"]))
         
-        if c.load_feat_extractor_str == '':
+        if a.args.load_feat_extractor_str == '':
             if a.args.fe_load_imagenet_weights:
-                self.load_state_dict(vgg16_bn(pretrained=c.pretrained,progress=False).state_dict())
+                self.load_state_dict(vgg16_bn(pretrained=a.args.pretrained,progress=False).state_dict())
                 num_ftrs = self.fc.in_features
                 self.fc = nn.Linear(num_ftrs, 2)  
             
-        elif c.load_feat_extractor_str != '':
-            finetuned_fe = u.load_model(c.load_feat_extractor_str,loc=g.FEAT_MOD_DIR)
+        elif a.args.load_feat_extractor_str != '':
+            finetuned_fe = u.load_model(a.args.load_feat_extractor_str,loc=g.FEAT_MOD_DIR)
             self.load_state_dict(finetuned_fe.state_dict())
             num_ftrs = self.fc.in_features
             self.fc = nn.Linear(num_ftrs, 2)  
@@ -209,8 +209,8 @@ def random_orthog(n):
 
 def select_feat_extractor(feat_extractor,train_loader=None,valid_loader=None):
     
-    if c.load_feat_extractor_str and not a.args.pyramid:
-        feat_extractor = u.load_model(filename=c.load_feat_extractor_str,loc=g.FEAT_MOD_DIR)
+    if a.args.load_feat_extractor_str and not a.args.pyramid:
+        feat_extractor = u.load_model(filename=a.args.load_feat_extractor_str,loc=g.FEAT_MOD_DIR)
     
     if not a.args.pyramid:
         if a.args.feat_extractor == "alexnet":

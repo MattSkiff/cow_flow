@@ -6,6 +6,7 @@ from skimage.metrics import peak_signal_noise_ratio, structural_similarity
 from sklearn.metrics import auc
 from scipy.spatial import distance
 from scipy.optimize import linear_sum_assignment
+
 import torch
 from torch import randn
 from torch.utils.data import DataLoader # Dataset  
@@ -16,6 +17,8 @@ import os
 import time 
 
 import matplotlib.pyplot as plt
+
+import statsmodels.stats.api as sms
 
 # Internal
 from utils import ft_dims_select, np_split,is_baseline, create_point_map,loader_check,create_point_map
@@ -270,7 +273,7 @@ def gen_metrics(dm_mae,dm_mse,dm_ssim,dm_psnr,y_n,y_hat_n,game,gampe,localisatio
     return metric_dict
     
 @torch.no_grad()
-def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True,null_filter=(a.args.bin_classifier_path != '')):
+def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True,null_filter=(a.args.bin_classifier_path != ''),write_errors_only=a.args.write_errors):
     
     thres=4*2 ; correct = 0; total = 0 #mdl.sigma*2
 
@@ -347,7 +350,7 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True,null_filter=(a.a
             else:
                 gt_coords = None
             
-            #ground_truth_point_map, _ = create_point_map(mdl=mdl,annotations=annotations[idx].cpu().detach().numpy()) 
+            #ground_truth_point_map, _ = create_point_map(mdl=mdl,annotations=annotations[idx].cpu().detach().numpy(),resize=a.args.resize) 
             ground_truth_point_map = point_maps[idx].squeeze().cpu().detach().numpy()
             
             gt_count = ground_truth_point_map.sum() #.round()
@@ -438,6 +441,19 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True,null_filter=(a.a
             #normalised_gdmap = (ground_truth_dmap - np.min(ground_truth_dmap)) / (np.max(ground_truth_dmap)-np.min(ground_truth_dmap))
             dm_psnr.append(cv2.PSNR(ground_truth_dmap,dmap_np)) #peak_signal_noise_ratio
             dm_ssim.append(structural_similarity(ground_truth_dmap,dmap_np))
+    
+    if write_errors_only:
+        
+        error_file = open("./viz/data/" + "{}.errors".format(mdl.modelname), "w")
+        
+        for pred_count, actual_count in zip(y_hat_n,y_n):
+            
+            error_file.write(str(abs(pred_count-actual_count)) + "\n")
+            
+        error_file.close()
+        
+        return
+        
     
     localisation_dict,prs,rcs = gen_localisation_metrics(dlr=False,thres=thres,y_coords=y_coords,y_hat_coords=y_hat_coords)
     write_localisation_data(mdl,prs,rcs,write=write)
@@ -598,7 +614,7 @@ def eval_mnist(mdl, valloader, trainloader,samples = 1,confusion = False, preds 
     return  out # train, val
 
 @torch.no_grad()
-def dmap_metrics(mdl, loader,n=50,mode='',null_filter=(a.args.bin_classifier_path != ''),write=True):
+def dmap_metrics(mdl, loader,n=50,mode='',null_filter=(a.args.bin_classifier_path != ''),write=True,write_errors_only=a.args.write_errors):
     '''DMAP,COUNT,LOCALIZATION metrics'''
     
     if mdl.density_map_h == 608 and not a.args.rrc:
@@ -624,6 +640,8 @@ def dmap_metrics(mdl, loader,n=50,mode='',null_filter=(a.args.bin_classifier_pat
     y_hat_n = [];  y_hat_n_dists = []; y_hat_coords = []
     dm_mae = []; dm_mse = []; dm_psnr = []; dm_ssim = [] 
     game = []; gampe = []; correct = 0; total = 0
+    
+    pi_list = []
     
     mdl = mdl.to(c.device)
     
@@ -666,8 +684,22 @@ def dmap_metrics(mdl, loader,n=50,mode='',null_filter=(a.args.bin_classifier_pat
         
             x, _ = mdl(images,dummy_z,rev=True)
             x_list.append(x)
-            x_agg = torch.stack(x_list,dim=1)
-            x = x_agg.mean(dim=1) # take average of samples from models for mean reconstruction
+            
+        x_agg = torch.stack(x_list,dim=1)
+        
+        # https://stackoverflow.com/questions/15033511/compute-a-confidence-interval-from-sample-data
+        
+        if write_errors_only:
+            
+            x_sums = []
+            
+            for x in x_list:
+                x_sums.append(x.sum().cpu().detach().numpy())
+        
+            prediction_interval = sms.DescrStatsW(x_sums).quantile([0.1,0.9],return_pandas=False)
+            
+        x = x_agg.mean(dim=1) # take average of samples from models for mean reconstruction
+        pi_list.append(prediction_interval)
             
         if not mdl.dlr_acd:
             #features = mdl.feat_extractor(images)
@@ -712,7 +744,7 @@ def dmap_metrics(mdl, loader,n=50,mode='',null_filter=(a.args.bin_classifier_pat
                 ground_truth_point_map = point_maps[idx].cpu().detach().numpy()
                 gt_count = ground_truth_point_map.sum() / 3
             else:
-                ground_truth_point_map, _ = create_point_map(mdl=mdl,annotations=annotations[idx].cpu().detach().numpy()) 
+                ground_truth_point_map, _ = create_point_map(mdl=mdl,annotations=annotations[idx].cpu().detach().numpy(),resize=a.args.resize) 
                 gt_count = ground_truth_point_map.sum()
                 #gt_count = ground_truth_dmap.sum().round()
                 gt_coords = annotations[idx]
@@ -809,6 +841,21 @@ def dmap_metrics(mdl, loader,n=50,mode='',null_filter=(a.args.bin_classifier_pat
         
             game.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)))
             gampe.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)/np.maximum(np.ones(len(gt_dmap_split_counts)),gt_dmap_split_counts)))  
+    
+    if write_errors_only:
+        
+        error_file = open("./viz/data/" + "{}.errors".format(mdl.modelname), "w")
+        prediction_intervals_file = open("./viz/data/" + "{}.pred_int".format(mdl.modelname), "w")
+        
+        for pred_count, actual_count, pi in zip(y_hat_n,y_n,pi_list):
+            
+            error_file.write(str(abs(pred_count-actual_count)) + "\n")
+            prediction_intervals_file.write(str(pi) + "\n")
+            
+        error_file.close()
+        prediction_intervals_file.close()
+        
+        return
     
     localisation_dict,prs,rcs = gen_localisation_metrics(dlr=mdl.dlr_acd,thres=thres,y_coords=y_coords,y_hat_coords=y_hat_coords)
     write_localisation_data(mdl,prs,rcs,write=write)

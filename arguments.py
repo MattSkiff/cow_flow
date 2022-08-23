@@ -18,6 +18,7 @@ parser.add_argument('-holdout',help="Use holdout data",action="store_true",defau
 parser.add_argument('-sat',help="Use satellite data",action="store_true",default=False)
 
 parser.add_argument('-mdl_path',help="Specify mdl for eval",default='')
+parser.add_argument('-load_feat_extractor_str',help="Specify fe model name to load",default='')
 parser.add_argument('-bin_classifier_path', default='')
 parser.add_argument('-ram',help='Load images/dmaps/point maps into ram for faster trainig',action="store_true",default=False)
 
@@ -49,6 +50,8 @@ parser.add_argument('-test','--test_run',help='use only a small fraction of data
 
 parser.add_argument("-name","--schema",type=str,default='debug') # if debug, ignored
 parser.add_argument("-tb","--tensorboard",help='calc and write metrics, hyper params to tb files (if off no eval in train loop)',action="store_true",default=False)
+parser.add_argument("-we","--write_errors",help='write errors / pred int. (for NF) to file',action="store_true",default=False)
+
 parser.add_argument("-viz",help='visualise outputs and stats',action="store_true",default=False)
 parser.add_argument("-viz_freq",help='how many epochs per viz',type=int,default=25)
 
@@ -247,6 +250,9 @@ if args.mode == 'train':
 # todo - find better way of checking NF only argument
 
 assert args.data in ['cows','dlr','mnist']
+
+if args.data == 'dlr':
+    assert args.model_name == 'NF'
 
 if args.data == "dlr":
     assert args.image_size == 320

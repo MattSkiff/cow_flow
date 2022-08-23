@@ -231,7 +231,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
             
             c_head_trained = False    
             
-            if c.joint_optim and a.args.feat_extractor != 'none':
+            if a.args.joint_optim and a.args.feat_extractor != 'none':
                 # TODO
                 if a.args.optim == 'adam':   
                     optimizer = torch.optim.Adam([
@@ -589,9 +589,9 @@ def train_classification_head(mdl,full_trainloader,full_valloader,criterion = nn
         mdl = types.SimpleNamespace()
         
         if a.args.feat_extractor == 'resnet18':
-            mdl.classification_head = resnet18(pretrained=c.pretrained,progress=False)
+            mdl.classification_head = resnet18(pretrained=a.args.pretrained,progress=False)
         elif a.args.feat_extractor == 'vgg16_bn':
-            mdl.classification_head = vgg16_bn(pretrained=c.pretrained,progress=False)
+            mdl.classification_head = vgg16_bn(pretrained=a.args.pretrained,progress=False)
             
         mdl.classification_head.to(c.device)
     

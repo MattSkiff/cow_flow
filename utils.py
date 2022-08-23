@@ -108,7 +108,7 @@ def ft_dims_select(mdl=None):
     if c.downsampling:
         
         if a.args.data == 'dlr':
-            ft_dims = (mdl.density_map_h // 2**5,mdl.density_map_w // 2**5) # 10, 10
+            ft_dims = 10,10#(mdl.density_map_h // 2**5,mdl.density_map_w // 2**5) # 10, 10
         elif fe in ['resnet18','ResNetPyramid',"VGGPyramid"] or fe == 'Sequential':
             if a.args.resize or a.args.rrc:
                 ft_dims = (8,8)
@@ -1720,7 +1720,7 @@ def make_model_name(train_loader):
          
      parts.extend(["WD",str(a.args.weight_decay)])
          
-     if c.train_feat_extractor or c.load_feat_extractor_str != '':
+     if c.train_feat_extractor or a.args.load_feat_extractor_str != '':
          parts.append('FT')
          
      if a.args.sigma != 4 and not a.args.data == 'mnist':
@@ -1856,3 +1856,14 @@ def loader_check(mdl,loader):
         
     if mdl.density_map_h == 256:
         assert a.args.resize or a.args.rrc
+        
+def plot_errors(error_file_path,prediction_interval_file_path):
+    
+    errors = 
+    prediction_intervals = 
+    
+    fig, ax = plt.subplots(1)
+    ax[0,0].scatter(ldj_l,n_cows)
+    ax[0,0].set_xlabel('Log det jac')
+    ax[0,0].set_ylabel('n cows')
+    
