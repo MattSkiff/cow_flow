@@ -3,6 +3,7 @@ import numpy as np
 
 FEAT_MOD_DIR = './models/feat_extractors/'
 VIZ_DIR = './viz'
+VIZ_DATA_DIR = './viz/data/'
 WEIGHT_DIR = './weights'
 MODEL_DIR = './models'
 LOG_DIR = './logs'
@@ -30,8 +31,9 @@ THRES_SEQ = np.arange(0, 20, 0.5, dtype=float)
 
 if a.args.model_name in BASELINE_MODEL_NAMES:
     assert a.args.noise == 0
-    
-assert a.args.model_name in BASELINE_MODEL_NAMES + ['NF','ALL']
+
+if not (a.args.mode == 'plot' and a.args.plot_errors):
+    assert a.args.model_name in BASELINE_MODEL_NAMES + ['NF','ALL']
 
 if a.args.model_name == 'NF' and a.args.mode == 'train':
     assert a.args.subnet_type in SUBNETS

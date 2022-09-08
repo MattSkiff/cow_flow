@@ -14,7 +14,7 @@ import model
 from localisation import export_gradient_maps
 from data_loader import prep_transformed_dataset, make_loaders
 from train import train, train_baselines, train_feat_extractor, train_classification_head
-from utils import load_model,plot_preds,plot_preds_baselines,plot_preds_multi,plot_peaks,get_likelihood
+from utils import load_model,plot_preds,plot_preds_baselines,plot_preds_multi,plot_peaks,get_likelihood, plot_errors
 from eval import dmap_metrics, eval_baselines
 from dlr_acd import dlr_acd
 from mnist import mnist
@@ -59,20 +59,24 @@ if a.args.data == 'cows':
     
     if a.args.mode in ['plot','eval']:
         
-        if a.args.model_name != 'ALL':
+        if a.args.model_name != 'ALL' and not a.args.plot_errors:
             mdl = load_model(a.args.mdl_path)
     
         if a.args.mode == 'eval':
             
             if a.args.model_name == 'NF':
-                dmap_metrics(mdl,val_loader,mode='val',n=1)
+                dmap_metrics(mdl,val_loader,mode='val',n=100)
                 
             else:
                 eval_baselines(mdl,val_loader,mode='val',is_unet_seg=(a.args.model_name=='UNet_seg'))
     
         if a.args.mode == 'plot':  
-    
-            if a.args.model_name == 'NF':
+            
+            if a.args.plot_errors:
+                
+                plot_errors(a.args.error_path,a.args.interval_path)
+                
+            elif a.args.model_name == 'NF':
                 if a.args.get_likelihood:
                     get_likelihood(mdl,val_loader,plot=False)
                 elif a.args.get_grad_maps:
