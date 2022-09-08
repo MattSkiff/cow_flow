@@ -641,14 +641,14 @@ def dmap_metrics(mdl, loader,n=50,mode='',null_filter=(a.args.bin_classifier_pat
     dm_mae = []; dm_mse = []; dm_psnr = []; dm_ssim = [] 
     game = []; gampe = []; correct = 0; total = 0
     
-    pi_list = []
+    pi_list = []; ei_list = []
     
     mdl = mdl.to(c.device)
     
     for i, data in enumerate(tqdm(loader, disable=False)):
         
         if not a.args.data=='cows' and not loader.dataset.classification:
-            images,dmaps,labels,annotations,point_maps = preprocess_batch(data,dlr=True)
+            images,dmaps,counts,point_maps = preprocess_batch(data,dlr=True)
         elif a.args.data=='cows':
             images,dmaps,labels,binary_labels,annotations,point_maps  = preprocess_batch(data)
         else:
@@ -666,14 +666,14 @@ def dmap_metrics(mdl, loader,n=50,mode='',null_filter=(a.args.bin_classifier_pat
         in_channels = c.channels*4**n_ds
         ft_dims = ft_dims_select(mdl) 
 
-        x_list = []
+        x_list = []; x_error = []
                     
         ## sample from model per aerial image ---
+        
+        ## Error calculation might not work for BS < 1
         for i in range(n):
             dummy_z = (randn(images.size()[0], in_channels,ft_dims[0],ft_dims[1])).to(c.device)
             #dummy_z = (torch.full((images.size()[0], in_channels,ft_dims[0],ft_dims[1]),0.5)).to(c.device)
-
-        
             # feature extractor pre filtering
             # currently only on cow dataset
                 
@@ -685,22 +685,19 @@ def dmap_metrics(mdl, loader,n=50,mode='',null_filter=(a.args.bin_classifier_pat
             x, _ = mdl(images,dummy_z,rev=True)
             x_list.append(x)
             
+            if write_errors_only:
+                x_error.append(torch.abs(x.sum()-dmaps.sum()))
+            
         x_agg = torch.stack(x_list,dim=1)
         
-        # https://stackoverflow.com/questions/15033511/compute-a-confidence-interval-from-sample-data
-        
         if write_errors_only:
-            
-            x_sums = []
-            
-            for x in x_list:
-                x_sums.append(x.sum().cpu().detach().numpy())
-        
-            prediction_interval = sms.DescrStatsW(x_sums).quantile([0.1,0.9],return_pandas=False)
+            x_error_agg = torch.stack(x_error)#,dim=1)
+            # size = [100]
+
+        # https://stackoverflow.com/questions/15033511/compute-a-confidence-interval-from-sample-data
             
         x = x_agg.mean(dim=1) # take average of samples from models for mean reconstruction
-        pi_list.append(prediction_interval)
-            
+
         if not mdl.dlr_acd:
             #features = mdl.feat_extractor(images)
             #outputs = mdl.classification_head(features)
@@ -721,6 +718,22 @@ def dmap_metrics(mdl, loader,n=50,mode='',null_filter=(a.args.bin_classifier_pat
             dmap_rev_np = dmap_rev_np/mdl.dmap_scaling
             pred_count = dmap_rev_np.sum() # sum across channel, spatial dims for counts
             dist_counts  = x_agg[idx].sum((1,2,3)) 
+            
+            if write_errors_only:
+                
+                x_sums = []; x_errors = []
+                
+                for x in x_list:
+                    x_sums.append(x.sum().cpu().detach().numpy())
+                    
+                for x_error in x_error_agg:
+                    x_errors.append(x_error.cpu().detach().numpy())
+
+                prediction_interval = sms.DescrStatsW(x_sums).quantile([0.1,0.9],return_pandas=False)
+                error_interval = sms.DescrStatsW(x_errors).quantile([0.1,0.9],return_pandas=False)
+
+                pi_list.append(prediction_interval)
+                ei_list.append(error_interval)
             
             # test_dms.append(dmap_rev_np)
             # ac_dms.append(dmaps[idx]) 
@@ -820,7 +833,7 @@ def dmap_metrics(mdl, loader,n=50,mode='',null_filter=(a.args.bin_classifier_pat
             dm_mae.append(sum(abs(dmap_rev_np-ground_truth_dmap)))
             dm_mse.append(sum(np.square(dmap_rev_np-ground_truth_dmap)))
             
-            dm_psnr.append(cv2.PSNR(ground_truth_dmap,dmap_rev_np)) #data_range=ground_truth_dmap.max()-ground_truth_dmap.min()))
+            dm_psnr.append(cv2.PSNR(np.float32(ground_truth_dmap),np.float32(dmap_rev_np))) #data_range=ground_truth_dmap.max()-ground_truth_dmap.min()))
             dm_ssim.append(structural_similarity(ground_truth_dmap,dmap_rev_np))
                         
             # local-count metrics # TODO
@@ -845,15 +858,18 @@ def dmap_metrics(mdl, loader,n=50,mode='',null_filter=(a.args.bin_classifier_pat
     if write_errors_only:
         
         error_file = open("./viz/data/" + "{}.errors".format(mdl.modelname), "w")
+        error_intervals_file = open("./viz/data/" + "{}.err_int".format(mdl.modelname), "w")
         prediction_intervals_file = open("./viz/data/" + "{}.pred_int".format(mdl.modelname), "w")
         
-        for pred_count, actual_count, pi in zip(y_hat_n,y_n,pi_list):
+        for pred_count, actual_count, pi, ei in zip(y_hat_n,y_n,pi_list,ei_list):
             
             error_file.write(str(abs(pred_count-actual_count)) + "\n")
             prediction_intervals_file.write(str(pi) + "\n")
+            error_intervals_file.write(str(ei) + "\n")
             
         error_file.close()
         prediction_intervals_file.close()
+        error_intervals_file.close()
         
         return
     

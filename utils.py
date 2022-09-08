@@ -5,6 +5,7 @@ import dill # solve error when trying to pickle lambda function in FrEIA
 import shutil
 import os
 import numpy as np
+import pandas as pd
 import random
 import cv2
 import rasterio
@@ -21,12 +22,14 @@ from sklearn.preprocessing import StandardScaler
 from lcfcn import lcfcn_loss
 from skimage.feature import peak_local_max # 
 from skimage import morphology as morph
+from pathlib import Path
 import scipy
 
 import torchvision.transforms.functional as TF
 import torchvision.transforms as T
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 
 # Internal
 import config as c
@@ -210,10 +213,41 @@ def plot_preds_multi(mode,loader,loader_86,model_path_dict=g.BEST_MODEL_PATH_DIC
             seg_map_rs = scipy.ndimage.filters.maximum_filter(point_maps[lb_idx].cpu().numpy(),size = (4,4))
             
             j = 0 # index positions first plot
-            fig1, axs1 = plt.subplots(2, 8)
-            fig1.subplots_adjust(left=0.05, right=0.95, top=0.95, bottom=0.05,hspace=0.15,wspace=0.05)
+            
+            fig1, axs1 = plt.subplots()
+            gs = mpl.gridspec.GridSpec(4, 20, wspace=0.25, hspace=0.25) # 2x2 grid
+            
+            #fig.subplots_adjust(left=0.05, right=0.95, top=0.95, bottom=0.05,hspace=0.15,wspace=0.05)
             fig1.set_size_inches(10*1,5*1)
             fig1.set_dpi(100)
+            
+            g=0
+            fig1.add_subplot(gs[0:2, g*3:g*3+3]);g+=1
+            fig1.add_subplot(gs[0:2, g*3:g*3+3]);g+=1
+            fig1.add_subplot(gs[0:2, g*3:g*3+3]);g+=1
+            fig1.add_subplot(gs[0:2, g*3:g*3+3]);g+=1
+            fig1.add_subplot(gs[0:2, g*3:])
+
+
+            #fig1.add_subplot(gs[2:4, 0:5])
+            #fig1.add_subplot(gs[2:4, 5:10])
+            #fig1.add_subplot(gs[2:4, 10:])
+
+            # fig.add_subplot(gs[2:, :2])
+            # fig.add_subplot(gs[8:, 2:4])
+            # fig.add_subplot(gs[8:, 4:9])
+            # fig.add_subplot(gs[2:8, 8])
+            # fig.add_subplot(gs[2:, 9])
+            # fig.add_subplot(gs[3:6, 3:6])
+                
+            # fancy colors
+            cmap = mpl.cm.get_cmap("viridis")
+            naxes = len(fig1.axes)
+            for i, ax in enumerate(fig1.axes):
+                ax.set_xticks([])
+                ax.set_yticks([])
+                ax.set_facecolor(cmap(float(i)/(naxes-1)))
+            
             [axi.set_axis_off() for axi in axs1.ravel()] # turn off subplot axes
             
             # figure2 code
@@ -238,12 +272,12 @@ def plot_preds_multi(mode,loader,loader_86,model_path_dict=g.BEST_MODEL_PATH_DIC
                 
                 count = np.round(((preds.sum()/mdl.dmap_scaling)-constant),1)
                 
-                axs1[tuples1[j]].title.set_text('{}'.format(p1titles[j]))#str(type(mdl))))
-                axs1[tuples1[j]].text(text_x,text_y, 'Count: {:.1f}'.format(count),
+                axs1[j].title.set_text('{}'.format(p1titles[j]))#str(type(mdl))))
+                axs1[j].text(text_x,text_y, 'Count: {:.1f}'.format(count),
                     verticalalignment='bottom', horizontalalignment='right',
                     transform=axs1[tuples1[j]].transAxes,
                     color='green', fontsize=15)
-                axs1[tuples1[j]].imshow(preds)
+                axs1[j].imshow(preds)
                 j+=1
         
             for mdl in [UNet_seg]:
@@ -290,12 +324,8 @@ def plot_preds_multi(mode,loader,loader_86,model_path_dict=g.BEST_MODEL_PATH_DIC
         
         dmap_frs = dmaps[lb_idx]
         z = z+1
-        
-        gs = axs1[1, 0].get_gridspec()
-        # remove the underlying axes
-        axs1[1,0].remove(); axs1[1,1].remove()
             
-        axMCNN = fig1.add_subplot(gs[1:,0:2])
+        axMCNN = fig1.add_subplot(gs[2:4, 5:10])
         
         for mdl in [MCNN]:
             
@@ -322,25 +352,15 @@ def plot_preds_multi(mode,loader,loader_86,model_path_dict=g.BEST_MODEL_PATH_DIC
                                  std=tuple(c.norm_std))
             im = unnorm(images[lb_idx])
             im = im.permute(1,2,0).cpu().numpy()
-            
-            gs = axs1[0, 6].get_gridspec()
-            # remove the underlying axes
-            axs1[0,6].remove(); axs1[0,7].remove()
-            axs1[1,6].remove(); axs1[1,7].remove()
-                
-            axCondition = fig1.add_subplot(gs[0:,6:])
+                    
+            axCondition = fig1.add_subplot(gs[0:,15:])
             
             axCondition.title.set_text('Conditioning Aerial Image')
             axCondition.imshow((im * 255).astype(np.uint8))
             axCondition.set_axis_off()
         
         mdl = NF; mdl.to(c.device)
-         
-        gs = axs1[1, 2].get_gridspec()
-        # remove the underlying axes
-        axs1[1,2].remove(); axs1[1,3].remove()
-            
-        axNF = fig1.add_subplot(gs[1:,2:4])
+        axNF = fig1.add_subplot(gs[2:4, 10:15])
         
         # NF prediction
         x_list = []
@@ -387,11 +407,7 @@ def plot_preds_multi(mode,loader,loader_86,model_path_dict=g.BEST_MODEL_PATH_DIC
             color='green', fontsize=15)
         
         #  DENSITY 800x600
-        gs = axs1[1, 4].get_gridspec()
-        # remove the underlying axes
-        axs1[1,4].remove(); axs1[1,5].remove()
-        
-        axDS86 = fig1.add_subplot(gs[1,4:6])
+        axDS86 = fig1.add_subplot(gs[2:4, 5:10])
 
         axDS86.imshow(dmap_frs.cpu().numpy())
         axDS86.title.set_text('Density (800x600)')
@@ -439,7 +455,7 @@ def plot_preds_multi(mode,loader,loader_86,model_path_dict=g.BEST_MODEL_PATH_DIC
 
 @torch.no_grad()
 def predict_image(mdl_path,nf=False,geo=True,nf_n=500,mdl_type='',
-                  image_path='/home/mks29/6-6-2018_Ortho_ColorBalance.tif',dlr=False):
+                  image_path='/home/mks29/Desktop/BB34_5000_1006.jpg',dlr=False):
     
     #'/home/mks29/6-6-2018_Ortho_ColorBalance.tif'
     #'/home/mks29/Desktop/BB34_5000_1006.jpg'
@@ -1856,14 +1872,42 @@ def loader_check(mdl,loader):
         
     if mdl.density_map_h == 256:
         assert a.args.resize or a.args.rrc
-        
-def plot_errors(error_file_path,prediction_interval_file_path):
+   
+      
+   
+def plot_errors(error_file_name,prediction_interval_file_name):
     
-    errors = 
-    prediction_intervals = 
+    # want to plot width of prediction interval from NF (as measure of uncertainty)
+    # against actual error from baseline model
+    # high correspondence shows the NF is correctly assigning uncertainty to predictions
     
+    error_file_path = os.path.join(g.VIZ_DATA_DIR,error_file_name)
+    prediction_interval_file_path = os.path.join(g.VIZ_DATA_DIR,prediction_interval_file_name)
+    
+    errors = []; prediction_intervals = []
+    
+    with open(error_file_path) as f:
+        errors_input = f.readlines()
+    
+        for line in errors_input:
+            errors.append(line)    
+
+    with open(prediction_interval_file_path) as f:
+        prediction_interval_input = f.readlines()
+    
+        for line in prediction_interval_input:
+            line = np.array(line[1:-2].split(),dtype=np.float32)
+            prediction_intervals.append(line)  
+            
+    intervals_df = pd.DataFrame(np.array(prediction_intervals), columns=['lb', 'ub'])
+    pred_width = np.array(np.abs(intervals_df['lb']-intervals_df['ub']))
+    errors = np.array(errors,dtype=np.float32)
+
     fig, ax = plt.subplots(1)
-    ax[0,0].scatter(ldj_l,n_cows)
-    ax[0,0].set_xlabel('Log det jac')
-    ax[0,0].set_ylabel('n cows')
+    #ax.vlines(errors,intervals_df['lb'],intervals_df['ub'])
+    ax.scatter(errors,pred_width)
+    ax.set_xlabel('Baseline LCFCN error size'.format(Path(error_file_path).stem))
+    ax.set_ylabel('NF prediction interval width')
+    
+    plt.show()
     

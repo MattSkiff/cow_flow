@@ -4,8 +4,11 @@ import os
 # command line params
 parser = argparse.ArgumentParser(description='Create dataloaders and train a model on MNIST, DLRACD or cow dataset.')
 
-parser.add_argument('-mode',help="Specify mode (train,eval,store).",default='')
+parser.add_argument('-mode',help="Specify mode (train,eval,store,plot).",default='')
 parser.add_argument('-get_likelihood',help='get and plot likelihoods / anamoly scores',action="store_true",default=False)
+parser.add_argument('-plot_errors',help='plot errors from error and interval file paths',action="store_true",default=False)
+parser.add_argument('-error_path',help="Specify mdl for eval",default='')
+parser.add_argument('-interval_path',help="Specify mdl for eval",default='')
 parser.add_argument('-get_grad_maps',help='dev',action="store_true",default=False)
 parser.add_argument('-jac',help='enable the jacobian as part of training',action="store_true",default=False)
 parser.add_argument('-jo','--joint_optim',help='jointly optimse feat extractor and flow',action="store_true",default=False)
@@ -159,7 +162,13 @@ if any('SPYDER' in name for name in os.environ):
 assert args.mode in ['train','eval','store','plot']
 assert args.gpu_number > -1
 
+if args.write_errors:
+    assert args.batch_size == 1
 
+if args.plot_errors:
+    assert args.mode == 'plot'
+    assert args.error_path != ''
+    assert args.interval_path != ''
 
 if args.mode == 'store':
     assert args.ram
@@ -177,7 +186,14 @@ if args.mode == 'eval':
 if args.holdout:
     assert args.data == 'cows'
 
-assert args.sampler in ['weighted','anno','none']
+if not (args.mode == 'plot' and args.plot_errors):
+    assert args.sampler in ['weighted','anno','none']
+    
+    if args.model_name == 'LCFCN': #  in ['UNet_seg','LCFCN']:
+        assert args.batch_size == 1 # https://github.com/ElementAI/LCFCN/issues/9
+    else:
+        assert args.batch_size >= 1
+        # LCFCN only supports batch size of 1
 
 if args.rrc:
     #assert args.min_scaling > 0 and args.min_scaling < 1
@@ -231,12 +247,6 @@ if args.fixed1x1conv and args.pyramid:
 
 if args.feat_extractor == 'resnet50':
     assert args.pyramid
-
-if args.model_name == 'LCFCN': #  in ['UNet_seg','LCFCN']:
-    assert args.batch_size == 1 # https://github.com/ElementAI/LCFCN/issues/9
-else:
-    assert args.batch_size >= 1
-    # LCFCN only supports batch size of 1
 
 if args.model_name in ['UNet_seg','LCFCN']:
     assert args.max_filter_size >= 1

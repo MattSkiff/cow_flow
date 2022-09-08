@@ -50,7 +50,7 @@ def dlr_acd(load_only=False):
     if any('SPYDER' in name for name in os.environ):
         dlr_dataset.show_annotations(1) #2345
     
-    if not load_only and a.args.mode == train:
+    if not load_only and a.args.mode == 'train':
         mdl = train(train_loader,val_loader)
     else:
         mdl = None
