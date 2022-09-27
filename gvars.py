@@ -25,7 +25,7 @@ BEST_MODEL_PATH_DICT = {
     'NF':bm_dir_86+'best_86_widereal_w_vgg1NF_C5_NF_hydra_BS8_LR_I0.0001_E250_DIM608_OPTIMadam_FE_vgg16_bn_NC5_conv_JC_weighted_none_JO_PY_1_WD_1e-05_15_07_2022_17_52_19'
     }
 
-BASELINE_MODEL_NAMES = ['UNet','CSRNet','FCRN','LCFCN','UNet_seg','MCNN','Res50']
+BASELINE_MODEL_NAMES = ['UNet','CSRNet','FCRN','LCFCN','UNet_seg','MCNN','Res50','VGG']
 SUBNETS = ['conv','conv_shallow','fc','MCNN','UNet','conv_deep']
 THRES_SEQ = np.arange(0, 20, 0.5, dtype=float)
 

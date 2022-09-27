@@ -178,7 +178,9 @@ def plot_preds_multi(mode,loader,loader_86,model_path_dict=g.BEST_MODEL_PATH_DIC
     LCFCN = load_model(model_path_dict['LCFCN'])
     MCNN = load_model(model_path_dict['MCNN'])
     Res50 = load_model(model_path_dict['Res50'])
+    VGG = load_model(model_path_dict['VGG'])
     NF = load_model(model_path_dict['NF'])
+
         
     p1titles=['UNet(d)','FCRN','ResNet50','CSRNet',
             'MCNN','NF','Conditioning Aerial Image']
@@ -260,7 +262,7 @@ def plot_preds_multi(mode,loader,loader_86,model_path_dict=g.BEST_MODEL_PATH_DIC
             
             z = z+1
 
-            for mdl in [UNet,FCRN,Res50,CSRNet]:
+            for mdl in [UNet,FCRN,Res50,CSRNet,VGG]:
                 
                 plot_dmap = dmaps[lb_idx]/mdl.dmap_scaling
                 
@@ -1866,6 +1868,8 @@ def loader_check(mdl,loader):
         assert a.args.model_name == 'MCNN'
     if str(type(mdl))=="<class 'baselines.Res50'>":
         assert a.args.model_name == 'Res50'
+    if str(type(mdl))=="<class 'baselines.VGG_density'>":
+        assert a.args.model_name == 'VGG_density'
         
     if mdl.density_map_h == 608:
         assert not a.args.resize

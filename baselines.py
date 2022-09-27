@@ -8,8 +8,10 @@ import torch
 from torch import nn
 import torchvision
 from torchvision import models
+from torchvision.models import vgg16_bn
 from skimage import morphology as morph
 import torch.nn.functional as F
+from torchvision.models.vgg import VGG, make_layers, cfgs
 
 # interal import
 import arguments as a
@@ -711,7 +713,56 @@ def weights_normal_init(*models):
                         m.bias.data.fill_(0.0)
                 elif isinstance(m, nn.Linear):
                     m.weight.data.normal_(0.0, dev)
-                    
+
+# VGG Density Map implementation source:
+# https://github.com/gjy3035/C-3-Framework/blob/python3.x/models/SCC_Model/VGG.py
+class VGG_density(nn.Module):
+    def __init__(self, modelname, pretrained=True):
+        super(VGG_density, self).__init__()
+        
+        self.dlr = a.args.data == 'dlr'
+        self.modelname = modelname
+        self.unconditional = False
+        self.count = False
+        self.subnet_type = None
+        self.mnist = False
+        self.gap = c.gap
+        self.n_coupling_blocks = 0
+        self.joint_optim = False
+        self.pretrained = False
+        self.finetuned = False
+        self.scheduler = a.args.scheduler
+        self.scale = c.scale
+        self.density_map_h = c.density_map_h
+        self.density_map_w = c.density_map_w
+        self.downsampling = c.downsampling
+        self.scale = c.scale
+        self.noise = a.args.noise
+        self.seed = c.seed
+        self.dmap_scaling = a.args.dmap_scaling
+        self.sigma = a.args.sigma
+        
+        vgg = models.vgg16(pretrained=pretrained)
+        # if pretrained:
+        #     vgg.load_state_dict(torch.load(model_path))
+        features = list(vgg.features.children())
+        self.features4 = nn.Sequential(*features[0:23])
+
+
+        self.de_pred = nn.Sequential(nn.Conv2d(512, 128, 1,padding='same'),
+                                     nn.ReLU(),
+                                     nn.Conv2d(128, 1, 1,padding='same'),
+                                     nn.ReLU())
+
+    def forward(self, x):
+        x = self.features4(x)       
+        x = self.de_pred(x)
+
+        x = F.upsample(x,scale_factor=8)
+
+        return x
+
+
 # ResNet 50 from:
 # https://github.com/gjy3035/C-3-Framework/blob/f8e21faf8942dc852c8ed051a506789509255dc4/models/SCC_Model/Res50.py
 class Res50(nn.Module):
@@ -836,3 +887,36 @@ class Bottleneck(nn.Module):
         out = self.relu(out)
 
         return out 
+    
+# adding VGG as a baseline model as per eibe's request
+class VGGDensity(VGG):
+
+    def __init__(self):
+        
+        self.de_pred = nn.Sequential(nn.Conv2d(1024, 128, 1, padding='same'),
+                                     nn.ReLU(),
+                                     nn.Conv2d(128, 1, 1, padding='same'),
+                                     nn.ReLU())
+        
+        super(VGGDensity, self).__init__(make_layers(cfgs["D"]))
+        
+        # borrowed from LCFCN
+        # # FREEZE BATCH NORMS
+        if a.args.freeze_bn:
+            for m in self.modules():
+                if isinstance(m, nn.BatchNorm2d):
+                    m.weight.requires_grad = False
+                    m.bias.requires_grad = False
+    
+    def _forward_impl_my(self, x: torch.Tensor) -> torch.Tensor:
+        
+        x = self.de_pred(x)
+
+        x = F.interpolate(x,scale_factor=8)
+
+
+        return x  
+    
+    def forward(self, x):
+        
+        return self._forward_impl_my(x)

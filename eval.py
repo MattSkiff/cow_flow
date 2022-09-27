@@ -422,8 +422,8 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True,null_filter=(a.a
                 # print(pred_coord_pmap.shape)
                 # print(gt_pmap.shape)
                 
-                gt_dmap_split_counts = np_split(pred_coord_pmap,nrows=nr,ncols=nc).sum(axis=(1,2))
-                pred_dmap_split_counts = np_split(gt_pmap,nrows=nr,ncols=nc).sum(axis=(1,2))
+                gt_dmap_split_counts = np_split(gt_pmap,nrows=nr,ncols=nc).sum(axis=(1,2))
+                pred_dmap_split_counts = np_split(pred_coord_pmap,nrows=nr,ncols=nc).sum(axis=(1,2))
             else:
                 gt_dmap_split_counts = np_split(ground_truth_dmap,nrows=nr,ncols=nc).sum(axis=(1,2))
                 pred_dmap_split_counts = np_split(dmap_np,nrows=nr,ncols=nc).sum(axis=(1,2))
