@@ -60,6 +60,8 @@ def train_baselines(model_name,train_loader,val_loader,writer=None):
         mdl = b.MCNN(modelname=modelname)
     elif a.args.model_name == "Res50":
         mdl = b.Res50(modelname=modelname)
+    elif a.args.model_name == "VGG":
+        mdl = b.VGG_density(modelname=modelname)
         
     if a.args.optim == 'adam':   
         optimizer = torch.optim.Adam(mdl.parameters(), lr=a.args.learning_rate,
