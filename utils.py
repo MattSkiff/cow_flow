@@ -98,6 +98,8 @@ def is_baseline(mdl):
         return True
     if str(type(mdl))=="<class 'baselines.Res50'>":
         return True
+    if str(type(mdl))=="<class 'baselines.VGG_density'>":
+        return True
         
     return False
 
@@ -1869,7 +1871,7 @@ def loader_check(mdl,loader):
     if str(type(mdl))=="<class 'baselines.Res50'>":
         assert a.args.model_name == 'Res50'
     if str(type(mdl))=="<class 'baselines.VGG_density'>":
-        assert a.args.model_name == 'VGG_density'
+        assert a.args.model_name == 'VGG'
         
     if mdl.density_map_h == 608:
         assert not a.args.resize

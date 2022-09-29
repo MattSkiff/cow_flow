@@ -887,36 +887,3 @@ class Bottleneck(nn.Module):
         out = self.relu(out)
 
         return out 
-    
-# adding VGG as a baseline model as per eibe's request
-class VGGDensity(VGG):
-
-    def __init__(self):
-        
-        self.de_pred = nn.Sequential(nn.Conv2d(1024, 128, 1, padding='same'),
-                                     nn.ReLU(),
-                                     nn.Conv2d(128, 1, 1, padding='same'),
-                                     nn.ReLU())
-        
-        super(VGGDensity, self).__init__(make_layers(cfgs["D"]))
-        
-        # borrowed from LCFCN
-        # # FREEZE BATCH NORMS
-        if a.args.freeze_bn:
-            for m in self.modules():
-                if isinstance(m, nn.BatchNorm2d):
-                    m.weight.requires_grad = False
-                    m.bias.requires_grad = False
-    
-    def _forward_impl_my(self, x: torch.Tensor) -> torch.Tensor:
-        
-        x = self.de_pred(x)
-
-        x = F.interpolate(x,scale_factor=8)
-
-
-        return x  
-    
-    def forward(self, x):
-        
-        return self._forward_impl_my(x)

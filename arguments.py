@@ -15,7 +15,6 @@ parser.add_argument('-jo','--joint_optim',help='jointly optimse feat extractor a
 parser.add_argument('-pt','--pretrained',help='load imagenet weights into feat extractor',action="store_true",default=False)
 parser.add_argument('-bc','--binary_classifier',help='add binary classifier network to model',action="store_true",default=False)
 
-
 parser.add_argument('-freeze_bn',help='freeze batch norms',action="store_true",default=False)
 parser.add_argument('-holdout',help="Use holdout data",action="store_true",default=False)
 parser.add_argument('-sat',help="Use satellite data",action="store_true",default=False)
@@ -45,7 +44,6 @@ parser.add_argument('-dmap_scaling',help='Scale up density map to ensure gaussia
 parser.add_argument('-min_scaling',help='Minimum scaling bound (0-1) for random resized crop transform',type=float,default=-1)
 parser.add_argument('-img_sz','--image_size',help='Size of the random crops taken from the original data patches [Cows 800x600, DLR 320x320] - must be divisble by 8 for CSRNet',type=int,default=256)
 parser.add_argument('-max_filter_size',help='Size of max filters for unet seg and LCFCN',type=int,default=0)
-
 
 parser.add_argument('-test','--test_run',help='use only a small fraction of data to check everything works',action='store_true')
 # parser.add_argument("-cfile", "--config_file", help="Specify a config file that will determine training options.", type=int, default=0)
@@ -120,7 +118,7 @@ if any('SPYDER' in name for name in os.environ):
     args.batch_size = 2
     args.learning_rate = 1e-3
     args.weight_decay = 1e-8
-    args.tensorboard = False
+    args.tensorboard = True
     args.viz = True
     args.viz_freq = 100
     args.resize = True
