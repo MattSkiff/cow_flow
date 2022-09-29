@@ -277,7 +277,7 @@ def sub_conv2d(dims_in,dims_out,n_filters):
                     ('batchnorm1',nn.BatchNorm2d(n_filters)),
                     ("relu1", nn.ReLU()),
                     # use small filters in subnet per glow paper
-                    ("conv2", nn.Conv2d(a.args.filters, n_filters*2, kernel_size = 1,padding = 0)),
+                    ("conv2", nn.Conv2d(n_filters, n_filters*2, kernel_size = 1,padding = 0)),
                     ('batchnorm2',nn.BatchNorm2d(n_filters*2)),
                     ("relu2", nn.ReLU()),
                     ("conv3", nn.Conv2d(n_filters*2, dims_out,kernel_size = 3,padding = 1))
@@ -299,30 +299,32 @@ def sub_conv2d(dims_in,dims_out,n_filters):
     return net
 
 # TODO
-def sub_conv2d_deep(dims_in,dims_out,n_filters):
-    # naming pytorch layers:
-    # https://stackoverflow.com/questions/66152766/how-to-assign-a-name-for-a-pytorch-layer/66162559#66162559
-    network_dict = collections.OrderedDict(
-                [
-                    ("conv1", nn.Conv2d(dims_in, n_filters, kernel_size = 3,padding = 1)), 
-                    ('batchnorm1',nn.BatchNorm2d(n_filters)),
-                    ("relu1", nn.ReLU()),
-                    # use small filters in subnet per glow paper
-                    ("conv2", nn.Conv2d(n_filters, n_filters, kernel_size = 1,padding = 0)),
-                    ('batchnorm2',nn.BatchNorm2d(n_filters)),
-                    ("relu2", nn.ReLU()),
+# need to work out dimensionality here - try depthwise conv?
+# def sub_conv2d_deep(dims_in,dims_out,n_filters):
+#     # naming pytorch layers:
+#     # https://stackoverflow.com/questions/66152766/how-to-assign-a-name-for-a-pytorch-layer/66162559#66162559
+#     network_dict = collections.OrderedDict(
+#                 [
+#                     ("conv1", nn.Conv2d(dims_in, n_filters, kernel_size = 3,padding = 1)), 
+#                     ('batchnorm1',nn.BatchNorm2d(n_filters)),
+#                     ("relu1", nn.ReLU()),
+#                     # use small filters in subnet per glow paper
                     
-                    ("conv3", nn.Conv2d(n_filters,n_filters, kernel_size = 1,padding = 0)),
-                    ('batchnorm3',nn.BatchNorm2d(n_filters)),
-                    ("relu2", nn.ReLU()),
+#                     ("conv2", nn.Conv2d(n_filters, n_filters, kernel_size = 1,padding = 'same',groups=n_filters)),
+#                     ('batchnorm2',nn.BatchNorm2d(n_filters)),
+#                     ("relu2", nn.ReLU()),
+                    
+#                     ("conv3", nn.Conv2d(n_filters,n_filters, kernel_size = 1,padding = 'same',groups=n_filters)),
+#                     ('batchnorm3',nn.BatchNorm2d(n_filters)),
+#                     ("relu2", nn.ReLU()),
                         
-                    ("conv4", nn.Conv2d(n_filters,n_filters*2, kernel_size = 1,padding = 0)),
-                    ('batchnorm4',nn.BatchNorm2d(n_filters*2)),
-                    ("relu4", nn.ReLU()),
+#                     ("conv4", nn.Conv2d(n_filters,n_filters*2, kernel_size = 1,padding = 0)),
+#                     ('batchnorm4',nn.BatchNorm2d(n_filters*2)),
+#                     ("relu4", nn.ReLU()),
                     
-                    ("conv3", nn.Conv2d(n_filters*2, dims_out,kernel_size = 3,padding = 1))
-                ]
-        )
+#                     ("conv3", nn.Conv2d(n_filters*2, dims_out,kernel_size = 3,padding = 1))
+#                 ]
+#         )
     
     # batchnorm works poorly for very small minibatches, so may want to disable
     if not c.batchnorm:

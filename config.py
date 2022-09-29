@@ -20,8 +20,8 @@ counts = False # must be off for pretraining feature extractor (#TODO)
 ## Training Options ------
 validation = True # whether to run validation data per meta epoch
 eval_n = 10
-data_prop = 0.1 # proportion of the full dataset to use (ignored in DLR ACD,MNIST)
-test_train_split = 70 # percentage of data to allocate to train set
+data_prop = 1 # proportion of the full dataset to use (ignored in DLR ACD,MNIST)
+test_train_split = 100 # percentage of data to allocate to train set
 
 ## Density Map Options ------
 scale = 1 # 4, 2 = downscale dmaps four/two fold, 1 = unchanged
@@ -198,6 +198,11 @@ if a.args.pyramid:
     assert not train_feat_extractor # TODO
     # TODO - get pyramid working with other scales!
     assert scale == 1
+
+if a.args.holdout:
+    assert test_train_split == 100 # need to use whole dataset for eval
+else: 
+    assert test_train_split < 100
 
 assert scale in (1,2,4)
 assert a.args.freq_1x1 != 0

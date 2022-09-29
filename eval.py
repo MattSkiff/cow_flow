@@ -273,7 +273,7 @@ def gen_metrics(dm_mae,dm_mse,dm_ssim,dm_psnr,y_n,y_hat_n,game,gampe,localisatio
     return metric_dict
     
 @torch.no_grad()
-def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True,null_filter=(a.args.bin_classifier_path != ''),write_errors_only=a.args.write_errors):
+def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True,null_filter=(a.args.bin_classifier_path != ''),write_errors_only=a.args.write_errors,qq=False):
     
     thres=4*2 ; correct = 0; total = 0 #mdl.sigma*2
 
@@ -286,6 +286,7 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True,null_filter=(a.a
     
     loader_check(mdl=mdl,loader=loader)
     
+    assert not (write_errors_only and qq)
     assert not mdl.count
     assert c.data_prop == 1
     assert mode in ['train','val']
@@ -403,6 +404,9 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True,null_filter=(a.a
             
             y_hat_coords.append(coordinates) 
             
+            if qq:
+                continue
+            
             # local-count metrics # TODO
             l = 1 # cell size param - number of cells to split images into: 1 = 16 
             
@@ -442,6 +446,9 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True,null_filter=(a.a
             dm_psnr.append(cv2.PSNR(ground_truth_dmap,dmap_np)) #peak_signal_noise_ratio
             dm_ssim.append(structural_similarity(ground_truth_dmap,dmap_np))
     
+    if qq:
+        return y_n, y_hat_n
+    
     if write_errors_only:
         
         error_file = open("./viz/data/" + "{}.errors".format(mdl.modelname), "w")
@@ -453,7 +460,6 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True,null_filter=(a.a
         error_file.close()
         
         return
-        
     
     localisation_dict,prs,rcs = gen_localisation_metrics(dlr=False,thres=thres,y_coords=y_coords,y_hat_coords=y_hat_coords)
     write_localisation_data(mdl,prs,rcs,write=write)
@@ -614,7 +620,7 @@ def eval_mnist(mdl, valloader, trainloader,samples = 1,confusion = False, preds 
     return  out # train, val
 
 @torch.no_grad()
-def dmap_metrics(mdl, loader,n=50,mode='',null_filter=(a.args.bin_classifier_path != ''),write=True,write_errors_only=a.args.write_errors):
+def dmap_metrics(mdl, loader,n=50,mode='',null_filter=(a.args.bin_classifier_path != ''),write=True,write_errors_only=a.args.write_errors,qq=False):
     '''DMAP,COUNT,LOCALIZATION metrics'''
     
     if mdl.density_map_h == 608 and not a.args.rrc:
@@ -628,6 +634,7 @@ def dmap_metrics(mdl, loader,n=50,mode='',null_filter=(a.args.bin_classifier_pat
     
     loader_check(mdl=mdl,loader=loader)
     
+    assert not write_errors_only and qq
     assert not mdl.count
     assert c.data_prop == 1
     assert mode in ['train','val']
@@ -824,6 +831,10 @@ def dmap_metrics(mdl, loader,n=50,mode='',null_filter=(a.args.bin_classifier_pat
                 ground_truth_dmap = np.zeros([mdl.density_map_h,mdl.density_map_w],dtype=np.float32)
             
             y_hat_n.append(pred_count)
+            
+            if qq:
+                continue
+            
             y_hat_n_dists.append(dist_counts)
             y_hat_coords.append(coordinates) 
             
