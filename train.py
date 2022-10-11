@@ -114,7 +114,7 @@ def train_baselines(model_name,train_loader,val_loader,writer=None):
                 t_loss = t2np(iter_loss)
                 iter_loss.backward()
                 train_loss.append(t_loss)
-                # disable gradient cliiping
+                # disable gradient clipping
                 clip_grad_value_(mdl.parameters(), c.clip_value)
                 optimizer.step()
                 
