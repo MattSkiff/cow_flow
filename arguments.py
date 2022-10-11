@@ -5,10 +5,11 @@ import os
 parser = argparse.ArgumentParser(description='Create dataloaders and train a model on MNIST, DLRACD or cow dataset.')
 
 parser.add_argument('-mode',help="Specify mode (train,eval,store,plot).",default='')
+
 parser.add_argument('-get_likelihood',help='get and plot likelihoods / anamoly scores',action="store_true",default=False)
 parser.add_argument('-plot_errors',help='plot errors from error and interval file paths',action="store_true",default=False)
 parser.add_argument('-error_path',help="Specify mdl for eval",default='')
-parser.add_argument('-interval_path',help="Specify mdl for eval",default='')
+#parser.add_argument('-interval_path',help="Specify mdl for eval",default='')
 parser.add_argument('-get_grad_maps',help='dev',action="store_true",default=False)
 parser.add_argument('-jac',help='enable the jacobian as part of training',action="store_true",default=False)
 parser.add_argument('-jo','--joint_optim',help='jointly optimse feat extractor and flow',action="store_true",default=False)
@@ -107,7 +108,7 @@ host = socket.gethostname()
 
 # defaults for if running interactively
 if any('SPYDER' in name for name in os.environ):
-    args.model_name = "CSRNet"
+    args.model_name = "NF"
     args.data = 'cows'
     args.optim = "adamw"
     args.scheduler = 'none'
@@ -121,7 +122,7 @@ if any('SPYDER' in name for name in os.environ):
     args.tensorboard = True
     args.viz = True
     args.viz_freq = 100
-    args.resize = True
+    args.resize = False
     args.rrc = False
     args.dmap_scaling = 1
     args.max_filter_size = 4
@@ -132,12 +133,12 @@ if any('SPYDER' in name for name in os.environ):
     args.fixed1x1conv = False
     args.split_dimensions = 0
     
-    args.subnet_type = ''
-    args.noise = 0
-    args.filters = 0
-    args.n_pyramid_blocks = 0
+    args.subnet_type = 'conv'
+    args.noise = 1e-3
+    args.filters = 256
+    args.n_pyramid_blocks = 1
     args.skip_final_eval = False
-    args.feat_extractor = ''
+    args.feat_extractor = 'vgg16_bn'
     args.pyramid = False
     args.tb = False
     

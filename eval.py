@@ -51,9 +51,19 @@ def write_localisation_data(mdl,prs,rcs,write=False):
         precision_file.close()
         recall_file.close()
 
-def plot_pr_curves(directory='./viz/data/anno_256/'):
+def plot_pr_curves(directory='./viz/data/auc_plot/'):
     
-    context_string = "256x256, best current models, annotations only"
+    mod_names_ls = ["ResNet50",
+                    "VGG",
+                    "CSRNet",
+                    "UNet (d)",
+                    "LCFCN",
+                    "NF",
+                    "FCRN",
+                    "UNet (s)",
+                    "MCNN"]
+    
+    context_string = ""
     
     recall_dict = {}; precision_dict = {}
     
@@ -75,21 +85,25 @@ def plot_pr_curves(directory='./viz/data/anno_256/'):
                 precision_dict["{}".format(file)] = file_content.split("\n")
                 txt_file.close()
             
-    fig, ax = plt.subplots(2,1, figsize=(8, 8))
+    fig, ax = plt.subplots(1,2, figsize=(12, 5))
     fig.subplots_adjust(hspace=0.4)
     
+    i = 0 
     for model in sorted(precision_dict.keys()):
-        ax[0].plot(g.THRES_SEQ,np.asfarray(precision_dict[model][:-1]), '-o',label=model[:10])
+        ax[0].plot(g.THRES_SEQ,np.asfarray(precision_dict[model][:-1]),label=mod_names_ls[i]) # model[:10] # '-o',
+        i += 1
     
-    ax[0].title.set_text('Precision Curve - {}'.format(context_string))
-    ax[0].set(xlabel="Threshold: Euclidean Distance (pixels)", ylabel="Recall")
+    ax[0].title.set_text('Precision Curve{}'.format(context_string))
+    ax[0].set(xlabel="Threshold: Euclidean Distance (pixels)", ylabel="Precision")
     ax[0].legend()
     
+    i = 0
     for model in sorted(recall_dict.keys()):
-        ax[1].plot(g.THRES_SEQ,np.asfarray(recall_dict[model][:-1]), '-o',label=model[:10])
+        ax[1].plot(g.THRES_SEQ,np.asfarray(recall_dict[model][:-1]),label=mod_names_ls[i]) # model[:10] # , '-o'
+        i += 1
     
-    ax[1].title.set_text('Recall Curve- {}'.format(context_string))
-    ax[1].set(xlabel="Threshold: Euclidean Distance (pixels)", ylabel="Precision") 
+    ax[1].title.set_text('Recall Curve{}'.format(context_string))
+    ax[1].set(xlabel="Threshold: Euclidean Distance (pixels)", ylabel="Recall") 
     ax[1].legend()
 
 def eval_dataloaders(mdl):
@@ -634,7 +648,7 @@ def dmap_metrics(mdl, loader,n=50,mode='',null_filter=(a.args.bin_classifier_pat
     
     loader_check(mdl=mdl,loader=loader)
     
-    assert not write_errors_only and qq
+    assert not (write_errors_only and qq)
     assert not mdl.count
     assert c.data_prop == 1
     assert mode in ['train','val']
@@ -865,6 +879,9 @@ def dmap_metrics(mdl, loader,n=50,mode='',null_filter=(a.args.bin_classifier_pat
         
             game.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)))
             gampe.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)/np.maximum(np.ones(len(gt_dmap_split_counts)),gt_dmap_split_counts)))  
+    
+    if qq:
+        return y_n, y_hat_n
     
     if write_errors_only:
         

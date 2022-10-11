@@ -350,8 +350,8 @@ def subnet(dims_in, dims_out):
         net = sub_conv2d(dims_in,dims_out,a.args.filters)
     if a.args.subnet_type == 'conv_shallow':
         net = sub_conv2d_shallow(dims_in,dims_out,a.args.filters)
-    if a.args.subnet_type == 'conv_deep':
-        net = sub_conv2d_deep(dims_in,dims_out,a.args.filters)
+    # if a.args.subnet_type == 'conv_deep':
+    #     net = sub_conv2d_deep(dims_in,dims_out,a.args.filters)
     if a.args.subnet_type == 'fc':
         net = sub_fc(dims_in,dims_out,c.width)
     if a.args.subnet_type == 'MCNN':
