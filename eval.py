@@ -352,8 +352,21 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True,null_filter=(a.a
             dmap_np = dmap_np/mdl.dmap_scaling
             pred_count = dmap_np.sum() 
             
-            # test_dms.append(dmap_np) # del
-            # ac_dms.append(dmaps[idx]) # del
+            # debugging outlier of predicted much higher than true looking at PvA plots
+            # x = pred_count-point_maps[idx].squeeze().cpu().detach().numpy().sum()
+            # if  x > 30 and x < 50:
+            #     import matplotlib.pyplot as plt
+            #     fig, ax = plt.subplots(1,1, figsize=(10, 10))
+                
+            #     unnorm = UnNormalize(mean=tuple(c.norm_mean),
+            #                           std=tuple(c.norm_std))
+            #     im = unnorm(images[idx])
+            #     im = im.permute(1,2,0).cpu().numpy()
+                
+            #     ax.imshow(im)
+            #     plt.savefig("outlier_{i}.jpg".format(i), bbox_inches='tight', pad_inches = 0)
+            #     print(i)
+            #     1/0
             
             ground_truth_dmap = dmaps[idx].squeeze().cpu().detach().numpy()
             ground_truth_dmap = ground_truth_dmap/mdl.dmap_scaling
