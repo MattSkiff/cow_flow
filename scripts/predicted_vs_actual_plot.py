@@ -23,6 +23,9 @@ from eval import eval_baselines, dmap_metrics
 from utils import load_model
 
 assert a.args.holdout
+assert a.args.title != ''
+assert a.args.mode == 'plot'
+assert a.args.batch_size == 1
 
 def plot_pred_vs_actual(title=''):
     
@@ -36,10 +39,7 @@ def plot_pred_vs_actual(title=''):
         val_y_n, val_y_hat_n = dmap_metrics(mdl, val_loader,n=1,mode='val',null_filter=False,write=False,write_errors_only=False,qq=True)
     else:
         val_y_n, val_y_hat_n = eval_baselines(mdl,val_loader,mode='val',is_unet_seg=a.args.model_name == "UNet_seg",write=False,null_filter=False,write_errors_only=False,qq=True)
-    
-    plt.rc('xtick', labelsize=12)    # fontsize of the tick labels
-    plt.rc('ytick', labelsize=12)    # fontsize of the tick labels
-    
+
     fig, axis = plt.subplots(figsize =(10, 10))
     #axis.plot([0, 1], [0, 1], transform=axis.transAxes)
     
@@ -58,6 +58,4 @@ def plot_pred_vs_actual(title=''):
     #plt.show()
     plt.savefig("{}/pred_vs_actual_{}.jpg".format(g.VIZ_DIR,mdl.modelname), pad_inches = 1) # plot_args.plot_title
     
-plot_pred_vs_actual(title=a.args.model_name) # plot_args.plot_title
-    
-
+plot_pred_vs_actual(title=a.args.title) # plot_args.plot_title

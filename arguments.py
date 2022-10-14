@@ -5,6 +5,7 @@ import os
 parser = argparse.ArgumentParser(description='Create dataloaders and train a model on MNIST, DLRACD or cow dataset.')
 
 parser.add_argument('-mode',help="Specify mode (train,eval,store,plot).",default='')
+parser.add_argument('-title',help="Specify plot title.",default='')
 
 parser.add_argument('-get_likelihood',help='get and plot likelihoods / anamoly scores',action="store_true",default=False)
 parser.add_argument('-plot_errors',help='plot errors from error and interval file paths',action="store_true",default=False)
@@ -160,6 +161,9 @@ if any('SPYDER' in name for name in os.environ):
 # checks
 assert args.mode in ['train','eval','store','plot']
 assert args.gpu_number > -1
+
+if args.title != '':
+    assert args.mode == 'plot'
 
 if args.write_errors:
     assert args.batch_size == 1

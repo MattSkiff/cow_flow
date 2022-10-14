@@ -482,6 +482,10 @@ class CowObjectsDataset(Dataset):
             
         self.im_paths = im_paths
         
+        # #debugging over predictions (which are v. uncommon) from PvA plots
+        # print(im_paths[3982])
+        # 1/0
+        
         def compute_labels(idx,resize=False):
             
             if a.args.model_name in ['UNet_seg','LCFCN']:  #a.args.dmap_type == 'max':
