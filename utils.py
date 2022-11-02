@@ -182,15 +182,14 @@ def plot_preds_multi(mode,loader,loader_86,model_path_dict=g.BEST_MODEL_PATH_DIC
     Res50 = load_model(model_path_dict['Res50'])
     VGG = load_model(model_path_dict['VGG'])
     NF = load_model(model_path_dict['NF'])
+    NF_FRZ = load_model(model_path_dict['NF_FRZ'])
 
-        
-    p1titles=['UNet(d)','FCRN','ResNet50','CSRNet',
-            'MCNN','NF','Conditioning Aerial Image']
+    titles256 = ['UNet(d)','FCRN','ResNet50','CSRNet','MCNN']
+    titles86 = ['VGG','NF','NF Frozen']
+    titlesSeg = ['UNet(s)','Seg. Map (256x256)','LC-FCN','Seg. Map (800x600)']
+    titleCond = 'Conditioning Aerial Image'
     
-    p2titles = ['UNet(s)','Seg. Map (256x256)','LC-FCN','Seg. Map (800x600)']
-    
-    tuples2 = [(0,0),(0,1),(1,0),(1,1)]
-    tuples1 = [(0,0),(0,1),(0,2),(0,3)]
+    tuplesSeg = [(0,0),(0,1),(1,0),(1,1)]
     
     assert mode in ['train','val']
     
@@ -202,7 +201,7 @@ def plot_preds_multi(mode,loader,loader_86,model_path_dict=g.BEST_MODEL_PATH_DIC
             if z==1:
                 break
             
-            images,dmaps,labels,binary_labels,annotations,point_maps  = data_loader.preprocess_batch(data)
+            images,dmaps,labels,binary_labels,annotations,point_maps = data_loader.preprocess_batch(data)
             
             if len(annotations[lb_idx]) == 0 or i<n:
                 print('pass')
@@ -216,55 +215,39 @@ def plot_preds_multi(mode,loader,loader_86,model_path_dict=g.BEST_MODEL_PATH_DIC
             # create resized seg map for labels quad plot
             seg_map_rs = scipy.ndimage.filters.maximum_filter(point_maps[lb_idx].cpu().numpy(),size = (4,4))
             
-            j = 0 # index positions first plot
+            idx256 = 0 
+            idx86 = 0  
+            idxSeg = 0 
             
-            fig1, axs1 = plt.subplots()
-            gs = mpl.gridspec.GridSpec(4, 20, wspace=0.25, hspace=0.25) # 2x2 grid
-            
-            #fig.subplots_adjust(left=0.05, right=0.95, top=0.95, bottom=0.05,hspace=0.15,wspace=0.05)
-            fig1.set_size_inches(10*1,5*1)
-            fig1.set_dpi(100)
-            
-            g=0
-            fig1.add_subplot(gs[0:2, g*3:g*3+3]);g+=1
-            fig1.add_subplot(gs[0:2, g*3:g*3+3]);g+=1
-            fig1.add_subplot(gs[0:2, g*3:g*3+3]);g+=1
-            fig1.add_subplot(gs[0:2, g*3:g*3+3]);g+=1
-            fig1.add_subplot(gs[0:2, g*3:])
+            fig256, ax256 = plt.subplots(1,6)
+            fig256.set_size_inches(24*1,4*1)
+            fig256.subplots_adjust(left=0.05, right=0.95, top=0.95, bottom=0.05,hspace=0.15,wspace=0.05)
+            fig256.set_dpi(100)
+            [axi.set_axis_off() for axi in ax256.ravel()] # turn off subplot axes
 
-
-            #fig1.add_subplot(gs[2:4, 0:5])
-            #fig1.add_subplot(gs[2:4, 5:10])
-            #fig1.add_subplot(gs[2:4, 10:])
-
-            # fig.add_subplot(gs[2:, :2])
-            # fig.add_subplot(gs[8:, 2:4])
-            # fig.add_subplot(gs[8:, 4:9])
-            # fig.add_subplot(gs[2:8, 8])
-            # fig.add_subplot(gs[2:, 9])
-            # fig.add_subplot(gs[3:6, 3:6])
-                
-            # fancy colors
             cmap = mpl.cm.get_cmap("viridis")
-            naxes = len(fig1.axes)
-            for i, ax in enumerate(fig1.axes):
+            naxes = len(fig256.axes)
+            
+            for i, ax in enumerate(fig256.axes):
                 ax.set_xticks([])
                 ax.set_yticks([])
                 ax.set_facecolor(cmap(float(i)/(naxes-1)))
+        
+            fig86, ax86 = plt.subplots(1, 4)
+            fig86.subplots_adjust(left=0.05, right=0.95, top=0.95, bottom=0.05,hspace=0.15,wspace=0.05)
+            fig86.set_size_inches(16*1,4*1)
+            fig86.set_dpi(100)
+            [axi.set_axis_off() for axi in ax86.ravel()] # turn off subplot axes
             
-            [axi.set_axis_off() for axi in axs1.ravel()] # turn off subplot axes
-            
-            # figure2 code
-            k = 0 # index positions second plot
-            fig2, axs2 = plt.subplots(2, 2)
-            fig2.subplots_adjust(left=0.05, right=0.95, top=0.95, bottom=0.05,hspace=0.15,wspace=0.05)
-            fig2.set_size_inches(10*1,10*1)
-            fig2.set_dpi(100)
-            [axi.set_axis_off() for axi in axs2.ravel()] # turn off subplot axes
+            figSeg, axSeg = plt.subplots(2, 2)
+            figSeg.subplots_adjust(left=0.05, right=0.95, top=0.95, bottom=0.05,hspace=0.15,wspace=0.05)
+            figSeg.set_size_inches(8*1,8*1)
+            figSeg.set_dpi(100)
+            [axi.set_axis_off() for axi in axSeg.ravel()] # turn off subplot axes
             
             z = z+1
 
-            for mdl in [UNet,FCRN,Res50,CSRNet,VGG]:
+            for mdl in [UNet,FCRN,Res50,CSRNet,MCNN]:
                 
                 plot_dmap = dmaps[lb_idx]/mdl.dmap_scaling
                 
@@ -276,13 +259,13 @@ def plot_preds_multi(mode,loader,loader_86,model_path_dict=g.BEST_MODEL_PATH_DIC
                 
                 count = np.round(((preds.sum()/mdl.dmap_scaling)-constant),1)
                 
-                axs1[j].title.set_text('{}'.format(p1titles[j]))#str(type(mdl))))
-                axs1[j].text(text_x,text_y, 'Count: {:.1f}'.format(count),
+                ax256[idx256].title.set_text('{}'.format(titles256[idx256]))#str(type(mdl))))
+                ax256[idx256].text(text_x,text_y, 'Count: {:.1f}'.format(count),
                     verticalalignment='bottom', horizontalalignment='right',
-                    transform=axs1[tuples1[j]].transAxes,
+                    transform=ax256[idx256].transAxes,
                     color='green', fontsize=15)
-                axs1[j].imshow(preds)
-                j+=1
+                ax256[idx256].imshow(preds)
+                idx256+=1
         
             for mdl in [UNet_seg]:
                 
@@ -299,16 +282,16 @@ def plot_preds_multi(mode,loader,loader_86,model_path_dict=g.BEST_MODEL_PATH_DIC
                 #unet(s) #if titles[j] == 'UNet(s)':
                 count = len(peak_local_max(preds.squeeze(),min_distance=1,num_peaks=np.inf,threshold_abs=0,threshold_rel=0.5))
                 
-                axs2[tuples2[k]].title.set_text('{}'.format(p2titles[k]))#str(type(mdl))))
-                axs2[tuples2[k]].text(text_x,text_y, 'Count: {:.1f}'.format(count),
+                axSeg[tuplesSeg[idxSeg]].title.set_text('{}'.format(titlesSeg[idxSeg]))#str(type(mdl))))
+                axSeg[tuplesSeg[idxSeg]].text(text_x,text_y, 'Count: {:.1f}'.format(count),
                     verticalalignment='bottom', horizontalalignment='right',
-                    transform=axs2[tuples2[k]].transAxes,
+                    transform=axSeg[tuplesSeg[idxSeg]].transAxes,
                     color='green', fontsize=15)
-                axs2[tuples2[k]].imshow(preds)
-                k+=1
+                axSeg[tuplesSeg[idxSeg]].imshow(preds)
+                idxSeg+=1
             
-            axs2[tuples2[k]].imshow(seg_map_rs)
-            axs2[tuples2[k]].title.set_text(p2titles[k]); k+=1
+            axSeg[tuplesSeg[idxSeg]].imshow(seg_map_rs)
+            axSeg[tuplesSeg[idxSeg]].title.set_text(titlesSeg[idxSeg]); idxSeg+=1
                 
     dmap_rs = dmaps[lb_idx]
     
@@ -328,101 +311,92 @@ def plot_preds_multi(mode,loader,loader_86,model_path_dict=g.BEST_MODEL_PATH_DIC
         
         dmap_frs = dmaps[lb_idx]
         z = z+1
-            
-        axMCNN = fig1.add_subplot(gs[2:4, 5:10])
         
-        for mdl in [MCNN]:
-            
-            plot_dmap = dmaps[lb_idx]/mdl.dmap_scaling
+        for mdl in [VGG]:
             
             mdl.to(c.device)
             preds = mdl(images)
             preds = preds[lb_idx].permute(1,2,0).cpu().numpy()
+            
             # todo - retrain models with noise attr and uncomment below
-            constant = ((mdl.noise)/2)*plot_dmap.shape[0]*plot_dmap.shape[1]
+            constant = ((mdl.noise)/2)*dmaps[lb_idx].shape[0]*dmaps[lb_idx].shape[1]
             
             count = np.round(((preds.sum()/mdl.dmap_scaling)-constant),1)
             
-            axMCNN.title.set_text('{}'.format(p1titles[j]))#str(type(mdl))))
-            axMCNN.text(text_x,text_y, 'Count: {:.1f}'.format(count),
+            ax86[idx86].title.set_text('{}'.format(titles86[idx86]))#str(type(mdl))))
+            ax86[idx86].text(text_x,text_y, 'Count: {:.1f}'.format(count),
                 verticalalignment='bottom', horizontalalignment='right',
-                transform=axMCNN.transAxes,
+                transform=ax86[idx86].transAxes,
                 color='green', fontsize=15)
-            axMCNN.imshow(preds); j+=1         
+            ax86[idx86].imshow(preds); idx86+=1         
              
          
-            # conditioning aerial image
-            unnorm = data_loader.UnNormalize(mean=tuple(c.norm_mean),
-                                 std=tuple(c.norm_std))
-            im = unnorm(images[lb_idx])
-            im = im.permute(1,2,0).cpu().numpy()
-                    
-            axCondition = fig1.add_subplot(gs[0:,15:])
-            
-            axCondition.title.set_text('Conditioning Aerial Image')
-            axCondition.imshow((im * 255).astype(np.uint8))
-            axCondition.set_axis_off()
+        # conditioning aerial image
+        unnorm = data_loader.UnNormalize(mean=tuple(c.norm_mean),
+                             std=tuple(c.norm_std))
+        im = unnorm(images[lb_idx])
+        im = im.permute(1,2,0).cpu().numpy()
+                
+        figCond, axCond = plt.subplots(1)
+        figCond.subplots_adjust(left=0.05, right=0.95, top=0.95, bottom=0.05,hspace=0.15,wspace=0.05)
+        figCond.set_size_inches(8*1,8*1)
+        axCond.title.set_text(titleCond)
+        axCond.imshow((im * 255).astype(np.uint8))
+        figCond.set_dpi(100)
+        axCond.set_axis_off()
         
         mdl = NF; mdl.to(c.device)
-        axNF = fig1.add_subplot(gs[2:4, 10:15])
         
-        # NF prediction
-        x_list = []
+        for mdl in [NF,NF_FRZ]:
         
-        for i in range(sample_n):
-                                
-            in_channels = c.channels*4**5 # n_ds=5
-            a.args.resize = False
-            ft_dims = ft_dims_select(mdl)
-            dummy_z = (randn(images.size()[0], in_channels,ft_dims[0],ft_dims[1])).to(c.device)
-            dummy_z = dummy_z.float().to(c.device)
-            x, log_det_jac = mdl(images,dummy_z,rev=True)
-            x_list.append(x)
-                    
-            x_agg = torch.stack(x_list,dim=1)
-            x = x_agg.mean(dim=1) # take average of samples from models for mean reconstruction
-                     
+            x_list = []
+            print(a.args.resize)
+            
+            for i in range(sample_n):
+                                    
+                in_channels = c.channels*4**5 # n_ds=5
+                a.args.resize = False
+                ft_dims = ft_dims_select(mdl)
+                dummy_z = (randn(images.size()[0], in_channels,ft_dims[0],ft_dims[1])).to(c.device)
+                dummy_z = dummy_z.float().to(c.device)
+                x, log_det_jac = mdl(images,dummy_z,rev=True)
+                
+                # x_list.append(x)
+                        
+                # x_agg = torch.stack(x_list,dim=1)
+                # x = x_agg.mean(dim=1) # take average of samples from models for mean reconstruction
+                         
             dmap_rev_np = x[lb_idx].squeeze().cpu().detach().numpy()
             constant = ((mdl.noise)/2)*plot_dmap.shape[0]*plot_dmap.shape[1]
             count = np.round((dmap_rev_np.sum()-constant),1)
             
-            axNF.title.set_text('{}'.format(p1titles[j]))#str(type(mdl))))
-            axNF.text(text_x,text_y, 'Count: {:.1f}'.format(count),
+            ax86[idx86].title.set_text('{}'.format(titles86[idx86]))#str(type(mdl))))
+            ax86[idx86].text(text_x,text_y, 'Count: {:.1f}'.format(count),
                 verticalalignment='bottom', horizontalalignment='right',
-                transform=axNF.transAxes,
+                transform=ax86[idx86].transAxes,
                 color='green', fontsize=15)
-            axNF.imshow(dmap_rev_np)
-             
-            break
-            
+            ax86[idx86].imshow(dmap_rev_np); idx86+=1
+                   
         #  DENSITY 256
-        gs = axs1[0, 4].get_gridspec()
-        axs1[0,4].remove(); axs1[0,5].remove()
-    
-        axDS256 = fig1.add_subplot(gs[0,4:5])
-    
-        axDS256.imshow(dmap_rs.cpu().numpy())
-        axDS256.title.set_text('Density (256x256)')
+        ax256[idx256].imshow(dmap_rs.cpu().numpy())
+        ax256[idx256].title.set_text('Density (256x256)')
         
         count = np.round(dmap_rs.cpu().numpy().sum(),1)
-        axDS256.text(text_x,text_y, 'Count: {:.1f}'.format(count),
+        ax256[idx256].text(text_x,text_y, 'Count: {:.1f}'.format(count),
             verticalalignment='bottom', horizontalalignment='right',
-            transform=axDS256.transAxes,
+            transform=ax256[idx256].transAxes,
             color='green', fontsize=15)
         
         #  DENSITY 800x600
-        axDS86 = fig1.add_subplot(gs[2:4, 5:10])
-
-        axDS86.imshow(dmap_frs.cpu().numpy())
-        axDS86.title.set_text('Density (800x600)')
+        ax86[idx86].imshow(dmap_frs.cpu().numpy())
+        ax86[idx86].title.set_text('Density (800x600)')
 
         count = np.round((dmap_frs.cpu().numpy().sum()),1)
-        axDS86.text(text_x,text_y, 'Count: {:.1f}'.format(count),
+        ax86[idx86].text(text_x,text_y, 'Count: {:.1f}'.format(count),
             verticalalignment='bottom', horizontalalignment='right',
-            transform=axDS86.transAxes,
+            transform=ax86[idx86].transAxes,
             color='green', fontsize=15)
-        
-        # plot 2
+    
         for mdl in [LCFCN]:
             
                 mdl.to(c.device)
@@ -433,24 +407,32 @@ def plot_preds_multi(mode,loader,loader_86,model_path_dict=g.BEST_MODEL_PATH_DIC
                 y_list, x_list = np.where(pred_points.squeeze())
                 count = np.round((np.unique(pred_blobs)!=0).sum(),1)
                 preds = preds.squeeze(0).sigmoid().permute(1,2,0).cpu().numpy() 
-                axs2[tuples2[k]].title.set_text('{}'.format(p2titles[k]))#str(type(mdl))))
-                axs2[tuples2[k]].text(text_x,text_y, 'Count: {:.1f}'.format(count),
+                axSeg[tuplesSeg[idxSeg]].title.set_text('{}'.format(titlesSeg[idxSeg]))#str(type(mdl))))
+                axSeg[tuplesSeg[idxSeg]].text(text_x,text_y, 'Count: {:.1f}'.format(count),
                     verticalalignment='bottom', horizontalalignment='right',
-                    transform=axs2[tuples2[k]].transAxes,
+                    transform=axSeg[tuplesSeg[idxSeg]].transAxes,
                     color='green', fontsize=15)
-                axs2[tuples2[k]].imshow(preds)
-                k+=1
+                axSeg[tuplesSeg[idxSeg]].imshow(preds)
+                idxSeg+=1
                 
-        axs2[tuples2[k]].imshow(seg_map_frs)
-        axs2[tuples2[k]].title.set_text(p2titles[k])
+        axSeg[tuplesSeg[idxSeg]].imshow(seg_map_frs)
+        axSeg[tuplesSeg[idxSeg]].title.set_text(titlesSeg[idxSeg])
         
-        # no count annotation for segmentation maps
-        fig1.savefig('/home/mks29/Desktop/multi_preds/figure1_{}.png'.format(n))  
-        plt.close(fig1) 
+        # 256 (MCNN, CSRNet, UNet, FCRN, Res50, GT)
+        fig256.savefig('/home/mks29/Desktop/multi_preds/four_fig/figure256_{}.png'.format(n))  
+        plt.close(fig256) 
         
-        # no count annotation for segmentation maps
-        fig2.savefig('/home/mks29/Desktop/multi_preds/figure2_{}.png'.format(n))   
-        plt.close(fig2) 
+        # 86 models + GT (NF, NF FRZ, VGG, GT)
+        fig86.savefig('/home/mks29/Desktop/multi_preds/four_fig/fig86_{}.png'.format(n))   
+        plt.close(fig86) 
+        
+        # seg 256, 86 (LCFCN, UNet Seg) + GTs (2x2)
+        figSeg.savefig('/home/mks29/Desktop/multi_preds/four_fig/figSeg_{}.png'.format(n))   
+        plt.close(figSeg) 
+        
+        # conditioning aerial image (1)
+        figCond.savefig('/home/mks29/Desktop/multi_preds/four_fig/figCond_{}.png'.format(n))   
+        plt.close(figCond) 
             
         break
         
@@ -616,9 +598,19 @@ def plot_preds_baselines(mdl, loader,mode="",mdl_type='',writer=None,writer_epoc
         # todo - fix this mdl.seg stuff
         for i, data in enumerate(tqdm(loader, disable=c.hide_tqdm_bar)):
                 
+                if i < 300:
+                    continue
+            
                 mdl.to(c.device)
                 images,dmaps,labels,binary_labels , annotations, point_maps  = data_loader.preprocess_batch(data)
                 preds = mdl(images)
+                
+                dmap_np = preds[lb_idx].squeeze().cpu().detach().numpy()
+                dmap_np = dmap_np/mdl.dmap_scaling
+                pred_count = dmap_np.sum() 
+                
+                if len(labels[0]) == 0:
+                    continue
                 
                 if str(type(mdl)) == "<class 'baselines.LCFCN'>":#  or mdl_type == 'UNet_seg':
                     
@@ -632,6 +624,16 @@ def plot_preds_baselines(mdl, loader,mode="",mdl_type='',writer=None,writer_epoc
                         preds = preds.squeeze(0).sigmoid().permute(1,2,0).cpu().numpy() # 
                 else:
                     preds = preds[lb_idx].permute(1,2,0).cpu().numpy()
+                    
+                    if a.args.noise != 0:
+                        ground_truth_point_map = point_maps[lb_idx].squeeze().cpu().detach().numpy()
+                        gt_count = ground_truth_point_map.sum() #.round()
+                        constant = ((mdl.noise)/2)*dmaps[lb_idx].shape[0]*dmaps[lb_idx].shape[1] 
+                        loader_noise = ((a.args.noise)/2)*dmaps[lb_idx].shape[0]*dmaps[lb_idx].shape[1] 
+                        pred_count -= constant
+                        gt_count -= loader_noise
+                
+                n_peaks=max(1,int(pred_count))
                 
                 if str(type(mdl)) == "<class 'baselines.LCFCN'>": # or is_unet_seg:
                     coordinates = np.argwhere(pred_points != 0)
@@ -640,6 +642,10 @@ def plot_preds_baselines(mdl, loader,mode="",mdl_type='',writer=None,writer_epoc
                     # threshold absolute = 0 only works if passed through sigmoid transform
                     # in which case may as well use relative arg
                     coordinates = peak_local_max(preds,min_distance=int(mdl.sigma//2),threshold_rel=0.5)
+                    
+                else:
+                    coordinates = peak_local_max(preds,min_distance=int(mdl.sigma//2),num_peaks=n_peaks)
+                    
                 
                 unnorm = data_loader.UnNormalize(mean=tuple(c.norm_mean),
                                      std=tuple(c.norm_std))
@@ -657,7 +663,7 @@ def plot_preds_baselines(mdl, loader,mode="",mdl_type='',writer=None,writer_epoc
                 
                 [axi.set_axis_off() for axi in ax.ravel()] # turn off subplot axes
 
-                ax[0].title.set_text('Density Map Prediction')
+                ax[0].title.set_text(a.args.title) # 'Density Map Prediction'
                 ax[0].imshow(preds)
                 ax[1].title.set_text('Conditioning Aerial Image')
                 ax[1].imshow((im * 255).astype(np.uint8))
@@ -711,9 +717,9 @@ def plot_preds_baselines(mdl, loader,mode="",mdl_type='',writer=None,writer_epoc
                 
 # TODO split into minst and non mnist funcs
 @torch.no_grad()
-def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
+def plot_preds(mdl, loader, plot = True, save=True,title = "",digit=None,
                hist=False,sampling="randn",plot_n=None,writer=None,writer_epoch=None,
-               writer_mode=None,include_empty=True,sample_n=50,null_filter=False):
+               writer_mode=None,include_empty=False,sample_n=50,null_filter=False):
     
     assert type(loader) == torch.utils.data.dataloader.DataLoader
     
@@ -783,6 +789,9 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
         z = 0 
         
         for i, data in enumerate(tqdm(loader, disable=c.hide_tqdm_bar)):
+            
+            if i < 300:
+                continue
             
             # TODO - broken - filename doesn't match image
     #            if not mdl.mnist:
@@ -995,7 +1004,7 @@ def plot_preds(mdl, loader, plot = True, save=False,title = "",digit=None,
                         dmap_rev_np = dmap_rev_np[1,:,:] # select only data from first duplicated channel
                     
                     if not (mdl.count and mdl.gap) and not (mdl.mnist and a.args.subnet_type == 'fc'):
-                        ax[0].title.set_text('Density Map Prediction')
+                        ax[0].title.set_text(a.args.title) # 'Density Map Prediction'
                         ax[0].imshow(dmap_rev_np)#, cmap='viridis', interpolation='nearest')
                     else:
                         fig.delaxes(ax[0])
@@ -1762,6 +1771,7 @@ def plot_errors(error_file_name,prediction_interval_file_name):
     # against actual error from baseline model
     # high correspondence shows the NF is correctly assigning uncertainty to predictions
     
+    
     error_file_path = os.path.join(g.VIZ_DATA_DIR,error_file_name)
     prediction_interval_file_path = os.path.join(g.VIZ_DATA_DIR,prediction_interval_file_name)
     
@@ -1775,11 +1785,16 @@ def plot_errors(error_file_name,prediction_interval_file_name):
 
     with open(prediction_interval_file_path) as f:
         prediction_interval_input = f.readlines()
+        
     
         for line in prediction_interval_input:
             line = np.array(line[1:-2].split(),dtype=np.float32)
             prediction_intervals.append(line)  
-            
+     
+    print(len(prediction_interval_input))
+    print(len(errors_input))
+
+     
     intervals_df = pd.DataFrame(np.array(prediction_intervals), columns=['lb', 'ub'])
     pred_width = np.array(np.abs(intervals_df['lb']-intervals_df['ub']))
     errors = np.array(errors,dtype=np.float32)
@@ -1787,6 +1802,9 @@ def plot_errors(error_file_name,prediction_interval_file_name):
     fig, ax = plt.subplots(1)
     #ax.vlines(errors,intervals_df['lb'],intervals_df['ub'])
     ax.scatter(errors,pred_width)
+    
+
+    
     ax.set_xlabel('Baseline LCFCN error size'.format(Path(error_file_path).stem))
     ax.set_ylabel('NF prediction interval width')
     

@@ -11,7 +11,7 @@ if os.uname().nodename == 'weka-13':
 else:
     proj_dir = "/home/mks29/clones/cow_flow/data"
 
-gpu = False
+gpu = True
 seed = 101  #101 # important to keep this constant between model and servers for evaluaton
 
 ## Dataset Options ------
@@ -111,13 +111,14 @@ if debug:
     a.args.schema = 'debug' # aka ignore debugs
 
 if a.args.data == 'dlr':
-    img_size = (a.args.image_size,a.args.image_size)
+    img_size = (320,320)
 elif a.args.data == 'mnist' and a.args.feat_extractor == "none":
     img_size = (28,28)
 elif a.args.data == 'mnist':
     img_size = (228,228) # (28,28)
 else:
-    img_size = (a.args.image_size, a.args.image_size) # width, height (x-y)
+    img_size = (256,256) # width, height (x-y)
+    # a.args.image_size, a.args.image_size
 
 raw_img_size = (800, 600)
 
@@ -129,8 +130,8 @@ img_dims = [3] + list(img_size) # RGB + x-y
 if a.args.data == 'dlr':
     density_map_h,density_map_w = a.args.image_size,a.args.image_size
 elif not a.args.data == 'mnist' and not counts and downsampling:
-    density_map_w = a.args.image_size//scale #img_size[0]
-    density_map_h = a.args.image_size//scale
+    density_map_w = img_size[0]//scale #img_size[0]
+    density_map_h = img_size[0]//scale
     # if feat_extractor == 'resnet18':
     #     density_map_h = 256//scale #img_size[1]
     # elif feat_extractor == 'alexnet':

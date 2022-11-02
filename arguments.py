@@ -10,7 +10,7 @@ parser.add_argument('-title',help="Specify plot title.",default='')
 parser.add_argument('-get_likelihood',help='get and plot likelihoods / anamoly scores',action="store_true",default=False)
 parser.add_argument('-plot_errors',help='plot errors from error and interval file paths',action="store_true",default=False)
 parser.add_argument('-error_path',help="Specify mdl for eval",default='')
-#parser.add_argument('-interval_path',help="Specify mdl for eval",default='')
+parser.add_argument('-interval_path',help="",default='')
 parser.add_argument('-get_grad_maps',help='dev',action="store_true",default=False)
 parser.add_argument('-jac',help='enable the jacobian as part of training',action="store_true",default=False)
 parser.add_argument('-jo','--joint_optim',help='jointly optimse feat extractor and flow',action="store_true",default=False)
@@ -55,6 +55,7 @@ parser.add_argument("-name","--schema",type=str,default='debug') # if debug, ign
 parser.add_argument("-tb","--tensorboard",help='calc and write metrics, hyper params to tb files (if off no eval in train loop)',action="store_true",default=False)
 parser.add_argument("-we","--write_errors",help='write errors / pred int. (for NF) to file',action="store_true",default=False)
 
+parser.add_argument("-debug_viz",action="store_true", default=False) 
 parser.add_argument("-viz",help='visualise outputs and stats',action="store_true",default=False)
 parser.add_argument("-viz_freq",help='how many epochs per viz',type=int,default=25)
 
@@ -237,8 +238,8 @@ if args.model_name == 'NF' and args.mode == 'train':
         assert args.feat_extractor in ['resnet18','vgg16_bn','resnet50','resnet9']
     else:
         assert args.feat_extractor in ['alexnet', 'vgg16_bn','resnet18', 'none']
-elif args.model_name != 'NF':
-    assert args.feat_extractor == ''
+# elif args.model_name != 'NF':
+#     assert args.feat_extractor == ''
     
 if args.subnet_type in ['conv','conv_shallow','conv_deep']:
     assert args.filters != 0 # this argument only applies to regular conv subnets

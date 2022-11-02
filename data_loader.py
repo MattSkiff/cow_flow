@@ -482,9 +482,21 @@ class CowObjectsDataset(Dataset):
             
         self.im_paths = im_paths
         
-        # #debugging over predictions (which are v. uncommon) from PvA plots
-        # print(im_paths[3982])
-        # 1/0
+        #debugging over predictions (which are v. uncommon) from PvA plots
+        #print(im_paths[7])
+        # print(im_paths[28])
+        # print(im_paths[35])
+        # print(im_paths[104])
+        # print(im_paths[114])
+        # print(im_paths[122])
+        # print(im_paths[185])
+        # print(im_paths[224])
+        # print(im_paths[275])
+        # print(im_paths[262])
+        # print(im_paths[521])
+        # print(im_paths[530])
+        # print(im_paths[547])
+        #1/0
         
         def compute_labels(idx,resize=False):
             
@@ -1339,6 +1351,7 @@ def make_loaders(transformed_dataset,is_eval=False):
                                                       annotations_only = False,
                                                       seed = c.seed,
                                                       oversample=False)
+
     
     train_sampler = SubsetRandomSampler(t_indices,generator=torch.Generator().manual_seed(c.seed))
     val_sampler = SubsetRandomSampler(v_indices,generator=torch.Generator().manual_seed(c.seed))
