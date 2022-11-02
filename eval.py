@@ -321,9 +321,9 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True,null_filter=(a.a
         
         # if i == 30:
         #     break
-        
+    
         images,dmaps,labels, binary_labels, annotations,point_maps = preprocess_batch(data)
-        
+
         x = mdl(images)
         
         if null_filter:
@@ -434,6 +434,25 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True,null_filter=(a.a
             if qq:
                 continue
             
+            if a.args.debug_viz:
+                if len(annotations[0]) > 0:
+                    
+                    unnorm = UnNormalize(mean=tuple(c.norm_mean),
+                                          std=tuple(c.norm_std))
+                    
+                    im = unnorm(images[idx])
+                    im = im.permute(1,2,0).cpu().numpy()
+                    
+                    fig, ax = plt.subplots(1,1)
+                    plt.subplots_adjust(left=0.1, right=0.9, top=0.9, bottom=0.1)
+                    fig.set_size_inches(24*1,7*1)
+                    fig.set_dpi(100)
+            
+                    ax.title.set_text('act: {} \ pred: {}'.format(len(annotations[0]),pred_count))
+                    ax.imshow((im * 255).astype(np.uint8))
+                    
+                    plt.show()
+            
             # local-count metrics # TODO
             l = 1 # cell size param - number of cells to split images into: 1 = 16 
             
@@ -449,9 +468,6 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True,null_filter=(a.a
                 
                 pred_coord_pmap, point_flag = create_point_map(mdl=None,annotations=coordinates,pred=True,resize=a.args.resize)
                 gt_pmap = point_maps[idx].squeeze().cpu().detach().numpy()
-                
-                # print(pred_coord_pmap.shape)
-                # print(gt_pmap.shape)
                 
                 gt_dmap_split_counts = np_split(gt_pmap,nrows=nr,ncols=nc).sum(axis=(1,2))
                 pred_dmap_split_counts = np_split(pred_coord_pmap,nrows=nr,ncols=nc).sum(axis=(1,2))

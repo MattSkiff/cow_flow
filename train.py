@@ -263,7 +263,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                     
             # add scheduler to improve stability further into training
             if a.args.scheduler == "exponential":
-                scheduler = ExponentialLR(optimizer, gamma=0.9)
+                scheduler = ExponentialLR(optimizer, gamma=a.args.expon_gamma)
             elif a.args.scheduler == "step":
                 scheduler = StepLR(optimizer,step_size=a.args.step_size,gamma=a.args.step_gamma)
         
