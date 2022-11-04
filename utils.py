@@ -1791,10 +1791,6 @@ def plot_errors(error_file_name,prediction_interval_file_name):
             line = np.array(line[1:-2].split(),dtype=np.float32)
             prediction_intervals.append(line)  
      
-    print(len(prediction_interval_input))
-    print(len(errors_input))
-
-     
     intervals_df = pd.DataFrame(np.array(prediction_intervals), columns=['lb', 'ub'])
     pred_width = np.array(np.abs(intervals_df['lb']-intervals_df['ub']))
     errors = np.array(errors,dtype=np.float32)
@@ -1802,9 +1798,7 @@ def plot_errors(error_file_name,prediction_interval_file_name):
     fig, ax = plt.subplots(1)
     #ax.vlines(errors,intervals_df['lb'],intervals_df['ub'])
     ax.scatter(errors,pred_width)
-    
 
-    
     ax.set_xlabel('Baseline LCFCN error size'.format(Path(error_file_path).stem))
     ax.set_ylabel('NF prediction interval width')
     

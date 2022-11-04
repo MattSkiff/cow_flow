@@ -559,7 +559,12 @@ class CowObjectsDataset(Dataset):
                 if count == 0:
                         
                     annotations = np.array([])
-                    density_map, point_map = create_maps()
+                    density_map  = create_maps() #, point_map
+                    
+                    # add points onto basemap
+                    base_map, point_flag = utils.create_point_map(mdl=None,annotations=annotations,resize=resize)
+                    point_map = base_map
+                    labels.extend(point_flag) 
                     
                 else:        
                     annotations = pd.read_csv(txt_path,names=header_list,delim_whitespace=True)
@@ -585,19 +590,19 @@ class CowObjectsDataset(Dataset):
                         # set density map image size equal to data image size
                         
                         # TODO - this is possibly massively inefficient
-                        density_map, point_map = create_maps(resize=resize)
+                        density_map = create_maps(resize=resize) # , point_map
                         
                         # add points onto basemap
                         base_map, point_flag = utils.create_point_map(mdl=None,annotations=annotations,resize=resize)
-                        
                         point_map = base_map
+                        labels.extend(point_flag) 
+
                         
                         # if a.args.model_name in ['LCFCN','UNet_seg'] or a.args.rrc:
                         #     point_map = base_map
                         # else:
                         #     point_map = None
                                 
-                        labels.extend(point_flag) 
                             
                         if a.args.model_name in ['UNet_seg','LCFCN']: 
                             density_map += scipy.ndimage.filters.maximum_filter(base_map,size = (a.args.max_filter_size,a.args.max_filter_size))
@@ -1407,10 +1412,10 @@ def preprocess_batch(data,dlr=False):
     if not dlr:
         images,dmaps,labels, binary_labels, annotations,point_maps = data
         dmaps = dmaps * a.args.dmap_scaling
-        images,dmaps,labels, binary_labels, annotations,point_maps = images.to(c.device),dmaps.to(c.device),labels, binary_labels.to(c.device), annotations,point_maps
+        images,dmaps,labels, binary_labels, annotations,point_maps = images.to(c.device),dmaps.to(c.device),labels, binary_labels.to(c.device), annotations,point_maps.to(c.device)
     
-        if point_maps[0] != None:
-            point_maps = point_maps.to(c.device)
+        # if point_maps[0] != None:
+        #     point_maps = point_maps.to(c.device)
     
         images = images.float()
         
@@ -1435,13 +1440,13 @@ def create_maps(resize=False):
     else:
         density_map = np.zeros((c.raw_img_size[1], c.raw_img_size[0]), dtype=np.float32) # c.raw_img_size  
      
-    if not resize or a.args.rrc:
-    #if (not a.args.resize and a.args.model_name in ['LCFCN','UNet_seg']) or a.args.rrc:
-        point_map = np.zeros((c.raw_img_size[1], c.raw_img_size[0]), dtype=np.float32) # c.raw_img_size
-    else: #elif a.args.model_name in ['LCFCN','UNet_seg']:
-        point_map = np.zeros((256,256), dtype=np.float32) # c.raw_img_size
+    # if not resize or a.args.rrc:
+    # #if (not a.args.resize and a.args.model_name in ['LCFCN','UNet_seg']) or a.args.rrc:
+    #     point_map = np.zeros((c.raw_img_size[1], c.raw_img_size[0]), dtype=np.int16) # c.raw_img_size
+    # else: #elif a.args.model_name in ['LCFCN','UNet_seg']:
+    #     point_map = np.zeros((256,256), dtype=np.int16) # c.raw_img_size
         
-    # else:
-    #     point_map = None
+    # # else:
+    # #     point_map = None
     
-    return density_map, point_map
+    return density_map #, point_map
