@@ -22,7 +22,7 @@ from utils import load_model
 assert a.args.mode == 'eval'
 assert a.args.batch_size == 1
 
-def print_errors(ub=20,lb=10):
+def print_errors(ub=999,lb=5):
     
     mdl = load_model(a.args.mdl_path)
     transformed_dataset = prep_transformed_dataset(is_eval=False)
@@ -37,7 +37,7 @@ def print_errors(ub=20,lb=10):
         val_y_n, val_y_hat_n = eval_baselines(mdl,val_loader,mode='val',is_unet_seg=a.args.model_name == "UNet_seg",write=False,null_filter=False,write_errors_only=False,qq=True)
 
     
-    diffs = np.array(val_y_hat_n)-np.array(val_y_n)
-    print(np.array(im_paths)[np.logical_and(diffs < ub,diffs > lb)])
+    diffs =  np.array(val_y_hat_n) - np.array(val_y_n)
+    print(np.array(im_paths)[np.logical_and(diffs < ub,diffs > lb)]) # UB, LB
     
 print_errors() 
