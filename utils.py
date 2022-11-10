@@ -440,8 +440,8 @@ def plot_preds_multi(mode,loader,loader_86,model_path_dict=g.BEST_MODEL_PATH_DIC
     # TODO - show pred counts
 
 @torch.no_grad()
-def predict_image(mdl_path,nf=False,geo=True,nf_n=500,mdl_type='',
-                  image_path='/home/mks29/Desktop/BB34_5000_1006.jpg',dlr=False):
+def predict_image(mdl_path,nf=False,geo=True,nf_n=500,mdl_type='',plot_single=False,
+                  image_path='/home/mks29/clones/cow_flow/data/obj/930WT-92NMT_800_2400.jpg',dlr=False):
     
     #'/home/mks29/6-6-2018_Ortho_ColorBalance.tif'
     #'/home/mks29/Desktop/BB34_5000_1006.jpg'
@@ -454,7 +454,10 @@ def predict_image(mdl_path,nf=False,geo=True,nf_n=500,mdl_type='',
     # split image into 256x256 chunks
     im = cv2.imread(image_path)
     
-    im_patches = split_image(im,save = False, overlap = 0,dlr=dlr)
+    if plot_single:
+        im_patches = [im]
+    else:
+        im_patches = split_image(im,save = False, overlap = 0,dlr=dlr)
     
     for i in tqdm(range(len(im_patches)),desc="Predicting patches"):
         
@@ -540,9 +543,26 @@ def predict_image(mdl_path,nf=False,geo=True,nf_n=500,mdl_type='',
            im_patches[i] = im_patches[i].squeeze(0).permute(1,2,0).cpu().numpy()
     
     shape = im.shape
-    del im
+    
+    if not plot_single:
+        del im
     
     path='/home/mks29/' ; frmt = 'tif' ; name = Path(image_path).stem
+    
+    if plot_single:
+        
+        fig, ax = plt.subplots(2)
+        plt.subplots_adjust(left=0.1, right=0.9, top=0.9, bottom=0.1)
+        fig.set_size_inches(4*1,8*1)
+        fig.set_dpi(100)
+        ax[0].imshow(im) 
+        ax[1].imshow(im_patches[i]) 
+        
+        print(np.sum(im_patches))
+        
+        plt.show()
+        
+        return
     
     predicted = stich_image(shape, im_patches, name=name,save=True,path=path,
                             frmt=frmt,geo=geo,mdl_type=mdl_type,dlr=dlr)
@@ -597,9 +617,9 @@ def plot_preds_baselines(mdl, loader,mode="",mdl_type='',writer=None,writer_epoc
         
         # todo - fix this mdl.seg stuff
         for i, data in enumerate(tqdm(loader, disable=c.hide_tqdm_bar)):
-                
-                if i < 300:
-                    continue
+            
+                # if i < 300:
+                #     continue
             
                 mdl.to(c.device)
                 images,dmaps,labels,binary_labels , annotations, point_maps  = data_loader.preprocess_batch(data)
@@ -609,8 +629,8 @@ def plot_preds_baselines(mdl, loader,mode="",mdl_type='',writer=None,writer_epoc
                 dmap_np = dmap_np/mdl.dmap_scaling
                 pred_count = dmap_np.sum() 
                 
-                if len(labels[0]) == 0:
-                    continue
+                # if len(labels[0]) == 0:
+                #     continue
                 
                 if str(type(mdl)) == "<class 'baselines.LCFCN'>":#  or mdl_type == 'UNet_seg':
                     
@@ -790,8 +810,8 @@ def plot_preds(mdl, loader, plot = True, save=True,title = "",digit=None,
         
         for i, data in enumerate(tqdm(loader, disable=c.hide_tqdm_bar)):
             
-            if i < 300:
-                continue
+            # if i < 300:
+            #     continue
             
             # TODO - broken - filename doesn't match image
     #            if not mdl.mnist:

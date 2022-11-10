@@ -7,6 +7,7 @@ from torch.utils.tensorboard import SummaryWriter
 from torch.optim.lr_scheduler import ExponentialLR, StepLR
 import torch.nn.functional as TF
 from torchvision.models import vgg16_bn, resnet18, efficientnet_b3 
+from ray import tune
 
 # tensorboard
 from tqdm import tqdm # progress bar
@@ -27,8 +28,12 @@ import baselines as b
 from data_loader import preprocess_batch
 from eval import eval_mnist, dmap_metrics, dmap_pr_curve, eval_baselines
                
-def train_baselines(model_name,train_loader,val_loader,writer=None):
-
+def train_baselines(model_name,train_loader,val_loader,config={},writer=None):
+    
+    if a.args.mode != 'search':
+        config['lr'] = a.args.learning_rate
+        config['weight_decay'] = a.args.weight_decay
+    
     model_metric_dict = {}
     modelname = make_model_name(train_loader)
     model_hparam_dict = make_hparam_dict(val_loader)
@@ -64,13 +69,13 @@ def train_baselines(model_name,train_loader,val_loader,writer=None):
         mdl = b.VGG_density(modelname=modelname)
         
     if a.args.optim == 'adam':   
-        optimizer = torch.optim.Adam(mdl.parameters(), lr=a.args.learning_rate,
-                                     betas=(a.args.adam_b1, a.args.adam_b2), eps=a.args.adam_e, weight_decay=a.args.weight_decay)
+        optimizer = torch.optim.Adam(mdl.parameters(), lr=config['lr'],
+                                     betas=(a.args.adam_b1, a.args.adam_b2), eps=a.args.adam_e, weight_decay=config['weight_decay'])
     if a.args.optim == 'adamw':
-        optimizer = torch.optim.AdamW(mdl.parameters(), lr=a.args.learning_rate, 
-                                     betas=(a.args.adam_b1, a.args.adam_b2), eps=a.args.adam_e, weight_decay=a.args.weight_decay)
+        optimizer = torch.optim.AdamW(mdl.parameters(), lr=config['lr'], 
+                                     betas=(a.args.adam_b1, a.args.adam_b2), eps=a.args.adam_e, weight_decay=config['weight_decay'])
     if a.args.optim == 'sgd':
-        optimizer = torch.optim.SGD(mdl.parameters(), lr=a.args.learning_rate,momentum=a.args.sgd_mom)
+        optimizer = torch.optim.SGD(mdl.parameters(), lr=config['lr'],momentum=a.args.sgd_mom)
 
     # add scheduler to improve stability further into training
     if a.args.scheduler == "exponential":
@@ -150,7 +155,8 @@ def train_baselines(model_name,train_loader,val_loader,writer=None):
                 
             mean_train_loss = np.mean(train_loss)
             mean_val_loss = np.mean(val_loss)
-                
+            tune_save_report(epoch=l,net=mdl,optimizer=optimizer,loss=mean_val_loss)
+
             if mean_val_loss < best_loss and c.save_model:
                 best_loss = mean_val_loss
                 # At this point also save a snapshot of the current model
@@ -200,8 +206,12 @@ def train_baselines(model_name,train_loader,val_loader,writer=None):
     
     return mdl    
 
-def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,writer=None):
+def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,config={},writer=None):
             
+            if a.args.mode == 'train':
+                config['lr'] = a.args.learning_rate
+                config['feat_extractor']= a.args.feat_extractor
+    
             if c.debug:
                 torch.autograd.set_detect_anomaly(True)
     
@@ -224,12 +234,12 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
             else:
                 writer = writer
             
-            feat_extractor = model.select_feat_extractor(a.args.feat_extractor,train_loader,val_loader)
+            feat_extractor = model.select_feat_extractor(a.args.feat_extractor,train_loader,val_loader,config=config)
             
             if a.args.data == 'mnist':
                 mdl = model.MNISTFlow(modelname=modelname,feat_extractor = feat_extractor)    
             else:
-                mdl = model.CowFlow(modelname=modelname,feat_extractor = feat_extractor)
+                mdl = model.CowFlow(modelname=modelname,feat_extractor = feat_extractor,config=config)
             
             c_head_trained = False    
             
@@ -239,27 +249,27 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                     optimizer = torch.optim.Adam([
                                 {'params': mdl.nf.parameters()},
                                 {'params': mdl.feat_extractor.parameters(), 'lr_init': a.args.fe_lr,'betas':(a.args.fe_b1,a.args.fe_b2),'eps':1e-08, 'weight_decay':a.args.fe_wd}
-                            ], lr=a.args.learning_rate, betas=(a.args.adam_b1, a.args.adam_b2), eps=a.args.adam_e, weight_decay=a.args.weight_decay )      
+                            ], lr=config['lr'], betas=(a.args.adam_b1, a.args.adam_b2), eps=a.args.adam_e, weight_decay=config['weight_decay'] )      
                     
                 if a.args.optim == 'adamw':   
                     optimizer = torch.optim.AdamW([
                                 {'params': mdl.nf.parameters()},
                                 {'params': mdl.feat_extractor.parameters(), 'lr_init': a.args.fe_lr,'betas':(a.args.fe_b1,a.args.fe_b2),'eps':1e-08, 'weight_decay':a.args.fe_wd}
-                            ], lr=a.args.learning_rate, betas=(a.args.adam_b1, a.args.adam_b2), eps=a.args.adam_e, weight_decay=a.args.weight_decay )  
+                            ], lr=config['lr'], betas=(a.args.adam_b1, a.args.adam_b2), eps=a.args.adam_e, weight_decay=config['weight_decay'] )  
                 
                 if a.args.optim == 'sgd':
                     optimizer = torch.optim.SGD([
                                 {'params': mdl.nf.parameters()},
-                                {'params': mdl.feat_extractor.parameters(), 'lr_init': a.args.fe_lr,'weight_decay':a.args.weight_decay}
-                            ], lr=a.args.learning_rate,momentum=a.args.sgd_mom)
+                                {'params': mdl.feat_extractor.parameters(), 'lr_init': a.args.fe_lr,'weight_decay':config['weight_decay']}
+                            ], lr=config['lr'],momentum=a.args.sgd_mom)
             else:
                 
                 if a.args.optim == 'adam':   
-                    optimizer = torch.optim.Adam(mdl.parameters(), lr=a.args.learning_rate, betas=(a.args.adam_b1, a.args.adam_b2), eps=a.args.adam_e, weight_decay=a.args.weight_decay)
+                    optimizer = torch.optim.Adam(mdl.parameters(), lr=config['lr'], betas=(a.args.adam_b1, a.args.adam_b2), eps=a.args.adam_e, weight_decay=config['weight_decay'])
                 if a.args.optim == 'adamw':   
-                    optimizer = torch.optim.AdamW(mdl.parameters(), lr=a.args.learning_rate, betas=(a.args.adam_b1, a.args.adam_b2), eps=a.args.adam_e, weight_decay=a.args.weight_decay)
+                    optimizer = torch.optim.AdamW(mdl.parameters(), lr=config['lr'], betas=(a.args.adam_b1, a.args.adam_b2), eps=a.args.adam_e, weight_decay=config['weight_decay'])
                 if a.args.optim == 'sgd':
-                    optimizer = torch.optim.SGD(mdl.parameters(), lr=a.args.learning_rate,momentum=a.args.sgd_mom)   
+                    optimizer = torch.optim.SGD(mdl.parameters(), lr=config['lr'],momentum=a.args.sgd_mom)   
                     
             # add scheduler to improve stability further into training
             if a.args.scheduler == "exponential":
@@ -432,6 +442,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                                     writer.add_scalar('loss/minibatch_val',loss, val_mb_iter)
                              
                         mean_val_loss = np.mean(np.array(val_loss))
+                        tune_save_report(epoch=j,net=mdl,optimizer=optimizer,loss=mean_val_loss)
                          
                         if c.verbose:
                                 print('Validation | Sub Epoch: {:d} \t Epoch loss: {:4f}'.format(sub_epoch,mean_val_loss))
@@ -441,8 +452,9 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                         
                         # simple early stopping based on val loss
                         # https://stackoverflow.com/questions/68929471/implementing-early-stopping-in-pytorch-without-torchsample
-                        if mean_val_loss < best_loss and c.save_model:
+                        if mean_val_loss < best_loss and c.save_model and not a.args.mode == 'search':
                             best_loss = mean_val_loss
+                            
                             # At this point also save a snapshot of the current model
                             save_model(mdl,"best"+"_"+modelname) # want to overwrite - else too many copies stored # +str(l)
                             
@@ -461,7 +473,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                     print("Training Accuracy: ", train_acc,"| Epoch: ",meta_epoch)
                     print("val Accuracy: ",val_acc,"| Epoch: ",meta_epoch)
                 
-                if c.save_model and c.checkpoints:
+                if c.save_model and c.checkpoints and not a.args.mode == 'search':
                     mdl.to('cpu')
                     save_model(mdl,"checkpoint_"+str(l)+"_"+modelname)
                     #save_weights(model,"checkpoint_"+str(l)+"_"+modelname) # currently have no use for saving weights
@@ -556,7 +568,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
             mdl.metric_dict = model_metric_dict
             
             # save model hparams, unless models are being saved at end of every meta peoch
-            if c.save_model:
+            if c.save_model and not a.args.mode == 'search':
                 
                 hp_filename = "./models/"+"hparams"+modelname+".txt"
                 
@@ -570,7 +582,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,wr
                 final_metrics = dmap_metrics(mdl, train_loader,n=1,mode='train',null_filter = False)
                 print(final_metrics)
             
-            if a.args.save_final_mod:
+            if a.args.save_final_mod and not a.args.mode == 'search':
                 save_model(mdl,"final"+"_"+modelname)
             
             run_end = time.perf_counter()
@@ -695,7 +707,8 @@ def train_classification_head(mdl,full_trainloader,full_valloader,criterion = nn
         print("Finetuning finished.")
     
     mdl.classification_head.load_state_dict(best_model_wts)
-    save_model(mdl.classification_head,filename=filename,loc=g.FEAT_MOD_DIR)
+    if not a.args.mode == 'search':
+        save_model(mdl.classification_head,filename=filename,loc=g.FEAT_MOD_DIR)
     
     return mdl.classification_head
         
@@ -808,3 +821,12 @@ def train_feat_extractor(feat_extractor,trainloader,valloader,criterion = nn.Cro
     save_model(feat_extractor,filename=filename,loc=g.FEAT_MOD_DIR)
     
     return feat_extractor
+
+def tune_save_report(epoch,net,optimizer,loss):
+    if a.args.mode == 'search':
+        
+        with tune.checkpoint_dir(epoch) as checkpoint_dir:
+            path = os.path.join(checkpoint_dir, "checkpoint")
+            torch.save((net.state_dict(), optimizer.state_dict()), path)
+            
+        tune.report(loss=(loss))

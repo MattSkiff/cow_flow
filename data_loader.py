@@ -9,8 +9,7 @@ from tqdm import tqdm # progress bar
 
 import torch 
 from torch.utils.data.sampler import SubsetRandomSampler # RandomSampling
-from torch.utils.data import DataLoader # Dataset  
-from torch.utils.data import Dataset
+from torch.utils.data import DataLoader, Dataset
 import torchvision.transforms.functional as TF
 import torchvision.transforms as T
 from torchvision import utils
@@ -403,7 +402,7 @@ class CowObjectsDataset(Dataset):
     """Cow Objects dataset."""
     
     def __init__(self, root_dir,transform=None,convert_to_points=False,generate_density=False,
-                 count=False,classification=False,ram=False,holdout=False,sat=False,resize=a.args.resize):
+                 count=False,classification=False,ram=False,holdout=a.args.holdout,sat=False,resize=a.args.resize):
         """
         Args:
             root_dir (string): Directory with the following structure:
@@ -675,9 +674,8 @@ class CowObjectsDataset(Dataset):
         if self.ram:
             out = len(self.images)
         else:
-            
-            
-            if a.args.holdout:
+               
+            if self.holdout:
                 txt_file = "holdout.txt"
             elif a.args.sat:
                 txt_file = "satellite.txt"
@@ -1297,8 +1295,12 @@ def train_val_split(dataset,train_percent,oversample=False,annotations_only = Fa
     random.shuffle(t)
     t_indices, t_weights = zip(*t)
     
-    random.shuffle(v)
-    v_indices, v_weights = zip(*v)
+    if len(t_indices) == 1:
+        v_indices, v_weights
+        print("Single image dataloader")
+    else:
+        random.shuffle(v)
+        v_indices, v_weights = zip(*v)
  
     t_indices = t_indices[:round(c.data_prop*len(t_indices))]
     t_weights = t_weights[:round(c.data_prop*len(t_weights))]
@@ -1311,7 +1313,10 @@ def train_val_split(dataset,train_percent,oversample=False,annotations_only = Fa
     
     return t_indices, t_weights, v_indices, v_weights
 
-def prep_transformed_dataset(is_eval=False,resize=a.args.resize):
+def prep_transformed_dataset(is_eval=False,resize=a.args.resize,holdout=a.args.holdout,config={}):
+    
+    if a.args.mode != 'search':
+        config['noise'] = a.args.noise
     
     transforms = [CustToTensor()]
     
@@ -1328,10 +1333,10 @@ def prep_transformed_dataset(is_eval=False,resize=a.args.resize):
         transforms.append(RandomCrop())
     
     #if a.args.rrc:
-    if not a.args.mode == 'eval' and not (a.args.holdout or a.args.sat) and not a.args.get_grad_maps:
-         transforms.append(RotateFlip())
+    if not a.args.mode == 'eval' and not (holdout or a.args.sat) and not a.args.get_grad_maps:
+          transforms.append(RotateFlip())
         
-    transforms.append(DmapAddUniformNoise())
+    transforms.append(DmapAddUniformNoise(r2=config['noise']))
     
     dmaps_pre = T.Compose(transforms)
                        
@@ -1339,11 +1344,11 @@ def prep_transformed_dataset(is_eval=False,resize=a.args.resize):
     transformed_dataset = CowObjectsDataset(root_dir=c.proj_dir,transform = dmaps_pre,
                                             convert_to_points=True,generate_density=True,
                                             count = c.counts, 
-                                            classification = True,ram=a.args.ram, holdout=a.args.holdout,sat=a.args.sat,resize=resize)
+                                            classification = True,ram=a.args.ram, holdout=holdout,sat=a.args.sat,resize=resize)
     
     return transformed_dataset
 
-def make_loaders(transformed_dataset,is_eval=False):
+def make_loaders(transformed_dataset,is_eval=False,holdout=a.args.holdout):
 
     t_indices, t_weights, v_indices, v_weights  = train_val_split(dataset = transformed_dataset,
                                                       train_percent = c.test_train_split,
@@ -1366,25 +1371,25 @@ def make_loaders(transformed_dataset,is_eval=False):
     
     # leave shuffle off for use of any samplers
     full_train_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 
-                        num_workers=1,collate_fn=transformed_dataset.custom_collate_aerial,
-                        pin_memory=False,sampler=full_train_sampler)
+                        num_workers=a.args.workers,collate_fn=transformed_dataset.custom_collate_aerial,
+                        pin_memory=True,sampler=full_train_sampler,persistent_workers=False,prefetch_factor=2)
 
     full_val_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 
-                        num_workers=1,collate_fn=transformed_dataset.custom_collate_aerial,
-                        pin_memory=False,sampler=full_val_sampler)
+                        num_workers=a.args.workers,collate_fn=transformed_dataset.custom_collate_aerial,
+                        pin_memory=True,sampler=full_val_sampler,persistent_workers=False,prefetch_factor=2)
     
     train_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 
-                        num_workers=1,collate_fn=transformed_dataset.custom_collate_aerial,
-                        pin_memory=False,sampler=train_sampler)
+                        num_workers=a.args.workers,collate_fn=transformed_dataset.custom_collate_aerial,
+                        pin_memory=True,sampler=train_sampler,persistent_workers=False,prefetch_factor=2)
 
     val_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 
-                        num_workers=1,collate_fn=transformed_dataset.custom_collate_aerial,
-                        pin_memory=False,sampler=val_sampler)
+                        num_workers=a.args.workers,collate_fn=transformed_dataset.custom_collate_aerial,
+                        pin_memory=True,sampler=val_sampler,persistent_workers=False,prefetch_factor=2)
     
-    if a.args.mode == 'eval' and (a.args.holdout or a.args.sat):
+    if a.args.mode == 'eval' and (holdout or a.args.sat):
         val_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 
-                            num_workers=1,collate_fn=transformed_dataset.custom_collate_aerial,
-                            pin_memory=False,sampler=None)
+                            num_workers=a.args.workers,collate_fn=transformed_dataset.custom_collate_aerial,
+                            pin_memory=True,sampler=None,persistent_workers=False,prefetch_factor=2)
         
     
     return full_train_loader, full_val_loader, train_loader, val_loader
@@ -1412,7 +1417,7 @@ def preprocess_batch(data,dlr=False):
     if not dlr:
         images,dmaps,labels, binary_labels, annotations,point_maps = data
         dmaps = dmaps * a.args.dmap_scaling
-        images,dmaps,labels, binary_labels, annotations,point_maps = images.to(c.device),dmaps.to(c.device),labels, binary_labels.to(c.device), annotations,point_maps.to(c.device)
+        images,dmaps,labels, binary_labels, annotations,point_maps = images.to(c.device,non_blocking=True),dmaps.to(c.device,non_blocking=True),labels, binary_labels.to(c.device,non_blocking=True), annotations,point_maps.to(c.device,non_blocking=True)
     
         # if point_maps[0] != None:
         #     point_maps = point_maps.to(c.device)
