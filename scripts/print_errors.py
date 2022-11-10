@@ -20,9 +20,8 @@ from utils import load_model
 
 #assert a.args.holdout
 assert a.args.mode == 'eval'
-assert a.args.batch_size == 1
 
-def print_errors(ub=999,lb=5):
+def print_errors(ub=50,lb=10):
     
     mdl = load_model(a.args.mdl_path)
     transformed_dataset = prep_transformed_dataset(is_eval=False)

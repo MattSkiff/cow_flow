@@ -4,7 +4,7 @@ import os
 # command line params
 parser = argparse.ArgumentParser(description='Create dataloaders and train a model on MNIST, DLRACD or cow dataset.')
 
-parser.add_argument('-mode',help="Specify mode (train,eval,store,plot).",default='')
+parser.add_argument('-mode',help="Specify mode (train,eval,store,plot,search).",default='')
 parser.add_argument('-title',help="Specify plot title.",default='')
 
 parser.add_argument('-get_likelihood',help='get and plot likelihoods / anamoly scores',action="store_true",default=False)
@@ -24,7 +24,10 @@ parser.add_argument('-sat',help="Use satellite data",action="store_true",default
 parser.add_argument('-mdl_path',help="Specify mdl for eval",default='')
 parser.add_argument('-load_feat_extractor_str',help="Specify fe model name to load",default='')
 parser.add_argument('-bin_classifier_path', default='')
+
 parser.add_argument('-ram',help='Load images/dmaps/point maps into ram for faster trainig',action="store_true",default=False)
+parser.add_argument('-workers',help='Choose number of worker processes for pytorch loading',type=int,default=0)
+
 
 parser.add_argument('-mod',"--model_name",help="Specify model (NF,CSRNet, UNet, UCSRNetNet_seg, FCRN, LCFCN, MCNN).",default='')
 parser.add_argument("-fe_only", help="Trains the feature extractor only.", action="store_true",default=False)
@@ -89,7 +92,7 @@ parser.add_argument('-nse',"--noise",help='amount of uniform noise (sample evenl
 parser.add_argument('-f','--filters',help='width of conv subnetworks',type=int,default=0)
 parser.add_argument("-split", "--split_dimensions", help="split off half the dimensions after each block of coupling layers.", type=int, default=0)
 parser.add_argument("-subnet_type",help="type of subnet to use in flow [fc,conv,MCNN,UNet,conv_shallow,conv_deep]",default ='')
-parser.add_argument("-batch_norm",help="Add batchnorm to subnets",action="store_true",default=False)
+parser.add_argument("-subnet_bn",help="Add batchnorm to subnets",action="store_true",default=False)
 
 parser.add_argument("-fe_load_imagenet_weights",help="load pt weights into FE",action='store_true',default=False)
 parser.add_argument('-fe_b1',help='fe_adam beta1',type=float,default=0.9)
@@ -160,7 +163,7 @@ if any('SPYDER' in name for name in os.environ):
     args.bc_only = False
     
 # checks
-assert args.mode in ['train','eval','store','plot']
+assert args.mode in ['train','eval','store','plot','search']
 assert args.gpu_number > -1
 
 if args.title != '':
@@ -193,6 +196,7 @@ if args.holdout:
 if not (args.mode == 'plot' and args.plot_errors):
     assert args.sampler in ['weighted','anno','none']
     
+if not args.mode == 'search':
     if args.model_name == 'LCFCN': #  in ['UNet_seg','LCFCN']:
         assert args.batch_size == 1 # https://github.com/ElementAI/LCFCN/issues/9
     else:

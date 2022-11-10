@@ -73,7 +73,6 @@ if a.args.data == 'cows':
         if a.args.mode == 'plot':  
             
             if a.args.plot_errors:
-                
                 plot_errors(a.args.error_path,a.args.interval_path)
                 
             elif a.args.model_name == 'NF':
@@ -82,14 +81,14 @@ if a.args.data == 'cows':
                 elif a.args.get_grad_maps:
                     export_gradient_maps(mdl,val_loader)
                 elif a.args.data == 'cows':
-                    plot_preds(mdl,val_loader)
+                    plot_preds(mdl,val_loader,include_empty=True) 
                 # elif a.args.data == 'dlr':
                 #     plot_peaks(mdl,val_loader)
             elif a.args.model_name == 'ALL':
                 for n in  range(0, 500,25): # 50
                     plot_preds_multi(mode='val',loader=val_loader,loader_86=val_loader_86,n=n)
             elif a.args.model_name in g.BASELINE_MODEL_NAMES:
-                plot_preds_baselines(mdl, val_loader,mode="val",mdl_type=a.args.model_name)
+                plot_preds_baselines(mdl, train_loader,mode="val",mdl_type=a.args.model_name)
             
     if a.args.mode == 'train' and not (a.args.holdout or a.args.sat):
         

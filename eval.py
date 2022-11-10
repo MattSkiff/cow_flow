@@ -289,7 +289,7 @@ def gen_metrics(dm_mae,dm_mse,dm_ssim,dm_psnr,y_n,y_hat_n,game,gampe,localisatio
 @torch.no_grad()
 def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True,null_filter=(a.args.bin_classifier_path != ''),write_errors_only=a.args.write_errors,qq=False):
     
-    thres=4*2 ; correct = 0; total = 0 #mdl.sigma*2
+    thres=4*2 ; correct = 0; total = 0; #mdl.sigma*2
 
     if mdl.density_map_h == 608 and not a.args.rrc:
         width = 608
@@ -341,7 +341,7 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True,null_filter=(a.a
             
             blob_counts = (np.unique(blobs)!=0).sum()
             pred_points = lcfcn_loss.blobs2points(blobs).squeeze()
-            
+         
         for idx in range(images.size()[0]):               
             
             if str(type(mdl)) == "<class 'baselines.LCFCN'>": 
@@ -354,19 +354,24 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True,null_filter=(a.a
             
             # debugging outlier of predicted much higher than true looking at PvA plots
             # x = pred_count-point_maps[idx].squeeze().cpu().detach().numpy().sum()
-            # if  x > 30 and x < 50:
-            #     import matplotlib.pyplot as plt
-            #     fig, ax = plt.subplots(1,1, figsize=(10, 10))
+            # y_diff = pred_count - point_maps[idx].squeeze().cpu().detach().numpy().sum() 
+            # print(y_diff)
+
+            #if  y_diff > 30 and y_diff < 50:
+                                
+                # import matplotlib.pyplot as plt
+                # fig, ax = plt.subplots(1,2, figsize=(10, 20))
                 
-            #     unnorm = UnNormalize(mean=tuple(c.norm_mean),
-            #                           std=tuple(c.norm_std))
-            #     im = unnorm(images[idx])
-            #     im = im.permute(1,2,0).cpu().numpy()
+                # unnorm = UnNormalize(mean=tuple(c.norm_mean),
+                #                       std=tuple(c.norm_std))
+                # im = unnorm(images[idx])
+                # im = im.permute(1,2,0).cpu().numpy()
                 
-            #     ax.imshow(im)
-            #     plt.savefig("outlier_{i}.jpg".format(i), bbox_inches='tight', pad_inches = 0)
-            #     print(i)
-            #     1/0
+                # ax[0].imshow(im)
+                # ax[1].imshow(dmap_np)
+                # plt.show()
+                # plt.savefig("outlier_{i}.jpg".format(i), bbox_inches='tight', pad_inches = 0)
+                # print(i)
             
             ground_truth_dmap = dmaps[idx].squeeze().cpu().detach().numpy()
             ground_truth_dmap = ground_truth_dmap/mdl.dmap_scaling
@@ -542,7 +547,6 @@ def get_psnr(mdl,loader):
         av_psnr = np.mean(np.array(dm_psnr))
     
     return  av_psnr 
-    
     
 
 @torch.no_grad()

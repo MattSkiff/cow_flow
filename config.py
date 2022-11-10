@@ -38,7 +38,6 @@ downsampling = True # whether to downsample (5 ds layers) dmaps by converting sp
 n_coupling_blocks = 5 # if pyramid, total blocks will be n_pyramid_blocks x 5
 
 ## Subnet Architecture Options
-batchnorm = False # conv
 width = 400 # fc ('128' recommended min)
 dropout_p = 0.0 # fc only param - 0 for no dropout
 
