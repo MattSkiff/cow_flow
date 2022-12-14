@@ -685,7 +685,9 @@ def dmap_metrics(mdl, loader,n=50,mode='',null_filter=(a.args.bin_classifier_pat
     assert not mdl.count
     assert c.data_prop == 1
     assert mode in ['train','val']
-    assert mdl.subnet_type in g.SUBNETS
+    
+    if not a.args.mode == 'search':
+        assert mdl.subnet_type in g.SUBNETS
    
     print("Dmap Evaluation....")
     t1 = time.perf_counter()
@@ -750,7 +752,8 @@ def dmap_metrics(mdl, loader,n=50,mode='',null_filter=(a.args.bin_classifier_pat
 
         # https://stackoverflow.com/questions/15033511/compute-a-confidence-interval-from-sample-data
             
-        x = x_agg.mean(dim=1) # take average of samples from models for mean reconstruction
+        #x = x_agg.mean(dim=1) # take average of samples from models for mean reconstruction
+        x = x_agg.median(dim=1) 
 
         if not mdl.dlr_acd:
             #features = mdl.feat_extractor(images)
@@ -874,8 +877,9 @@ def dmap_metrics(mdl, loader,n=50,mode='',null_filter=(a.args.bin_classifier_pat
             # revert to original gt dmap (for metric calc)
             # (instead of empty dmap with noise added)
             
-            if pred_count == 0 and len(annotations[idx]) == 0:
-                ground_truth_dmap = np.zeros([mdl.density_map_h,mdl.density_map_w],dtype=np.float32)
+            # TODO - work out whether to include this?? # zambingo
+            # if pred_count == 0 and len(annotations[idx]) == 0:
+            #     ground_truth_dmap = np.zeros([mdl.density_map_h,mdl.density_map_w],dtype=np.float32)
             
             y_hat_n.append(pred_count)
             

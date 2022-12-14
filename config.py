@@ -74,23 +74,6 @@ levels = 5
 # elif scale == 4:
 #     levels = 3
 
-# "condition dim"
-if a.args.feat_extractor == '':
-    n_feat = -99
-
-if a.args.feat_extractor == "alexnet":
-    n_feat = 256 
-elif a.args.feat_extractor == "vgg16_bn":
-    n_feat = 512 
-elif a.args.feat_extractor in ["resnet18","resnet50","resnet9"]:
-    n_feat = 512
-elif a.args.feat_extractor == "none":
-    if a.args.data == 'mnist':
-        n_feat = 1 
-    else:
-        # conditioning on raw RGB image
-         n_feat = 3
-
 if a.args.data == 'mnist':
     one_hot = True # only for MNIST
 else:
@@ -193,11 +176,13 @@ if counts and a.args.model_name == 'NF':
 
 if a.args.pyramid:
     assert n_coupling_blocks == 5 # for recording purposes
-    assert a.args.feat_extractor in ['resnet18','vgg16_bn','resnet50','resnet9']
     assert downsampling # pyramid nf head has  downsmapling
     assert not train_feat_extractor # TODO
     # TODO - get pyramid working with other scales!
     assert scale == 1
+    
+    if not a.args.mode == 'search':
+        assert a.args.feat_extractor in ['resnet18','vgg16_bn','resnet50','resnet9']
 
 # if a.args.holdout:
 #     assert test_train_split = 100 # need to use whole dataset for eval

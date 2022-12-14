@@ -95,6 +95,7 @@ class ResNetPyramid(ResNet):
         
         if a.args.mode != 'search':
             config['feat_extractor'] = a.args.feat_extractor 
+            config['freeze_bn'] = a.args.freeze_bn
         
         if config['feat_extractor']  == 'resnet9':
             block_init = [1,1,1,1]
@@ -110,7 +111,7 @@ class ResNetPyramid(ResNet):
         
         if a.args.load_feat_extractor_str == '':
             if a.args.fe_load_imagenet_weights:
-                if a.args.feature_extractors == 'resnet18':
+                if config['feat_extractor'] == 'resnet18':
                     self.load_state_dict(resnet18(pretrained=a.args.pretrained).state_dict())
                 elif config['feat_extractor']  == 'resnet50':
                     self.load_state_dict(resnet50(pretrained=a.args.pretrained).state_dict())
@@ -129,7 +130,7 @@ class ResNetPyramid(ResNet):
             
         # borrowed from LCFCN
         # # FREEZE BATCH NORMS
-        if a.args.freeze_bn:
+        if config['freeze_bn']:
             for m in self.modules():
                 if isinstance(m, nn.BatchNorm2d):
                     m.weight.requires_grad = False
@@ -228,14 +229,14 @@ def select_feat_extractor(feat_extractor,train_loader=None,valid_loader=None,con
         elif config['feat_extractor']  == "vgg16_bn":
             feat_extractor = vgg16_bn(pretrained=a.args.pretrained,progress=False).to(c.device)
         elif config['feat_extractor']  == "mnist_resnet":
-            feat_extractor = MnistResNet()
+            feat_extractor = MnistResNet(config=config)
         elif config['feat_extractor']  == "none":
-            feat_extractor = NothingNet()
+            feat_extractor = NothingNet(config=config)
     else:
         if config['feat_extractor']  == 'vgg16_bn':
             feat_extractor = VGGPyramid(freeze_bn=config['freeze_bn'])
         else:
-            feat_extractor = ResNetPyramid()
+            feat_extractor = ResNetPyramid(config=config)
         
         return feat_extractor
     
@@ -275,23 +276,20 @@ def sub_conv2d_shallow(dims_in,dims_out,n_filters):
     
     return net
 
-def sub_conv2d(dims_in,dims_out,n_filters,config={}):
-    
-    if not a.args.mode == 'search':
-        config['subnet_bn'] = a.args.subnet_bn
+def sub_conv2d(dims_in,dims_out,config={}): # edited for comptability with search.py
     
     # naming pytorch layers:
     # https://stackoverflow.com/questions/66152766/how-to-assign-a-name-for-a-pytorch-layer/66162559#66162559
     network_dict = collections.OrderedDict(
                 [
-                    ("conv1", nn.Conv2d(dims_in, n_filters, kernel_size = 3,padding = 1)), 
-                    ('batchnorm1',nn.BatchNorm2d(n_filters)),
+                    ("conv1", nn.Conv2d(dims_in, config['filters'], kernel_size = 3,padding = 1)), 
+                    ('batchnorm1',nn.BatchNorm2d(config['filters'])),
                     ("relu1", nn.ReLU()),
                     # use small filters in subnet per glow paper
-                    ("conv2", nn.Conv2d(n_filters, n_filters*2, kernel_size = 1,padding = 0)),
-                    ('batchnorm2',nn.BatchNorm2d(n_filters*2)),
+                    ("conv2", nn.Conv2d(config['filters'], config['filters']*2, kernel_size = 1,padding = 0)),
+                    ('batchnorm2',nn.BatchNorm2d(config['filters']*2)),
                     ("relu2", nn.ReLU()),
-                    ("conv3", nn.Conv2d(n_filters*2, dims_out,kernel_size = 3,padding = 1))
+                    ("conv3", nn.Conv2d(config['filters']*2, dims_out,kernel_size = 3,padding = 1))
                 ]
         )
     
@@ -353,12 +351,22 @@ def sub_conv2d(dims_in,dims_out,n_filters,config={}):
     
     return net
 
-def subnet(dims_in, dims_out,filters=None,config={}):
+def subnet(dims_in, dims_out,filters=None):
+    
+    config = {}
+    
+    # have checked global var works correctly (remove if possible)
+    if not a.args.mode == 'search':
+        config['subnet_bn'] = a.args.subnet_bn
+        config['filters'] = a.args.filters
+    else:
+        config['filters'] = g.FILTERS # gnarly, but the only way (I know) to pass into the subnet constructor in FrEIA 
+        config['subnet_bn'] = g.SUBNET_BN
     
     # subnet is operating over density map 
     # hence switch from linear to conv2d net
     if a.args.subnet_type == 'conv':
-        net = sub_conv2d(dims_in,dims_out,filters,config=config)
+        net = sub_conv2d(dims_in,dims_out,config=config)
     if a.args.subnet_type == 'conv_shallow':
         net = sub_conv2d_shallow(dims_in,dims_out,filters)
     # if a.args.subnet_type == 'conv_deep':
@@ -372,7 +380,6 @@ def subnet(dims_in, dims_out,filters=None,config={}):
     if a.args.subnet_type == 'nothing':
         net = sub_null(dims_in,dims_out,filters)
         
-
     if c.debug:
         print('dims in: {}, dims out: {}'.format(dims_in,dims_out))
     
@@ -424,19 +431,22 @@ def sub_unet(dims_in,dims_out,internal_size):
     return net
     
 
-def nf_pyramid(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,config = {}):
+def nf_pyramid(input_dim=(c.density_map_h,c.density_map_w),condition_dim=u.n_feats_select(),config = {}):
     
-    assert a.args.subnet_type in g.SUBNETS
+    if not a.args.mode == 'search':
+        assert a.args.subnet_type in g.SUBNETS
+        config['n_pyramid_blocks'] = a.args.n_pyramid_blocks
+    
     assert not c.gap and not c.counts and not a.args.data == 'mnist'
     
     if config['feat_extractor']  in ['resnet18','resnet50','resnet9']:
-        mdl = ResNetPyramid()
+        mdl = ResNetPyramid(config=config)
     else:
         mdl = VGGPyramid()
         
     # TODO: take out hardcoding activation channels (64)
     channels = 3
-    feats = mdl(torch.randn(a.args.batch_size,channels,c.density_map_h,c.density_map_w,requires_grad=False))
+    feats = mdl(torch.randn(int(config['batch_size']),channels,c.density_map_h,c.density_map_w,requires_grad=False))
     del mdl
     
     if c.verbose:
@@ -457,32 +467,38 @@ def nf_pyramid(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_fea
             # All in One
             nodes.append(Ff.Node(nodes[-1].out0, Fm.HaarDownsampling, {}, name = 'Main_Downsampling_{}'.format(k)))
             
-            for j in range(a.args.n_pyramid_blocks):
+            for j in range(config['n_pyramid_blocks']):
                 nodes.append(Ff.Node(nodes[-1], Fm.AllInOneBlock,
-                                {'affine_clamping': config['clamp'],'subnet_constructor':subnet(config=config)},
+                                {'affine_clamping': config['clamp'],'subnet_constructor':subnet},
                                 conditions=conditions[k],name = 'AllInOne_{}'.format(k)))
             
         else:
             
             # Non 'All in One'
-            if a.args.fixed1x1conv and k != 0: # c.channels*4**k
+            if config['fixed1x1conv'] and k != 0: # c.channels*4**k
                 nodes.append(Ff.Node(nodes[-1].out0, Fm.Fixed1x1Conv,{'M': random_orthog(c.channels*4**k).to(c.device) }, name='1x1_Conv_{}'.format(k)))
             else:
                 nodes.append(Ff.Node(nodes[-1].out0, Fm.PermuteRandom, {'seed': k}, name='Permute_{}'.format(k)))
             
             nodes.append(Ff.Node(nodes[-1].out0, Fm.HaarDownsampling, {}, name = 'Main_Downsampling_{}'.format(k)))
             
-            for j in range(a.args.n_pyramid_blocks):
+            for j in range(config['n_pyramid_blocks']):
                 nodes.append(Ff.Node(nodes[-1].out0, Fm.GLOWCouplingBlock,
-                                {'clamp': config['clamp'],'subnet_constructor':subnet(config=config)},
+                                {'clamp': config['clamp'],'subnet_constructor':subnet},
                                 conditions=conditions[k],name = 'Couple_{}'.format(k)))
     
     inn = Ff.GraphINN(nodes + conditions + [Ff.OutputNode(nodes[-1].out0, name='output')], verbose=c.verbose)
     
     return inn
 
-def nf_pyramid_split(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,config={}):
-    assert a.args.subnet_type in g.SUBNETS
+def nf_pyramid_split(input_dim=(c.density_map_h,c.density_map_w),condition_dim=u.n_feats_select(),config={}):
+    
+    
+    if not a.args.mode == 'search':
+        assert a.args.subnet_type in g.SUBNETS
+        config['n_pyramid_blocks'] = a.args.n_pyramid_blocks
+        config['batch_size'] = a.args.batch_size
+        
     assert not c.gap and not c.counts and not a.args.data == 'mnist'
     
     if a.args.mode != 'search':
@@ -492,7 +508,7 @@ def nf_pyramid_split(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c
     mdl = ResNetPyramid()
     # TODO: take out hardcoding activation channels (64)
     channels = 3
-    feats = mdl(torch.randn(a.args.batch_size,channels,c.density_map_h,c.density_map_w,requires_grad=False))
+    feats = mdl(torch.randn(config['batch_size'],channels,c.density_map_h,c.density_map_w,requires_grad=False))
     del mdl
     
     if c.verbose:
@@ -507,7 +523,7 @@ def nf_pyramid_split(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c
     for k in range(c.levels):
         conditions.append(Ff.ConditionNode(p_dims[k][1],p_dims[k][2],p_dims[k][3],name = 'Condition{}'.format(k)))
         
-        if a.args.fixed1x1conv and k != 0: # c.channels*4**k
+        if config['fixed1x1conv'] and k != 0: # c.channels*4**k
             nodes.append(Ff.Node(nodes[-1].out0, Fm.Fixed1x1Conv,{'M': random_orthog(c.channels*4**k).to(c.device) }, name='1x1_Conv_{}'.format(k)))
         else:
             nodes.append(Ff.Node(nodes[-1].out0, Fm.PermuteRandom, {'seed': k}, name='Permute_{}'.format(k)))
@@ -522,7 +538,7 @@ def nf_pyramid_split(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c
             untransformed_split = split[-1]
                 
         # after every split, out1 sent to coupling, out0 split off for downsampling and later concatenation
-        for j in range(a.args.n_pyramid_blocks):
+        for j in range(config['n_pyramid_blocks']):
             
             if j == 0:
                 
@@ -583,10 +599,13 @@ def nf_no_fe(input_dim=(c.density_map_h,c.density_map_w),condition_dim=3,mnist=F
     return out
     
 
-def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,mnist=False,config={}):
+def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=u.n_feats_select(),mnist=False,config={}):
     
     if a.args.mode != 'search':
         config['clamp'] = c.clamp_alpha
+        
+    if a.args.mode == 'search':
+        config['clamp']
     
     # include batch size as extra dimension here? data is batched along extra dimension
     # input = density maps / mnist labels 
@@ -595,13 +614,13 @@ def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,m
     # https://github.com/VLL-HD/FrEIA/issues/9
     
     # condition = exacted image features
-    if (a.args.data == 'mnist' or (c.counts and not c.gap)) and a.args.subnet_type in g.SUBNETS:
+    if (a.args.data == 'mnist' or (c.counts and not c.gap)) and a.args.subnet_type in g.SUBNETS: # TODO - update with config dict for search.py compat
         condition = [Ff.ConditionNode(condition_dim,input_dim[0] // 2,input_dim[1] // 2, name = 'condition')]
     elif (c.counts and c.gap) or (a.args.subnet_type == 'fc' and a.args.data == 'mnist'):
         condition = [Ff.ConditionNode(condition_dim,name = 'condition')]
     else:
         # TODO: avoid hardcoding feature spatial dimensions in
-        ft_dims = u.ft_dims_select()
+        ft_dims = u.ft_dims_select(config=config)
         
         condition = [Ff.ConditionNode(condition_dim,ft_dims[0],ft_dims[1],name = 'condition')]
     
@@ -633,7 +652,7 @@ def nf_head(input_dim=(c.density_map_h,c.density_map_w),condition_dim=c.n_feat,m
         else:
             multiplier = 4**c.levels
         
-        if not (c.counts and a.args.subnet_type == 'fc') and a.args.fixed1x1conv and k % a.args.freq_1x1 == 0:
+        if not (c.counts and a.args.subnet_type == 'fc') and config['fixed1x1conv'] and k % a.args.freq_1x1 == 0:
             nodes.append(Ff.Node(nodes[-1], Fm.Fixed1x1Conv,{'M': random_orthog(c.channels*multiplier).to(c.device) }, name='1x1_conv_{}'.format(k)))
         else:
             nodes.append(Ff.Node(nodes[-1], Fm.PermuteRandom, {'seed': k}, name='permute_{}'.format(k)))
@@ -665,10 +684,9 @@ class CowFlow(nn.Module):
         super(CowFlow,self).__init__()
         
         if config == {}:
-            config['n_coupling_blocks'] = c.n_coupling_blocks
             config['joint_optim'] = a.args.joint_optim
             config['fixed1x1conv'] = a.args.fixed1x1conv
-            config['optim'] = a.args.optim
+            config['optimiser'] = a.args.optim
             config['noise'] = a.args.noise
             config['scheduler'] = a.args.scheduler
             config['subnet_bn'] = a.args.subnet_bn
@@ -700,7 +718,7 @@ class CowFlow(nn.Module):
         self.subnet_type = a.args.subnet_type
         self.mnist = False
         self.gap = c.gap
-        self.n_coupling_blocks = config['n_coupling_blocks'] 
+        self.n_coupling_blocks = c.n_coupling_blocks
         self.joint_optim = config['joint_optim'] 
         self.pretrained = a.args.pretrained
         self.finetuned = c.train_feat_extractor
@@ -717,17 +735,17 @@ class CowFlow(nn.Module):
         self.optim = config['fixed1x1conv'] #
         self.dmap_scaling = a.args.dmap_scaling
         self.subnet_bn = config['subnet_bn'] 
-        self.feat_extractor_name = config['feat_extractor']
+        #self.feat_extractor_name = config['feat_extractor']
 
         if a.args.pyramid:
             if a.args.split_dimensions:
-                self.nf = nf_pyramid_split() 
+                self.nf = nf_pyramid_split(condition_dim=u.n_feats_select(config['feat_extractor']),config=config) 
             else:
-                self.nf = nf_pyramid(input_dim=(self.density_map_h,self.density_map_w),config=config)   
+                self.nf = nf_pyramid(input_dim=(self.density_map_h,self.density_map_w),condition_dim=u.n_feats_select(config['feat_extractor']),config=config)   
         elif config['feat_extractor']  == 'none':
             self.nf = nf_no_fe()
         else:
-            self.nf = nf_head()  
+            self.nf = nf_head(config=config,condition_dim=u.n_feats_select(config['feat_extractor']))  
 
     def forward(self,images,labels,rev=False,jac=False): # label = dmaps or counts
         
@@ -776,7 +794,9 @@ class CowFlow(nn.Module):
         
         # adding spatial dimensions....
         # remove dimension of size one for concatenation in NF coupling layer squeeze()
-        if self.feat_extractor_name  != "none" and a.args.subnet_type =='conv':
+        if a.args.subnet_type =='conv': # self.feat_extractor_name 
+        
+        # a.args.feat_extractor  != "none" -> don't think model can be trained without feature extractor at this stage
         
             if self.gap:
                 feats = feats.unsqueeze(2).unsqueeze(3).expand(-1, -1, (c.density_map_h) // 2,(c.density_map_w) // 2)
@@ -785,7 +805,7 @@ class CowFlow(nn.Module):
         # introduces singleton dimension
         # don't want to introduce this dimension when running z -> x
         if not rev:
-            labels = labels.unsqueeze(1) #.expand(-1,c.n_feat,-1, -1) 
+            labels = labels.unsqueeze(1) #.expand(-1,u.n_feats_select(),-1, -1) 
         
         if c.counts and not rev and a.args.subnet_type in g.SUBNETS:
             # expand counts out to spatial dims of feats

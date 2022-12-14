@@ -84,7 +84,7 @@ parser.add_argument('-wd','--weight_decay',type=float,default=None) # differnet:
 parser.add_argument('-feat_extractor',help="type of feature extractor backbone to use in flow [resnet18, vgg16_bn,resnet50,resnet9]",default ='')
 parser.add_argument("-train_classification_head",action='store_true',default=False) # whether to train classification model for filtering null patches
 parser.add_argument("-all_in_one",action='store_true',default=False) # whether to use all in blocks (inc act norm)
-parser.add_argument("-pyramid",action='store_true',default=False) # whether to a feature pyramid for conditioning - only implemented for resnet18
+parser.add_argument("-pyramid",action='store_true',default=False) # whether to a feature pyramid for conditioning 
 parser.add_argument("-fixed1x1conv",action='store_true',default=False) # whether to use 1x1 convs
 parser.add_argument("-freq_1x1",type=int,default=1) # 1 for always | how many x coupling blocks to have a 1x1 conv permutation layer
 parser.add_argument("-npb","--n_pyramid_blocks",type=int,default=0)
@@ -201,8 +201,16 @@ if not args.mode == 'search':
         assert args.batch_size == 1 # https://github.com/ElementAI/LCFCN/issues/9
     else:
         assert args.batch_size >= 1
+        assert args.pyramid
+        assert args.subnet_type == 'conv'
+        assert args.jacobian
+        assert args.joint_optim
+        assert args.meta_epochs > 0 
+        assert args.sub_epochs > 0 
+        assert args.sampler == 'weighted'
+        
         # LCFCN only supports batch size of 1
-
+        
 if args.rrc:
     #assert args.min_scaling > 0 and args.min_scaling < 1
     assert not args.resize
@@ -245,7 +253,7 @@ if args.model_name == 'NF' and args.mode == 'train':
 # elif args.model_name != 'NF':
 #     assert args.feat_extractor == ''
     
-if args.subnet_type in ['conv','conv_shallow','conv_deep']:
+if args.subnet_type in ['conv','conv_shallow','conv_deep'] and args.mode != 'search':
     assert args.filters != 0 # this argument only applies to regular conv subnets
 else:
     assert args.filters == 0

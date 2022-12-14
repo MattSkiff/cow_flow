@@ -31,6 +31,12 @@ BASELINE_MODEL_NAMES = ['UNet','CSRNet','FCRN','LCFCN','UNet_seg','MCNN','Res50'
 SUBNETS = ['conv','conv_shallow','fc','MCNN','UNet','conv_deep']
 THRES_SEQ = np.arange(0, 20, 0.5, dtype=float)
 
+global FILTERS
+FILTERS = 0
+
+global SUBNET_BN
+SUBNET_BN = False
+
 if a.args.model_name in BASELINE_MODEL_NAMES:
     assert a.args.noise == 0
 
