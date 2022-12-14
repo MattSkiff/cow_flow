@@ -66,7 +66,6 @@ if a.args.data == 'cows':
             
             if a.args.model_name == 'NF':
                 dmap_metrics(mdl,val_loader,mode='val',n=100)
-                
             else:
                 eval_baselines(mdl,val_loader,mode='val',is_unet_seg=(a.args.model_name=='UNet_seg'))
     

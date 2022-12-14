@@ -32,7 +32,9 @@ def train_baselines(model_name,train_loader,val_loader,config={},writer=None):
     
     if a.args.mode != 'search':
         config['lr'] = a.args.learning_rate
-        config['weight_decay'] = a.args.weight_decay
+        config['joint_optim'] = a.args.joint_optim
+        config['scheduler']  = a.args.scheduler
+        config['optimiser']  = a.args.optimiser
     
     model_metric_dict = {}
     modelname = make_model_name(train_loader)
@@ -123,7 +125,7 @@ def train_baselines(model_name,train_loader,val_loader,config={},writer=None):
                 clip_grad_value_(mdl.parameters(), c.clip_value)
                 optimizer.step()
                 
-                if a.args.scheduler != "none":
+                if config['scheduler'] != "none":
                     scheduler.step()
             
             # Validation Loop -----
@@ -208,9 +210,12 @@ def train_baselines(model_name,train_loader,val_loader,config={},writer=None):
 
 def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,config={},writer=None):
             
-            if a.args.mode == 'train':
+            if a.args.mode != 'search':
                 config['lr'] = a.args.learning_rate
                 config['feat_extractor']= a.args.feat_extractor
+                config['joint_optim'] = a.args.joint_optim
+                config['scheduler']  = a.args.scheduler
+                config['optimiser']  = a.args.optimiser
     
             if c.debug:
                 torch.autograd.set_detect_anomaly(True)
@@ -234,47 +239,52 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,co
             else:
                 writer = writer
             
-            feat_extractor = model.select_feat_extractor(a.args.feat_extractor,train_loader,val_loader,config=config)
+            # define backbone here 
+            feat_extractor = model.select_feat_extractor(config['feat_extractor'],train_loader,val_loader,config=config)
+            print('#########################################################33')
+            print(feat_extractor)
+            print('#######################################################333')
             
             if a.args.data == 'mnist':
-                mdl = model.MNISTFlow(modelname=modelname,feat_extractor = feat_extractor)    
+                mdl = model.MNISTFlow(modelname=modelname,feat_extractor = feat_extractor)
             else:
+                # backbone attached attached during mdl init
                 mdl = model.CowFlow(modelname=modelname,feat_extractor = feat_extractor,config=config)
             
-            c_head_trained = False    
+            c_head_trained = False
             
-            if a.args.joint_optim and a.args.feat_extractor != 'none':
+            if config['joint_optim'] and config['feat_extractor'] != 'none':
                 # TODO
-                if a.args.optim == 'adam':   
+                if config['optimiser'] == 'adam':   
                     optimizer = torch.optim.Adam([
                                 {'params': mdl.nf.parameters()},
                                 {'params': mdl.feat_extractor.parameters(), 'lr_init': a.args.fe_lr,'betas':(a.args.fe_b1,a.args.fe_b2),'eps':1e-08, 'weight_decay':a.args.fe_wd}
                             ], lr=config['lr'], betas=(a.args.adam_b1, a.args.adam_b2), eps=a.args.adam_e, weight_decay=config['weight_decay'] )      
                     
-                if a.args.optim == 'adamw':   
+                if config['optimiser'] == 'adamw':   
                     optimizer = torch.optim.AdamW([
                                 {'params': mdl.nf.parameters()},
                                 {'params': mdl.feat_extractor.parameters(), 'lr_init': a.args.fe_lr,'betas':(a.args.fe_b1,a.args.fe_b2),'eps':1e-08, 'weight_decay':a.args.fe_wd}
                             ], lr=config['lr'], betas=(a.args.adam_b1, a.args.adam_b2), eps=a.args.adam_e, weight_decay=config['weight_decay'] )  
                 
-                if a.args.optim == 'sgd':
+                if config['optimiser'] == 'sgd':
                     optimizer = torch.optim.SGD([
                                 {'params': mdl.nf.parameters()},
                                 {'params': mdl.feat_extractor.parameters(), 'lr_init': a.args.fe_lr,'weight_decay':config['weight_decay']}
                             ], lr=config['lr'],momentum=a.args.sgd_mom)
             else:
                 
-                if a.args.optim == 'adam':   
+                if config['optimiser'] == 'adam':   
                     optimizer = torch.optim.Adam(mdl.parameters(), lr=config['lr'], betas=(a.args.adam_b1, a.args.adam_b2), eps=a.args.adam_e, weight_decay=config['weight_decay'])
-                if a.args.optim == 'adamw':   
+                if config['optimiser'] == 'adamw':   
                     optimizer = torch.optim.AdamW(mdl.parameters(), lr=config['lr'], betas=(a.args.adam_b1, a.args.adam_b2), eps=a.args.adam_e, weight_decay=config['weight_decay'])
-                if a.args.optim == 'sgd':
+                if config['optimiser'] == 'sgd':
                     optimizer = torch.optim.SGD(mdl.parameters(), lr=config['lr'],momentum=a.args.sgd_mom)   
                     
             # add scheduler to improve stability further into training
-            if a.args.scheduler == "exponential":
+            if config['scheduler'] == "exponential":
                 scheduler = ExponentialLR(optimizer, gamma=a.args.expon_gamma)
-            elif a.args.scheduler == "step":
+            elif config['scheduler'] == "step":
                 scheduler = StepLR(optimizer,step_size=a.args.step_size,gamma=a.args.step_gamma)
         
             mdl.to(c.device)   
@@ -339,10 +349,6 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,co
                         else:
                             input_data = (images,labels)
                         
-                        
-                        # print(images.size())
-                        # print(dmaps.size())
-                        # 1/0
                         z, log_det_jac = mdl(*input_data,jac=a.args.jac)
                             
                         # x: inputs (i.e. 'x-side' when rev is False, 'z-side' when rev is True) [FrEIA]
@@ -368,7 +374,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,co
                         clip_grad_value_(mdl.parameters(), c.clip_value)
                         optimizer.step()
                         
-                        if a.args.scheduler != "none":
+                        if config['scheduler'] != "none":
                             scheduler.step()
                         
                         t2 = time.perf_counter()
@@ -577,7 +583,8 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,co
                     print(model_hparam_dict, file=f)
             
             #if not a.args.data == 'dlr':
-            print("Performing final evaluation without trained null classifier (train loader)...")
+            # print("Performing final evaluation without trained null classifier (train loader)...")
+            
             if not a.args.skip_final_eval:
                 final_metrics = dmap_metrics(mdl, train_loader,n=1,mode='train',null_filter = False)
                 print(final_metrics)

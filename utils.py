@@ -103,10 +103,35 @@ def is_baseline(mdl):
         
     return False
 
-def ft_dims_select(mdl=None):
+def n_feats_select(fe=a.args.feat_extractor):
+    
+    # "condition dim"
+    if fe == '':
+        n_feat = -99
+
+    if fe == "alexnet":
+        n_feat = 256 
+    elif fe == "vgg16_bn":
+        n_feat = 512 
+    elif fe in ["resnet18","resnet50","resnet9"]:
+        n_feat = 512
+    elif fe == "none":
+        if a.args.data == 'mnist':
+            n_feat = 1 
+        else:
+            # conditioning on raw RGB image
+             n_feat = 3
+             
+    return n_feat
+
+def ft_dims_select(mdl=None,config={}):
+    # bug here if invoked from nf_head()
+       
+    if config == {}:
+       config['feat_extractor'] = a.args.feat_extractor 
     
     if mdl == None:
-        fe = a.args.feat_extractor
+        fe = config['feat_extractor']
     else:
         fe = mdl.feat_extractor.__class__.__name__
     
@@ -114,22 +139,24 @@ def ft_dims_select(mdl=None):
         
         if a.args.data == 'dlr':
             ft_dims = 10,10#(mdl.density_map_h // 2**5,mdl.density_map_w // 2**5) # 10, 10
-        elif fe in ['resnet18','ResNetPyramid',"VGGPyramid"] or fe == 'Sequential':
+        elif fe in ['resnet18','ResNetPyramid',"VGGPyramid",'resnet9','resnet50'] or fe == 'Sequential': 
             if a.args.resize or a.args.rrc:
                 ft_dims = (8,8)
             else:
                 ft_dims = (19, 25) # (mdl.density_map_h // 2**5,mdl.density_map_w // 2**5)
         elif fe == 'vgg16_bn' or fe == 'VGG':
-            ft_dims = (8,8) #(18,25)
+            ft_dims = (19,25) #(8,8) #(18,25)
         elif fe == 'alexnet' or fe == 'AlexNet':
             ft_dims = (8,8) #(17,24)
         elif fe == 'none' or fe == 'NothingNet':
             ft_dims = (600,800)
             
-            
     else:
-        ft_dims = (600,800)#(mdl.density_map_h//2,mdl.density_map_w//2)
-        
+        ft_dims = (600,800)#(mdl.density_map_h//2,mdl.density_map_w//2) 
+    
+    # for i in range(100):
+    #     print(ft_dims)
+    
     return ft_dims
 
 def t2np(tensor):
@@ -1596,7 +1623,7 @@ def make_model_name(train_loader):
          parts.append('NC'+str(c.n_coupling_blocks))
          parts.append(a.args.subnet_type)
          
-         if a.args.batch_norm:
+         if a.args.subnet_bn:
              parts.append('BN')
              
      if a.args.jac:
@@ -1699,7 +1726,7 @@ def make_hparam_dict(val_loader):
                         'no. of coupling blocks':c.n_coupling_blocks,
                         'dmap sigma':a.args.sigma,
                         'dmap scaling':a.args.dmap_scaling,
-                        'feat vec length':c.n_feat}
+                        'feat vec length':n_feats_select()}
     
     return hparam_dict
 
@@ -1756,8 +1783,10 @@ def create_point_map(mdl,annotations,pred=False,resize=False):
 def loader_check(mdl,loader):
     
     assert mdl.sigma == a.args.sigma
-    assert mdl.noise == a.args.noise, 'model noise is {}'.format(mdl.noise)
     assert mdl.dmap_scaling == a.args.dmap_scaling, 'model scaling is {}'.format(mdl.dmap_scaling)
+    
+    if not a.args.mode == 'search' and not a.args.mode ==  'eval': # zambingo
+        assert mdl.noise == a.args.noise, 'model noise is {}'.format(mdl.noise)
     
     if str(type(mdl))=="<class 'baselines.UNet'>":
         if mdl.seg:
