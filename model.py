@@ -336,20 +336,21 @@ def sub_conv2d(dims_in,dims_out,config={}): # edited for comptability with searc
 #         )
     
     # batchnorm works poorly for very small minibatches, so may want to disable
-    if not c.batchnorm:
-        del network_dict['batchnorm1']
-        del network_dict['batchnorm2']
-        del network_dict['batchnorm3']
-        del network_dict['batchnorm4']
     
-    net = nn.Sequential(network_dict)
-    net.apply(u.init_weights)
+    # if not c.batchnorm:
+    #     del network_dict['batchnorm1']
+    #     del network_dict['batchnorm2']
+    #     del network_dict['batchnorm3']
+    #     del network_dict['batchnorm4']
     
-    # zero init last subnet weights as per glow, cINNs paper
-    net.conv3.weight = torch.nn.init.zeros_(net.conv3.weight)
-    net.conv3.bias.data.fill_(0.00) 
+    # net = nn.Sequential(network_dict)
+    # net.apply(u.init_weights)
     
-    return net
+    # # zero init last subnet weights as per glow, cINNs paper
+    # net.conv3.weight = torch.nn.init.zeros_(net.conv3.weight)
+    # net.conv3.bias.data.fill_(0.00) 
+    
+    # return net
 
 def subnet(dims_in, dims_out,filters=None):
     

@@ -77,7 +77,7 @@ def load_model(filename,loc=g.MODEL_DIR):
 def save_weights(mdl,filename,loc=g.WEIGHT_DIR):
     if not os.path.exists(loc):
         os.makedirs(loc)
-    torch.save(mdl.state_dict(),os.path.join(loc,filename), pickle_module=dill)
+    torch.save(mdl.state_dict(),os.path.join(loc,'weights_'+filename), pickle_module=dill)
         
 def load_weights(mdl, filename,loc=g.WEIGHT_DIR):
     path = os.path.join(loc, filename)

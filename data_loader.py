@@ -535,6 +535,15 @@ class CowObjectsDataset(Dataset):
             
             dmap_path = g.DMAP_DIR+self.im_names[idx]
             
+            # using ray breaks relative pathing above somehow
+            if a.args.mode == 'search':
+                dmap_path = "/home/mks29/clones/cow_flow"+dmap_path[1:]
+            
+            # print('################################################################')
+            # print(dmap_path)
+            # print('################################################################')
+
+            
             if a.args.ram and not a.args.mode == 'store':
                 
                 if not os.path.exists(dmap_path):

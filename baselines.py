@@ -74,6 +74,18 @@ class ConvCat(nn.Module):
         """
         return torch.cat([self.conv(to_conv), to_cat], dim=1)
 
+# https://discuss.pytorch.org/t/using-nn-function-interpolate-inside-nn-sequential/23588
+class Interpolate(nn.Module):
+    def __init__(self, scale_factor, mode='nearest'):
+        super(Interpolate, self).__init__()
+        self.interp = nn.functional.interpolate
+        self.scale_factor = scale_factor
+        self.mode = mode
+        
+    def forward(self, x):
+        x = self.interp(x, scale_factor=self.scale_factor, mode=self.mode)
+        return x
+
 # from https://github.com/NeuroSYS-pl/objects_counting_dmap
 # Implementations by NeuroSys Poland
 class FCRN_A(nn.Module):
@@ -134,13 +146,13 @@ class FCRN_A(nn.Module):
             conv_block(channels=(128, 512), size=(3, 3), N=N),
 
             # upsampling
-            nn.functional.interpolate(scale_factor=2),
+            Interpolate(scale_factor=2),
             conv_block(channels=(512, 128), size=(3, 3), N=N),
 
-            nn.functional.interpolate(scale_factor=2),
+            Interpolate(scale_factor=2),
             conv_block(channels=(128, 64), size=(3, 3), N=N),
 
-            nn.functional.interpolate(scale_factor=2),
+            Interpolate(scale_factor=2),
             conv_block(channels=(64, 1), size=(3, 3), N=N),
         )
 
@@ -199,17 +211,18 @@ class UNet(nn.Module):
         self.bilinear = bilinear
         self.subnet = subnet
 
-        self.inc = DoubleConv(n_channels, 64)
-        self.down1 = Down(64, 128)
-        self.down2 = Down(128, 256)
-        self.down3 = Down(256, 512)
+        self.batchnorm = True #a.args.batchnorm
+        self.inc = DoubleConv(self.batchnorm, n_channels, 64)
+        self.down1 = Down(self.batchnorm,64, 128)
+        self.down2 = Down(self.batchnorm,128, 256)
+        self.down3 = Down(self.batchnorm,256, 512)
         factor = 2 if bilinear else 1
         
-        self.down4 = Down(512, 1024 // factor)
-        self.up1 = Up(1024, 512 // factor, bilinear)
-        self.up2 = Up(512, 256 // factor, bilinear)
-        self.up3 = Up(256, 128 // factor, bilinear)
-        self.up4 = Up(128, 64, bilinear)
+        self.down4 = Down(self.batchnorm,512, 1024 // factor)
+        self.up1 = Up(self.batchnorm,1024, 512 // factor, bilinear)
+        self.up2 = Up(self.batchnorm,512, 256 // factor, bilinear)
+        self.up3 = Up(self.batchnorm,256, 128 // factor, bilinear)
+        self.up4 = Up(self.batchnorm,128, 64, bilinear)
         
         if self.seg:
             self.outc = nn.Conv2d(64, 1, kernel_size=1)
@@ -246,7 +259,7 @@ class UNet(nn.Module):
 class DoubleConv(nn.Module):
     """(convolution => [BN] => ReLU) * 2"""
 
-    def __init__(self, in_channels, out_channels, mid_channels=None):
+    def __init__(self,batchnorm, in_channels, out_channels, mid_channels=None):
         super().__init__()
         if not mid_channels:
             mid_channels = out_channels
@@ -262,7 +275,7 @@ class DoubleConv(nn.Module):
                     ]
             )
         
-        if not c.batchnorm:
+        if not batchnorm: 
             del network_dict['batchnorm1']
             del network_dict['batchnorm2']
         
@@ -275,11 +288,11 @@ class DoubleConv(nn.Module):
 class Down(nn.Module):
     """Downscaling with maxpool then double conv"""
 
-    def __init__(self, in_channels, out_channels):
+    def __init__(self, batchnorm, in_channels, out_channels):
         super().__init__()
         self.maxpool_conv = nn.Sequential(
             nn.MaxPool2d(2),
-            DoubleConv(in_channels, out_channels)
+            DoubleConv(batchnorm,in_channels, out_channels)
         )
 
     def forward(self, x):
@@ -289,16 +302,16 @@ class Down(nn.Module):
 class Up(nn.Module):
     """Upscaling then double conv"""
 
-    def __init__(self, in_channels, out_channels, bilinear=True):
+    def __init__(self, batchnorm,in_channels, out_channels, bilinear=True):
         super().__init__()
 
         # if bilinear, use the normal convolutions to reduce the number of channels
         if bilinear:
             self.up = nn.functional.interpolate(scale_factor=2, mode='bilinear', align_corners=True)
-            self.conv = DoubleConv(in_channels, out_channels, in_channels // 2)
+            self.conv = DoubleConv(batchnorm, in_channels, out_channels, in_channels // 2)
         else:
             self.up = nn.ConvTranspose2d(in_channels, in_channels // 2, kernel_size=2, stride=2)
-            self.conv = DoubleConv(in_channels, out_channels)
+            self.conv = DoubleConv(batchnorm, in_channels, out_channels)
 
     def forward(self, x1, x2):
         x1 = self.up(x1)
