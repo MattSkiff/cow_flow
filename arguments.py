@@ -42,7 +42,7 @@ parser.add_argument('-d','--data',help='Run the architecture on the [dlr,cows,mn
 
 parser.add_argument('-sampler',help='type of sampler to use [anno,weighted,none]',default='')
 parser.add_argument('-normalise',help='normalise aerial imagery supplied to model with img net mean & std dev',action='store_true',default=True)
-parser.add_argument('-resize',help='resize image to the specified img size',action="store_true",default=False)
+parser.add_argument('-rs','--resize',help='resize image to the specified img size',action="store_true",default=False)
 parser.add_argument('-rrc',help='perform random resize cropping',action="store_true",default=False)
 parser.add_argument('-sigma',help='Variance of gaussian kernels used to create density maps',type=float,default=4.0)  # ignored for DLR ACD which uses gsd correspondence
 parser.add_argument('-dmap_scaling',help='Scale up density map to ensure gaussianed density is not too close to zero per pixel',type=int,default=1)
@@ -100,6 +100,14 @@ parser.add_argument('-fe_b2',help='fe adam beta2',type=float,default=0.999)
 parser.add_argument("-fe_lr",help="fe LR",type=float,default=1e-3)
 parser.add_argument("-fe_wd",help="fe wd",type=float,default=1e-5)
 
+# Hyper parameter tuning
+parser.add_argument('-num_samples',type=int,default=0)
+parser.add_argument('-max_num_epochs',type=int,default=0)
+parser.add_argument('-gpus_per_trial',type=int,default=0)
+
+# TODO
+#parser.add_argument('-u_batchnorm',help='UNet batchnorm',action='store_true',default=False)
+
 # weighted: weight minibatch samples such that sampling distribution is 50/50 null/annotated
 # anno: use only annotated samples
 
@@ -113,15 +121,15 @@ host = socket.gethostname()
 
 # defaults for if running interactively
 if any('SPYDER' in name for name in os.environ):
-    args.model_name = "NF"
+    args.model_name = "Res50"
     args.data = 'cows'
     args.optim = "adamw"
     args.scheduler = 'none'
     args.sampler = 'none'
-    args.mode = 'train' #'eval'
+    args.mode = 'search' #'eval'
     args.sub_epochs = 1
     args.meta_epochs = 1
-    args.batch_size = 2
+    args.batch_size = 1
     args.learning_rate = 1e-3
     args.weight_decay = 1e-8
     args.tensorboard = True
@@ -139,13 +147,17 @@ if any('SPYDER' in name for name in os.environ):
     args.split_dimensions = 0
     
     args.subnet_type = 'conv'
-    args.noise = 1e-3
-    args.filters = 256
-    args.n_pyramid_blocks = 1
+    args.noise = 0
+    args.filters = 0
+    args.n_pyramid_blocks = 0
     args.skip_final_eval = False
     args.feat_extractor = 'vgg16_bn'
     args.pyramid = False
     args.tb = False
+    
+    args.num_samples=1
+    args.max_num_epochs=1
+    args.gpus_per_trial=1
     
     args.image_size = 256
 
@@ -198,19 +210,20 @@ if not (args.mode == 'plot' and args.plot_errors):
     
 if not args.mode == 'search':
     if args.model_name == 'LCFCN': #  in ['UNet_seg','LCFCN']:
+        # LCFCN only supports batch size of 1
         assert args.batch_size == 1 # https://github.com/ElementAI/LCFCN/issues/9
-    else:
+    elif args.mode != 'store':
         assert args.batch_size >= 1
-        assert args.pyramid
         assert args.subnet_type == 'conv'
-        assert args.jacobian
+        assert args.jac
         assert args.joint_optim
         assert args.meta_epochs > 0 
         assert args.sub_epochs > 0 
         assert args.sampler == 'weighted'
-        
-        # LCFCN only supports batch size of 1
-        
+
+if args.mode == 'search' and args.model_name == 'NF':
+    assert args.pyramid
+             
 if args.rrc:
     #assert args.min_scaling > 0 and args.min_scaling < 1
     assert not args.resize
@@ -240,20 +253,24 @@ if args.model_name != 'NF' and args.mode == 'train':
     assert args.filters == 0
     assert args.n_pyramid_blocks == 0
     assert args.subnet_type == ""
-
-if args.model_name == 'NF' and args.mode == 'train':
-    assert args.noise != 0
-    assert args.n_pyramid_blocks != 0
-    assert args.subnet_type != ''
     
     if args.pyramid:
         assert args.feat_extractor in ['resnet18','vgg16_bn','resnet50','resnet9']
     else:
         assert args.feat_extractor in ['alexnet', 'vgg16_bn','resnet18', 'none']
+
+if args.model_name == 'NF' and args.mode == 'train':
+    assert args.noise != 0
+    assert args.n_pyramid_blocks != 0
+    
+if args.model_name == 'NF' and args.mode in ['train','search']:
+    assert args.subnet_type != ''
+    
+
 # elif args.model_name != 'NF':
 #     assert args.feat_extractor == ''
     
-if args.subnet_type in ['conv','conv_shallow','conv_deep'] and args.mode != 'search':
+if args.subnet_type in ['conv','conv_shallow','conv_deep'] and args.mode not in ['search','store']:
     assert args.filters != 0 # this argument only applies to regular conv subnets
 else:
     assert args.filters == 0
@@ -293,4 +310,7 @@ else:
     assert args.gpu_number < 1 
     
 assert not (args.holdout and args.sat)
+
+# if args.model_name in ['UNet_seg','LCFCN']:
+#     assert args.max_filter_size == 3.99 # hacky way to ensure density maps and segmentation maps aren't overwritten and used for the wrong model
     

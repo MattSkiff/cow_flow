@@ -15,10 +15,12 @@ import numpy as np
 import sys
 
 # internal
+import baselines
 import model
 import config as c
 import arguments as a
 import gvars as g
+from utils import save_model, save_weights
 from data_loader import prep_transformed_dataset, train_val_split
 from train import train, train_baselines
 from eval import eval_baselines,dmap_metrics
@@ -30,7 +32,11 @@ if a.args.n_pyramid_blocks > 32:
 if c.gpu:
     empty_cache() # free up memory for cuda
 
-def main(num_samples=10, max_num_epochs=10, gpus_per_trial=2):
+assert a.args.num_samples
+assert a.args.max_num_epochs
+assert a.args.gpus_per_trial
+
+def main(num_samples, max_num_epochs, gpus_per_trial):
      
     init(local_mode=True) # needed to prevent conflict with worker.py and args parsing occuring in raytune 
     # https://github.com/ray-project/ray/issues/4786
@@ -39,7 +45,7 @@ def main(num_samples=10, max_num_epochs=10, gpus_per_trial=2):
     config = {
         # shared hyper parameters between flow and baselines
         "lr": tune.loguniform(1e-5, 1e-1),
-        "batch_size": tune.choice([8,16,32,64]),
+        "batch_size": tune.choice([1,4,8,16,32,64]), #[8,16,32,64]),
         'scheduler':tune.choice(['exponential','step','none']),
         'optimiser':tune.choice(['sgd','adam','adamw']),
         'weight_decay':tune.uniform(1e-5, 1e-2),
@@ -47,7 +53,7 @@ def main(num_samples=10, max_num_epochs=10, gpus_per_trial=2):
     }
         
     if a.args.model_name == 'NF':
-        config['batch_size'] = tune.choice([1]) #([8,16,32])
+        config['batch_size'] = tune.choice([1,4,8,16,32]) #([8,16,32])
         config['n_pyramid_blocks'] = tune.sample_from(lambda _: np.random.randint(1, 6))
         config['joint_optim'] = tune.choice([1,0])
         config['fixed1x1conv'] = tune.choice([1,0]) 
@@ -55,15 +61,13 @@ def main(num_samples=10, max_num_epochs=10, gpus_per_trial=2):
         config['noise'] = tune.uniform(1e-4, 1e-2)
         config['freeze_bn'] = tune.choice([1,0])
         config['subnet_bn'] = tune.choice([1,0])
-        config['filters'] = tune.choice([16,32,64,128,256])
+        config['filters'] = tune.choice([8,16,32,64,128,256])
         config['clamp'] = tune.choice([1,1.2,1.9,4,30])
-        config['feat_extractor'] = tune.choice(['resnet9']) # ,'resnet18','vgg16_bn','resnet50' 
+        config['feat_extractor'] = tune.choice(['resnet9','resnet18','vgg16_bn','resnet50']) #  
     
     if a.args.model_name == 'LCFCN':
-        config['batch_size'] = tune.choice([8,16,32])
         config['batch_size'] = tune.choice([1])  
     
-
     gpus_per_trial = 1
 
     scheduler = ASHAScheduler(
@@ -80,8 +84,9 @@ def main(num_samples=10, max_num_epochs=10, gpus_per_trial=2):
     def train_search(config, checkpoint_dir='./checkpoints/'):
         
         # updating global vars with config vars, as these are used when instantiating subnets when passing subnet constructor func to flow layers in FrEIA
-        g.FILTERS = config['filters']
-        g.SUBNET_BN = config['subnet_bn']
+        if a.args.model_name == 'NF':
+            g.FILTERS = config['filters']
+            g.SUBNET_BN = config['subnet_bn']
         
         dataset = prep_transformed_dataset(is_eval=a.args.mode=='eval',config=config)
         
@@ -113,56 +118,94 @@ def main(num_samples=10, max_num_epochs=10, gpus_per_trial=2):
             train(train_loader,val_loader,config=config)
         else:
             train_baselines(a.args.model_name,train_loader,val_loader,config=config)
-        
+    
+    logdir = '/home/mks29/clones/cow_flow/ray/'
+            
     result = tune.run(
         train_search,
         resources_per_trial={"cpu": 4, "gpu": gpus_per_trial},
         config=config,
         num_samples=num_samples,
+        local_dir=logdir,
         scheduler=scheduler,
         progress_reporter=reporter,
-        checkpoint_at_end=False)
+        checkpoint_at_end=False,
+        keep_checkpoints_num=1,
+        checkpoint_score_attr='loss')
         
-    best_trial = result.get_best_trial("loss", "min", "last")
+    best_trial = result.get_best_trial("loss", "min") # ,"last"
+    
     print("Best trial config: {}".format(best_trial.config))
+    
     print("Best trial final validation loss: {}".format(
         best_trial.last_result["loss"]))
-    print("Best trial final validation accuracy: {}".format(
-        best_trial.last_result["accuracy"]))
-
-    best_trained_model = model.CowFlow(modelname='best_mdl',feat_extractor = model.select_feat_extractor(a.args.feat_extractor),config=best_trial.config)
+    
+    # print("Best trial final validation accuracy: {}".format(
+    #     best_trial.last_result["accuracy"]))
+    
+    if a.args.model_name == 'NF':
+         best_trained_model = model.CowFlow(modelname='best_mdl_NF',feat_extractor = model.select_feat_extractor(a.args.feat_extractor,config=best_trial.config),config=best_trial.config)
+    elif a.args.model_name == 'UNet':
+         best_trained_model = baselines.UNet(modelname='best_mdl_UNet')
+    elif a.args.model_name == 'UNet_seg':
+         best_trained_model = baselines.UNet(modelname='best_mdl_UNet_seg',seg=True)
+    elif a.args.model_name == 'CSRNet': 
+         best_trained_model = baselines.CSRNet(modelname='best_mdl_CSRNet')
+    elif a.args.model_name ==  'MCNN':
+         best_trained_model = baselines.MCNN(modelname='best_mdl_MCNN')
+    elif a.args.model_name ==  'FCRN':
+         best_trained_model = baselines.FCRN_A(modelname='best_mdl_FCRN')
+    elif a.args.model_name ==  'VGG':
+         best_trained_model = baselines.VGG_density(modelname='best_mdl_VGG')
+    elif a.args.model_name ==  'LCFCN':
+         best_trained_model = baselines.LCFCN(modelname='best_mdl_LCFCN')
+    elif a.args.model_name ==  'Res50':
+         best_trained_model = baselines.Res50(modelname='best_mdl_Res50')
     
     device = "cpu"
     if torch.cuda.is_available():
         device = "cuda:0"
         if gpus_per_trial > 1:
             best_trained_model = nn.DataParallel(best_trained_model)
-            
+                        
+    # empty model initialised
     best_trained_model.to(device)
-
-    best_checkpoint_dir = best_trial.checkpoint.value
-    model_state, optimizer_state = torch.load(os.path.join(
-        best_checkpoint_dir, "checkpoint"))
+    
+    # https://docs.ray.io/en/latest/tune/getting-started.html#tune-tutorial
+    logdir =  best_trial.checkpoint.dir_or_data #result.get_best_result("loss", mode="min").log_dir
+    
+    model_state, optimizer_state = torch.load(os.path.join(logdir)+"/checkpoint")   
     best_trained_model.load_state_dict(model_state)
     
-    transformed_dataset = prep_transformed_dataset(is_eval=a.args.mode=='eval')
+    transformed_dataset = prep_transformed_dataset(is_eval=a.args.mode=='eval',config=best_trial.config)
     
-    OOD_dataset = prep_transformed_dataset(is_eval=False,holdout=True)
-    OOD_loader = DataLoader(OOD_dataset, batch_size=a.args.batch_size,shuffle=False, 
+    OOD_dataset = prep_transformed_dataset(is_eval=False,holdout=True,config=best_trial.config)
+    OOD_loader = DataLoader(OOD_dataset, batch_size=1,shuffle=False, 
                         num_workers=4,collate_fn=transformed_dataset.custom_collate_aerial,
-                        pin_memory=False,holdout=True)
+                        pin_memory=False)
     
     if a.args.model_name == 'NF':
         holdout_metric_dict = dmap_metrics(best_trained_model, OOD_loader,n=c.eval_n,mode='val')
     else:
         holdout_metric_dict = eval_baselines(best_trained_model,OOD_loader,mode='val')
-
+            
+    search_name = a.args.model_name+'_hp_search_'+str(num_samples)+"_"+str(max_num_epochs)
+    
     print("Best trial OOD test set metrics")
     print(holdout_metric_dict)
 
     print("Best trial config")
     print(best_trial.config)
+    
+    with open("/home/mks29/clones/cow_flow/models/"+search_name+".txt", 'w') as f:
+        print("Best trial OOD test set metrics")
+        print(holdout_metric_dict, file=f)
+        print("Best trial config")
+        print(best_trial.config, file=f)
+    
+    save_model(best_trained_model,search_name)
+    save_weights(best_trained_model,search_name)
 
 if __name__ == "__main__":
     # You can change the number of GPUs per trial here:
-    main(num_samples=2, max_num_epochs=2, gpus_per_trial=1)
+    main(num_samples=a.args.num_samples, max_num_epochs=a.args.max_num_epochs, gpus_per_trial=a.args.gpus_per_trial)

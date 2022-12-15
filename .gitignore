@@ -3,6 +3,7 @@
 *.jpg
 **/__pycache__
 **/runs
+**/ray
 **/models
 **/weights
 *.png

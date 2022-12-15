@@ -32,7 +32,6 @@ def train_baselines(model_name,train_loader,val_loader,config={},writer=None):
     
     if a.args.mode != 'search':
         config['lr'] = a.args.learning_rate
-        config['joint_optim'] = a.args.joint_optim
         config['scheduler']  = a.args.scheduler
         config['optimiser']  = a.args.optimiser
     
@@ -70,19 +69,19 @@ def train_baselines(model_name,train_loader,val_loader,config={},writer=None):
     elif a.args.model_name == "VGG":
         mdl = b.VGG_density(modelname=modelname)
         
-    if a.args.optim == 'adam':   
+    if config['optimiser'] == 'adam':   
         optimizer = torch.optim.Adam(mdl.parameters(), lr=config['lr'],
                                      betas=(a.args.adam_b1, a.args.adam_b2), eps=a.args.adam_e, weight_decay=config['weight_decay'])
-    if a.args.optim == 'adamw':
+    if config['optimiser'] == 'adamw':
         optimizer = torch.optim.AdamW(mdl.parameters(), lr=config['lr'], 
                                      betas=(a.args.adam_b1, a.args.adam_b2), eps=a.args.adam_e, weight_decay=config['weight_decay'])
-    if a.args.optim == 'sgd':
+    if config['optimiser'] == 'sgd':
         optimizer = torch.optim.SGD(mdl.parameters(), lr=config['lr'],momentum=a.args.sgd_mom)
 
     # add scheduler to improve stability further into training
-    if a.args.scheduler == "exponential":
+    if config['scheduler'] == "exponential":
         scheduler = ExponentialLR(optimizer, gamma=a.args.expon_gamma)
-    elif a.args.scheduler == "step":
+    elif config['scheduler'] == "step":
         scheduler = StepLR(optimizer,step_size=a.args.step_size,gamma=a.args.step_gamma)
         
     mdl.to(c.device) 
@@ -159,7 +158,7 @@ def train_baselines(model_name,train_loader,val_loader,config={},writer=None):
             mean_val_loss = np.mean(val_loss)
             tune_save_report(epoch=l,net=mdl,optimizer=optimizer,loss=mean_val_loss)
 
-            if mean_val_loss < best_loss and c.save_model:
+            if mean_val_loss < best_loss and c.save_model and not a.args.mode == 'search':
                 best_loss = mean_val_loss
                 # At this point also save a snapshot of the current model
                 save_model(mdl,"best"+"_"+modelname) # want to overwrite - else too many copies stored # +str(l)
@@ -241,9 +240,6 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,co
             
             # define backbone here 
             feat_extractor = model.select_feat_extractor(config['feat_extractor'],train_loader,val_loader,config=config)
-            print('#########################################################33')
-            print(feat_extractor)
-            print('#######################################################333')
             
             if a.args.data == 'mnist':
                 mdl = model.MNISTFlow(modelname=modelname,feat_extractor = feat_extractor)
@@ -308,7 +304,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,co
                     
                     train_loss = list()
                     
-                    if c.debug and a.args.scheduler != 'none':
+                    if c.debug and config['scheduler'] != 'none':
                         print('Initial Scheduler Learning Rate: ',scheduler.get_lr()[0])
                     
                     for i, data in enumerate(tqdm(train_loader, disable=c.hide_tqdm_bar)):
@@ -714,6 +710,7 @@ def train_classification_head(mdl,full_trainloader,full_valloader,criterion = nn
         print("Finetuning finished.")
     
     mdl.classification_head.load_state_dict(best_model_wts)
+    
     if not a.args.mode == 'search':
         save_model(mdl.classification_head,filename=filename,loc=g.FEAT_MOD_DIR)
     
