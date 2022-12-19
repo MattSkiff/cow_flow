@@ -36,6 +36,8 @@ import config as c
 import gvars as g
 import arguments as a
 import data_loader 
+import model
+import baselines
 
 # TODO - shift below 5 util functions to utils
 def save_cstate(cdir,modelname,config_file):
@@ -1814,42 +1816,84 @@ def loader_check(mdl,loader):
    
       
 # working
-def plot_errors(error_file_name,prediction_interval_file_name):
+def plot_errors(error_files_list,prediction_interval_file_name):
+    
+    mod = g.BASELINE_TITLE_NAMES
     
     # want to plot width of prediction interval from NF (as measure of uncertainty)
     # against actual error from baseline model
     # high correspondence shows the NF is correctly assigning uncertainty to predictions
+    # https://stackoverflow.com/questions/17411940/matplotlib-scatter-plot-legend
     
-    
-    error_file_path = os.path.join(g.VIZ_DATA_DIR,error_file_name)
+    fig, ax = plt.subplots(1)
+    ax.set_title("NF Prediction Interval Calibration",size=16)
+    fig.set_size_inches(8,8,forward=True)    
+    prediction_intervals = []
     prediction_interval_file_path = os.path.join(g.VIZ_DATA_DIR,prediction_interval_file_name)
-    
-    errors = []; prediction_intervals = []
-    
-    with open(error_file_path) as f:
-        errors_input = f.readlines()
-    
-        for line in errors_input:
-            errors.append(line)    
 
     with open(prediction_interval_file_path) as f:
         prediction_interval_input = f.readlines()
         
-    
         for line in prediction_interval_input:
             line = np.array(line[1:-2].split(),dtype=np.float32)
-            prediction_intervals.append(line)  
-     
-    intervals_df = pd.DataFrame(np.array(prediction_intervals), columns=['lb', 'ub'])
-    pred_width = np.array(np.abs(intervals_df['lb']-intervals_df['ub']))
-    errors = np.array(errors,dtype=np.float32)
-
-    fig, ax = plt.subplots(1)
-    #ax.vlines(errors,intervals_df['lb'],intervals_df['ub'])
-    ax.scatter(errors,pred_width)
-
-    ax.set_xlabel('Baseline LCFCN error size'.format(Path(error_file_path).stem))
-    ax.set_ylabel('NF prediction interval width')
+            prediction_intervals.append(line) 
     
+    i = 0; colors = ['b', 'c', 'y', 'm', 'r','k','g','0.5']; axs = []
+    
+    for error_file_name in error_files_list:
+    
+        errors = []
+        error_file_path = os.path.join(g.VIZ_DATA_DIR,error_file_name)
+        
+        with open(error_file_path) as f:
+            errors_input = f.readlines()
+        
+            for line in errors_input:
+                errors.append(line)     
+        
+        intervals_df = pd.DataFrame(np.array(prediction_intervals), columns=['lb', 'ub'])
+        pred_width = np.array(np.abs(intervals_df['lb']-intervals_df['ub']))
+        errors = np.array(errors,dtype=np.float32)+random.randint(0, 20) # todo - delete when final error paths populated
+        
+        axs.append(ax.scatter(errors,pred_width,color = colors[i],alpha=0.2))
+        axs[i]
+        i += 1
+    
+    #ax.vlines(errors,intervals_df['lb'],intervals_df['ub'])        
+    ax.set_xlabel('Baseline error size',size=14)
+    ax.set_ylabel('NF prediction interval width',size=14)
+    
+    plt.legend((axs[0],axs[1],axs[2],axs[3],axs[4],axs[5],axs[6],axs[7]),
+               (mod[0],mod[1],mod[2],mod[3],mod[4],mod[5],mod[6],mod[7]),
+               scatterpoints = 1,
+               loc = 'lower left',
+               ncol = 3,
+               fontsize = 12)
+    
+    plt.subplots_adjust(left=0.1, right=0.87, top=0.9, bottom=0.1)
+    plt.savefig("/home/mks29/Desktop/diagrams/temp_plot_errors_comparison", bbox_inches='tight', pad_inches = 0.3)
     plt.show()
+    
+def init_model(feat_extractor=None,config=None):
+    
+    if a.args.model_name == 'NF':
+         mdl = model.CowFlow(modelname='best_mdl_NF',feat_extractor=feat_extractor,config=config)
+    elif a.args.model_name == 'UNet':
+         mdl = baselines.UNet(modelname='best_mdl_UNet')
+    elif a.args.model_name == 'UNet_seg':
+         mdl = baselines.UNet(modelname='best_mdl_UNet_seg',seg=True)
+    elif a.args.model_name == 'CSRNet': 
+         mdl = baselines.CSRNet(modelname='best_mdl_CSRNet')
+    elif a.args.model_name ==  'MCNN':
+         mdl = baselines.MCNN(modelname='best_mdl_MCNN')
+    elif a.args.model_name ==  'FCRN':
+         mdl = baselines.FCRN_A(modelname='best_mdl_FCRN')
+    elif a.args.mdl ==  'VGG':
+         mdl = baselines.VGG_density(modelname='best_mdl_VGG')
+    elif a.args.model_name ==  'LCFCN':
+         mdl = baselines.LCFCN(modelname='best_mdl_LCFCN')
+    elif a.args.model_name ==  'Res50':
+         mdl = baselines.Res50(modelname='best_mdl_Res50')
+         
+    return mdl
     

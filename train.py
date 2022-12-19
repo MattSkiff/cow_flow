@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 from torch.nn.utils import clip_grad_value_
 from torch.utils.tensorboard import SummaryWriter
-from torch.optim.lr_scheduler import ExponentialLR, StepLR
+from torch.optim.lr_scheduler import ExponentialLR, StepLR, CyclicLR
 import torch.nn.functional as TF
 from torchvision.models import vgg16_bn, resnet18, efficientnet_b3 
 from ray import tune
@@ -40,7 +40,7 @@ def train_baselines(model_name,train_loader,val_loader,config={},writer=None):
     model_hparam_dict = make_hparam_dict(val_loader)
     
     if a.args.tensorboard:
-        writer = SummaryWriter(log_dir='runs/'+a.args.schema+'/'+modelname)
+        writer = SummaryWriter(log_dir='/home/mks29/clones/cow_flow/runs/'+a.args.schema+'/'+modelname)
     else:
         writer = writer
     
@@ -78,11 +78,7 @@ def train_baselines(model_name,train_loader,val_loader,config={},writer=None):
     if config['optimiser'] == 'sgd':
         optimizer = torch.optim.SGD(mdl.parameters(), lr=config['lr'],momentum=a.args.sgd_mom)
 
-    # add scheduler to improve stability further into training
-    if config['scheduler'] == "exponential":
-        scheduler = ExponentialLR(optimizer, gamma=a.args.expon_gamma)
-    elif config['scheduler'] == "step":
-        scheduler = StepLR(optimizer,step_size=a.args.step_size,gamma=a.args.step_gamma)
+    scheduler = choose_scheduler(config=config,optimizer=optimizer)
         
     mdl.to(c.device) 
     
@@ -169,21 +165,20 @@ def train_baselines(model_name,train_loader,val_loader,config={},writer=None):
             t_e2 = time.perf_counter()
             print("\nTrain | Sub Epoch Time (s): {:f}, Epoch train loss: {:.4f},Epoch val loss: {:.4f}".format(t_e2-t_e1,mean_train_loss,mean_val_loss))
             print('Meta Epoch: {:d}, Sub Epoch: {:d}, | Epoch {:d} out of {:d} Total Epochs'.format(meta_epoch, sub_epoch,meta_epoch*a.args.sub_epochs + sub_epoch+1,a.args.meta_epochs*a.args.sub_epochs))
-            
-            writer.add_scalar('loss/epoch_train',mean_train_loss, l)
-            writer.add_scalar('loss/epoch_val',mean_val_loss, l)
         
         if writer != None:
+            writer.add_scalar('loss/epoch_train',mean_train_loss, l)
+            writer.add_scalar('loss/epoch_val',mean_val_loss, l)
             val_metric_dict = eval_baselines(mdl,val_loader,mode='val')
             model_metric_dict.update(val_metric_dict)
             print(val_metric_dict)
     
-        writer.add_hparams(
-                  hparam_dict = model_hparam_dict,
-                  metric_dict = model_metric_dict,
-                  # this will create an entry per meta epoch
-                  run_name = "epoch_{}".format(meta_epoch)
-                  )
+            writer.add_hparams(
+                      hparam_dict = model_hparam_dict,
+                      metric_dict = model_metric_dict,
+                      # this will create an entry per meta epoch
+                      run_name = "epoch_{}".format(meta_epoch)
+                      )
         
         mdl.hparam_dict = model_hparam_dict
         mdl.metric_dict = model_metric_dict
@@ -234,7 +229,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,co
                 print("Training using {} train samples and {} val samples...".format(len(train_loader)*train_loader.batch_size,
                                                                                             len(val_loader)*val_loader.batch_size))            
             if a.args.tensorboard:
-                writer = SummaryWriter(log_dir='runs/'+a.args.schema+'/'+modelname)
+                writer = SummaryWriter(log_dir='/home/mks29/clones/cow_flow/runs/'+a.args.schema+'/'+modelname)
             else:
                 writer = writer
             
@@ -278,10 +273,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,co
                     optimizer = torch.optim.SGD(mdl.parameters(), lr=config['lr'],momentum=a.args.sgd_mom)   
                     
             # add scheduler to improve stability further into training
-            if config['scheduler'] == "exponential":
-                scheduler = ExponentialLR(optimizer, gamma=a.args.expon_gamma)
-            elif config['scheduler'] == "step":
-                scheduler = StepLR(optimizer,step_size=a.args.step_size,gamma=a.args.step_gamma)
+            scheduler = choose_scheduler(config=config,optimizer=optimizer)
         
             mdl.to(c.device)   
             
@@ -623,7 +615,7 @@ def train_classification_head(mdl,full_trainloader,full_valloader,criterion = nn
             ])
     
     if not c.debug:
-        writer = SummaryWriter(log_dir='runs/feat_pretrained/'+filename)
+        writer = SummaryWriter(log_dir='/home/mks29/clones/cow_flow/runs/feat_pretrained/'+filename)
     else:
         writer = None
     
@@ -732,7 +724,7 @@ def train_feat_extractor(feat_extractor,trainloader,valloader,criterion = nn.Cro
             ])
     
     if not c.debug:
-        writer = SummaryWriter(log_dir='runs/feat_pretrained/'+filename)
+        writer = SummaryWriter(log_dir='/home/mks29/clones/cow_flow/runs/feat_pretrained/'+filename)
     else:
         writer = None
     
@@ -834,3 +826,17 @@ def tune_save_report(epoch,net,optimizer,loss):
             torch.save((net.state_dict(), optimizer.state_dict()), path)
             
         tune.report(loss=(loss))
+        
+def choose_scheduler(config=None,optimizer=None):
+    
+    assert config, optimizer
+    
+    # add scheduler to improve stability further into training
+    if config['scheduler'] == "exponential":
+        scheduler = ExponentialLR(optimizer, gamma=a.args.expon_gamma)
+    elif config['scheduler'] == "step":
+        scheduler = StepLR(optimizer,step_size=a.args.step_size,gamma=a.args.step_gamma)
+    elif config['scheduler'] == "cyclic":
+        scheduler = CyclicLR(optimizer,base_lr=g.MIN_LR,max_lr=g.MAX_LR)
+        
+    return scheduler
