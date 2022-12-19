@@ -1,5 +1,6 @@
 import arguments as a
 import numpy as np
+import os
 
 FEAT_MOD_DIR = './models/feat_extractors/'
 VIZ_DIR = './viz'
@@ -9,6 +10,15 @@ MODEL_DIR = './models'
 LOG_DIR = './logs'
 C_DIR = './cstates'
 DMAP_DIR = './data/precompute/size_{}_sigma_{}/'.format(15,a.args.sigma)
+
+# used in search.py and cyclic
+MIN_LR = 0.1
+MAX_LR = 1e-5
+
+if os.getenv('WHEREAMI') == 'laptop': # conda env config vars WHEREAMI='laptop' 
+    RAYLOGDIR = '/home/mks29/clones/cow_flow/ray/'
+else:
+    RAYLOGDIR = '/Scratch/mks29/cow_flow/ray/'
 
 bm_dir = 'final_models_paper/256/'
 bm_dir_86 = 'final_models_paper/800x600/'
@@ -27,7 +37,24 @@ BEST_MODEL_PATH_DICT = {
     'VGG':bm_dir_86+'best_vgg_real1_VGG_hydra_BS16_LR_I0.001_E1000_DIM608_OPTIMsgd_SC1000_weighted_none_WD_0.01_29_09_2022_19_06_45'
     }
 
+
+# order needs to be the same
 BASELINE_MODEL_NAMES = ['UNet','CSRNet','FCRN','LCFCN','UNet_seg','MCNN','Res50','VGG']
+BASELINE_TITLE_NAMES = ['UNet (d)','CSRNet','FCRN','LC-FCN','UNet (s)','MCNN','ResNet-50','VGG-16']
+
+# must be in order of BASELINE MODEL NAMES
+ERROR_FILES_LIST = [
+    '4G2_Res50_hydra_BS64_LR_I0.0001_E1000_DIM256_OPTIMsgd_weight_none_04_05_2022_17_21_42.errors',
+    '4G2_Res50_hydra_BS64_LR_I0.0001_E1000_DIM256_OPTIMsgd_weight_none_04_05_2022_17_21_42.errors',
+    '4G2_Res50_hydra_BS64_LR_I0.0001_E1000_DIM256_OPTIMsgd_weight_none_04_05_2022_17_21_42.errors',
+    '4G2_Res50_hydra_BS64_LR_I0.0001_E1000_DIM256_OPTIMsgd_weight_none_04_05_2022_17_21_42.errors',
+    '4G2_Res50_hydra_BS64_LR_I0.0001_E1000_DIM256_OPTIMsgd_weight_none_04_05_2022_17_21_42.errors',
+    '4G2_Res50_hydra_BS64_LR_I0.0001_E1000_DIM256_OPTIMsgd_weight_none_04_05_2022_17_21_42.errors',
+    '4G2_Res50_hydra_BS64_LR_I0.0001_E1000_DIM256_OPTIMsgd_weight_none_04_05_2022_17_21_42.errors',
+    '4G2_Res50_hydra_BS64_LR_I0.0001_E1000_DIM256_OPTIMsgd_weight_none_04_05_2022_17_21_42.errors',
+    ]
+
+
 SUBNETS = ['conv','conv_shallow','fc','MCNN','UNet','conv_deep']
 THRES_SEQ = np.arange(0, 20, 0.5, dtype=float)
 

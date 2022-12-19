@@ -1,6 +1,8 @@
 import argparse
 import socket
 import os
+from time import sleep
+
 # command line params
 parser = argparse.ArgumentParser(description='Create dataloaders and train a model on MNIST, DLRACD or cow dataset.')
 
@@ -9,7 +11,7 @@ parser.add_argument('-title',help="Specify plot title.",default='')
 
 parser.add_argument('-get_likelihood',help='get and plot likelihoods / anamoly scores',action="store_true",default=False)
 parser.add_argument('-plot_errors',help='plot errors from error and interval file paths',action="store_true",default=False)
-parser.add_argument('-error_path',help="Specify mdl for eval",default='')
+#parser.add_argument('-error_path',help=default='') # unsued now, using hard coded list instead in gvars
 parser.add_argument('-interval_path',help="",default='')
 parser.add_argument('-get_grad_maps',help='dev',action="store_true",default=False)
 parser.add_argument('-jac',help='enable the jacobian as part of training',action="store_true",default=False)
@@ -103,7 +105,8 @@ parser.add_argument("-fe_wd",help="fe wd",type=float,default=1e-5)
 # Hyper parameter tuning
 parser.add_argument('-num_samples',type=int,default=0)
 parser.add_argument('-max_num_epochs',type=int,default=0)
-parser.add_argument('-gpus_per_trial',type=int,default=0)
+parser.add_argument('-gpus_per_trial',type=float,default=0) # fractional GPUs ok
+parser.add_argument('-small_batches',action='store_true',default=False)
 
 # TODO
 #parser.add_argument('-u_batchnorm',help='UNet batchnorm',action='store_true',default=False)
@@ -186,7 +189,7 @@ if args.write_errors:
 
 if args.plot_errors:
     assert args.mode == 'plot'
-    assert args.error_path != ''
+    #assert args.error_path != ''
     assert args.interval_path != ''
 
 if args.mode == 'store':
@@ -213,13 +216,10 @@ if not args.mode == 'search':
         # LCFCN only supports batch size of 1
         assert args.batch_size == 1 # https://github.com/ElementAI/LCFCN/issues/9
     elif args.mode != 'store':
+        if args.model_name == 'NF':
+            assert args.subnet_type == 'conv'
+            assert args.jac
         assert args.batch_size >= 1
-        assert args.subnet_type == 'conv'
-        assert args.jac
-        assert args.joint_optim
-        assert args.meta_epochs > 0 
-        assert args.sub_epochs > 0 
-        assert args.sampler == 'weighted'
 
 if args.mode == 'search' and args.model_name == 'NF':
     assert args.pyramid
@@ -265,7 +265,14 @@ if args.model_name == 'NF' and args.mode == 'train':
     
 if args.model_name == 'NF' and args.mode in ['train','search']:
     assert args.subnet_type != ''
-    
+    assert args.meta_epochs > 0 
+    assert args.sub_epochs > 0 
+
+    if not args.joint_optim:
+        print("###########\n\n\n")
+        print("WARNING: Feature Extractor not being jointly optimised with Flow!!")
+        print("###########\n\n\n")
+        sleep(5)    
 
 # elif args.model_name != 'NF':
 #     assert args.feat_extractor == ''
@@ -286,7 +293,6 @@ if args.model_name in ['UNet_seg','LCFCN']:
     assert args.max_filter_size == args.sigma
 
 if args.mode == 'train':
-    assert args.meta_epochs and args.sub_epochs >= 1
     assert args.scheduler in ['exponential','step','none']
     assert args.optim in ['sgd','adam','adamw']
 

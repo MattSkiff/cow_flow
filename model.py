@@ -929,9 +929,3 @@ class MNISTFlow(nn.Module):
         z = self.nf(x_or_z = labels,c = feats,rev=rev)
         
         return z
-
-# only include density map based models?
-
-class lcffcn():
-    # https://github.com/ElementAI/LCFCN
-    pass

@@ -20,7 +20,7 @@ import model
 import config as c
 import arguments as a
 import gvars as g
-from utils import save_model, save_weights
+from utils import save_model, save_weights, init_model
 from data_loader import prep_transformed_dataset, train_val_split
 from train import train, train_baselines
 from eval import eval_baselines,dmap_metrics
@@ -44,29 +44,37 @@ def main(num_samples, max_num_epochs, gpus_per_trial):
     
     config = {
         # shared hyper parameters between flow and baselines
-        "lr": tune.loguniform(1e-5, 1e-1),
-        "batch_size": tune.choice([1,4,8,16,32,64]), #[8,16,32,64]),
-        'scheduler':tune.choice(['exponential','step','none']),
+        "lr": tune.loguniform(g.MAX_LR, g.MIN_LAR),
+        "batch_size": tune.choice([8,16,32,64]), #[8,16,32,64]),
+        'scheduler':tune.choice(['cyclic']),
+        #'scheduler':tune.choice(['exponential','step','none']),
         'optimiser':tune.choice(['sgd','adam','adamw']),
         'weight_decay':tune.uniform(1e-5, 1e-2),
         'noise':tune.choice([0])
     }
         
     if a.args.model_name == 'NF':
-        config['batch_size'] = tune.choice([1,4,8,16,32]) #([8,16,32])
-        config['n_pyramid_blocks'] = tune.sample_from(lambda _: np.random.randint(1, 6))
-        config['joint_optim'] = tune.choice([1,0])
-        config['fixed1x1conv'] = tune.choice([1,0]) 
-        config['scheduler'] = tune.choice(['exponential','step','none'])
+        config['batch_size'] = tune.choice([4,8,16,32]) #([8,16,32])
+        config['n_pyramid_blocks'] = tune.sample_from(lambda _: np.random.randint(1, 5))
+        config['joint_optim'] = tune.choice([1]) # enabled JO always on HP search for now
+        #config['joint_optim'] = tune.choice([1,0])
+        #config['fixed1x1conv'] = tune.choice([1,0]) 
+        config['fixed1x1conv'] = tune.choice([0])  # diabled 1x1 always on HP search for now
+        #config['scheduler'] = tune.choice(['exponential','step','none'])
         config['noise'] = tune.uniform(1e-4, 1e-2)
         config['freeze_bn'] = tune.choice([1,0])
         config['subnet_bn'] = tune.choice([1,0])
         config['filters'] = tune.choice([8,16,32,64,128,256])
         config['clamp'] = tune.choice([1,1.2,1.9,4,30])
         config['feat_extractor'] = tune.choice(['resnet9','resnet18','vgg16_bn','resnet50']) #  
-    
+        
+    if a.args.small_batches:
+        config['batch_size'] = tune.choice([2,4,8]) #,4,8])
+        config['n_pyramid_blocks'] = tune.choice([1]) #,4,8])
+        
     if a.args.model_name == 'LCFCN':
         config['batch_size'] = tune.choice([1])  
+        
     
     gpus_per_trial = 1
 
@@ -119,7 +127,8 @@ def main(num_samples, max_num_epochs, gpus_per_trial):
         else:
             train_baselines(a.args.model_name,train_loader,val_loader,config=config)
     
-    logdir = '/home/mks29/clones/cow_flow/ray/'
+    
+    logdir = g.RAYLOGDIR
             
     result = tune.run(
         train_search,
@@ -144,23 +153,11 @@ def main(num_samples, max_num_epochs, gpus_per_trial):
     #     best_trial.last_result["accuracy"]))
     
     if a.args.model_name == 'NF':
-         best_trained_model = model.CowFlow(modelname='best_mdl_NF',feat_extractor = model.select_feat_extractor(a.args.feat_extractor,config=best_trial.config),config=best_trial.config)
-    elif a.args.model_name == 'UNet':
-         best_trained_model = baselines.UNet(modelname='best_mdl_UNet')
-    elif a.args.model_name == 'UNet_seg':
-         best_trained_model = baselines.UNet(modelname='best_mdl_UNet_seg',seg=True)
-    elif a.args.model_name == 'CSRNet': 
-         best_trained_model = baselines.CSRNet(modelname='best_mdl_CSRNet')
-    elif a.args.model_name ==  'MCNN':
-         best_trained_model = baselines.MCNN(modelname='best_mdl_MCNN')
-    elif a.args.model_name ==  'FCRN':
-         best_trained_model = baselines.FCRN_A(modelname='best_mdl_FCRN')
-    elif a.args.model_name ==  'VGG':
-         best_trained_model = baselines.VGG_density(modelname='best_mdl_VGG')
-    elif a.args.model_name ==  'LCFCN':
-         best_trained_model = baselines.LCFCN(modelname='best_mdl_LCFCN')
-    elif a.args.model_name ==  'Res50':
-         best_trained_model = baselines.Res50(modelname='best_mdl_Res50')
+        fe = model.select_feat_extractor(a.args.feat_extractor,config=best_trial.config)
+    else:
+        fe = None
+
+    best_trained_model = init_model(feat_extractor=fe,config=best_trial.config)
     
     device = "cpu"
     if torch.cuda.is_available():
@@ -188,7 +185,7 @@ def main(num_samples, max_num_epochs, gpus_per_trial):
         holdout_metric_dict = dmap_metrics(best_trained_model, OOD_loader,n=c.eval_n,mode='val')
     else:
         holdout_metric_dict = eval_baselines(best_trained_model,OOD_loader,mode='val')
-            
+    
     search_name = a.args.model_name+'_hp_search_'+str(num_samples)+"_"+str(max_num_epochs)
     
     print("Best trial OOD test set metrics")

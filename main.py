@@ -72,7 +72,7 @@ if a.args.data == 'cows':
         if a.args.mode == 'plot':  
             
             if a.args.plot_errors:
-                plot_errors(a.args.error_path,a.args.interval_path)
+                plot_errors(g.ERROR_FILES_LIST,a.args.interval_path)
                 
             elif a.args.model_name == 'NF':
                 if a.args.get_likelihood:
