@@ -1,10 +1,11 @@
 import argparse
+import click
 import socket
 import os
 from time import sleep
 
 # command line params
-parser = argparse.ArgumentParser(description='Create dataloaders and train a model on MNIST, DLRACD or cow dataset.')
+parser = argparse.ArgumentParser(description='Modes = train, evaluate, store, plot, search.')
 
 parser.add_argument('-mode',help="Specify mode (train,eval,store,plot,search).",default='')
 parser.add_argument('-title',help="Specify plot title.",default='')
@@ -27,10 +28,6 @@ parser.add_argument('-mdl_path',help="Specify mdl for eval",default='')
 parser.add_argument('-load_feat_extractor_str',help="Specify fe model name to load",default='')
 parser.add_argument('-bin_classifier_path', default='')
 
-parser.add_argument('-ram',help='Load images/dmaps/point maps into ram for faster trainig',action="store_true",default=False)
-parser.add_argument('-workers',help='Choose number of worker processes for pytorch loading',type=int,default=0)
-
-
 parser.add_argument('-mod',"--model_name",help="Specify model (NF,CSRNet, UNet, UCSRNetNet_seg, FCRN, LCFCN, MCNN).",default='')
 parser.add_argument("-fe_only", help="Trains the feature extractor only.", action="store_true",default=False)
 parser.add_argument("-bc_only", help="Trains the binary classifier only.", action="store_true",default=False)
@@ -42,8 +39,9 @@ parser.add_argument("-gn", "--gpu_number", help="Selects which GPU to train on."
 # Choose Dataset
 parser.add_argument('-d','--data',help='Run the architecture on the [dlr,cows,mnist] dataset.',default='cows')
 
+# Data options
 parser.add_argument('-sampler',help='type of sampler to use [anno,weighted,none]',default='')
-parser.add_argument('-normalise',help='normalise aerial imagery supplied to model with img net mean & std dev',action='store_true',default=True)
+parser.add_argument('-normalise',help='normalise aerial imagery supplied to model with img net mean & std dev',action='store_true',default=False)
 parser.add_argument('-rs','--resize',help='resize image to the specified img size',action="store_true",default=False)
 parser.add_argument('-rrc',help='perform random resize cropping',action="store_true",default=False)
 parser.add_argument('-sigma',help='Variance of gaussian kernels used to create density maps',type=float,default=4.0)  # ignored for DLR ACD which uses gsd correspondence
@@ -51,6 +49,15 @@ parser.add_argument('-dmap_scaling',help='Scale up density map to ensure gaussia
 parser.add_argument('-min_scaling',help='Minimum scaling bound (0-1) for random resized crop transform',type=float,default=-1)
 parser.add_argument('-img_sz','--image_size',help='Size of the random crops taken from the original data patches [Cows 800x600, DLR 320x320] - must be divisble by 8 for CSRNet',type=int,default=256)
 parser.add_argument('-max_filter_size',help='Size of max filters for unet seg and LCFCN',type=int,default=0)
+parser.add_argument('-dt','--disable_transforms',help="turn off flipping, rotating, random noise (but not resize)",default=False)
+
+# Data loader options
+parser.add_argument('-pm','--pin_memory',action='store_true',default=False)
+parser.add_argument('-pff','--prefetch_factor',type=int,default=2)
+parser.add_argument('-pw',help='persistent workers',action="store_true",default=False)
+parser.add_argument('-workers',help='Choose number of worker processes for pytorch loading',type=int,default=0)
+parser.add_argument('-ram',help='Load images/dmaps/point maps into ram for faster trainig',action="store_true",default=False)
+
 
 parser.add_argument('-test','--test_run',help='use only a small fraction of data to check everything works',action='store_true')
 # parser.add_argument("-cfile", "--config_file", help="Specify a config file that will determine training options.", type=int, default=0)
@@ -86,7 +93,7 @@ parser.add_argument('-wd','--weight_decay',type=float,default=None) # differnet:
 parser.add_argument('-feat_extractor',help="type of feature extractor backbone to use in flow [resnet18, vgg16_bn,resnet50,resnet9]",default ='')
 parser.add_argument("-train_classification_head",action='store_true',default=False) # whether to train classification model for filtering null patches
 parser.add_argument("-all_in_one",action='store_true',default=False) # whether to use all in blocks (inc act norm)
-parser.add_argument("-pyramid",action='store_true',default=False) # whether to a feature pyramid for conditioning 
+parser.add_argument("-py","--pyramid",action='store_true',default=False) # whether to a feature pyramid for conditioning 
 parser.add_argument("-fixed1x1conv",action='store_true',default=False) # whether to use 1x1 convs
 parser.add_argument("-freq_1x1",type=int,default=1) # 1 for always | how many x coupling blocks to have a 1x1 conv permutation layer
 parser.add_argument("-npb","--n_pyramid_blocks",type=int,default=0)
@@ -105,8 +112,11 @@ parser.add_argument("-fe_wd",help="fe wd",type=float,default=1e-5)
 # Hyper parameter tuning
 parser.add_argument('-num_samples',type=int,default=0)
 parser.add_argument('-max_num_epochs',type=int,default=0)
-parser.add_argument('-gpus_per_trial',type=float,default=0) # fractional GPUs ok
+parser.add_argument('-gpus_per_trial',type=float,default=1) # fractional GPUs ok
 parser.add_argument('-small_batches',action='store_true',default=False)
+parser.add_argument('-resume',action='store_true',default=False) # resume from checkpointed run
+
+
 
 # TODO
 #parser.add_argument('-u_batchnorm',help='UNet batchnorm',action='store_true',default=False)
@@ -118,7 +128,7 @@ parser.add_argument('-small_batches',action='store_true',default=False)
 # parser.add_argument("-eval_image",'--img',help="Run the model on the image specified (requires model loaded)",type=str,default='')
 # parser.add_argument("-load_model",'--load',help="load the model (from path) for evaluation, inference, or visualisation",type=str,default='')
 
-global args 
+# global args 
 args = parser.parse_args()
 host = socket.gethostname()
 
@@ -180,6 +190,9 @@ if any('SPYDER' in name for name in os.environ):
 # checks
 assert args.mode in ['train','eval','store','plot','search']
 assert args.gpu_number > -1
+
+if args.resume:
+    assert args.mode == 'search'
 
 if args.title != '':
     assert args.mode == 'plot'
@@ -253,11 +266,11 @@ if args.model_name != 'NF' and args.mode == 'train':
     assert args.filters == 0
     assert args.n_pyramid_blocks == 0
     assert args.subnet_type == ""
-    
-    if args.pyramid:
-        assert args.feat_extractor in ['resnet18','vgg16_bn','resnet50','resnet9']
-    else:
-        assert args.feat_extractor in ['alexnet', 'vgg16_bn','resnet18', 'none']
+
+if args.pyramid and args.model_name == 'NF' and args.mode == 'train':
+    assert args.feat_extractor in ['resnet18','vgg16_bn','resnet50','resnet9']
+elif args.model_name == 'NF' and args.mode == 'train':
+    assert args.feat_extractor in ['alexnet', 'vgg16_bn','resnet18', 'none']
 
 if args.model_name == 'NF' and args.mode == 'train':
     assert args.noise != 0
@@ -316,6 +329,9 @@ else:
     assert args.gpu_number < 1 
     
 assert not (args.holdout and args.sat)
+
+if args.mode == 'search':
+    assert args.gpus_per_trial and args.max_num_epochs and args.num_samples > 0
 
 # if args.model_name in ['UNet_seg','LCFCN']:
 #     assert args.max_filter_size == 3.99 # hacky way to ensure density maps and segmentation maps aren't overwritten and used for the wrong model

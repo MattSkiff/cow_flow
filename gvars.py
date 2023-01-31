@@ -12,10 +12,13 @@ C_DIR = './cstates'
 DMAP_DIR = './data/precompute/size_{}_sigma_{}/'.format(15,a.args.sigma)
 
 # used in search.py and cyclic
-MIN_LR = 0.1
-MAX_LR = 1e-5
+MIN_LR = 1e-5
+MAX_LR = 0.1
 
-if os.getenv('WHEREAMI') == 'laptop': # conda env config vars WHEREAMI='laptop' 
+if os.uname().nodename == 'hydra':
+    #RAYLOGDIR =  '/home/mks29/clones/cow_flow/ray/'
+    RAYLOGDIR =  '/Scratch/repository/skiff/ray/'
+elif os.getenv('WHEREAMI') == 'laptop': # conda env config vars WHEREAMI='laptop' 
     RAYLOGDIR = '/home/mks29/clones/cow_flow/ray/'
 else:
     RAYLOGDIR = '/Scratch/mks29/cow_flow/ray/'

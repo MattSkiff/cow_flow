@@ -404,7 +404,7 @@ class CowObjectsDataset(Dataset):
     def __init__(self, root_dir,transform=None,convert_to_points=False,generate_density=False,
                  count=False,classification=False,ram=False,holdout=a.args.holdout,sat=False,resize=a.args.resize):
         """
-        Args:
+        args:
             root_dir (string): Directory with the following structure:
                 object.names file
                 object.data file
@@ -499,6 +499,7 @@ class CowObjectsDataset(Dataset):
         
         def compute_labels(idx,resize=False):
             
+            # this will break with use of config file.... # TODO URGENT
             if a.args.model_name in ['UNet_seg','LCFCN']:  #a.args.dmap_type == 'max':
                 dmap_type = '_max'
             else:
@@ -653,9 +654,9 @@ class CowObjectsDataset(Dataset):
         
         if self.ram:
             
-            if not a.args.mode == 'store' and a.args.ram:
+            if not a.args.mode == 'store' and self.ram:
                 desc = "Loading images, annotations, dmaps and labels into RAM"
-            elif a.args.ram and a.args.mode == 'store':
+            elif self.ram and a.args.mode == 'store':
                 desc = "Storing dmaps, pmaps, annotations and labels to file"
             
             for idx in tqdm(range(len(self.im_paths)),desc=desc):
@@ -900,75 +901,158 @@ class CowObjectsDataset(Dataset):
     
     # method to stack tensors of different sizes:
     # https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection/blob/master/datasets.py
-
     def custom_collate_aerial(self,batch,debug = False):
-        # only needed to collate annotations
+       # only needed to collate annotations
 
-        images = list()
-        density = list()
-        point_map = list()
-        labels = list()
-        annotations = list()
-        binary_labels = list()
+       self.b_images = list()
+       self.b_density = list()
+       self.b_point_map = list()
+       self.b_labels = list()
+       self.b_annotations = list()
+       
+       if self.classification:
+           self.b_binary_labels = list()
+       
+       if self.count:
+           self.b_counts = list()
+       
+        # custom memory pinning method on custom type
+       def pin_memory(self):
+             
+        self.b_images = self.b_images.pin_memory()
+        self.b_density = self.b_density.pin_memory()
+        self.b_point_map = self.b_point_map.pin_memory()
+        self.b_labels = self.b_labels.pin_memory()
+        self.b_annotations = self.b_annotations.pin_memory()
         
         if self.count:
-            counts = list()
+            self.b_counts = self.b_counts.pin_memory()
+        if self.classification:
+            self.b_binary_labels = self.b_binary_labels.pin_memory()
+         
+        return self 
+       
+       for b in batch:
+                 
+           self.b_images.append(b['image'])
+             
+           if 'density' in b.keys():
+               self.b_density.append(b['density'])
+               
+           if 'point_map' in b.keys():
+               self.b_point_map.append(b['point_map'])
+           
+           if 'labels' in b.keys():
+               self.b_labels.append(b['labels'])
+               
+           if 'annotations' in b.keys():
+               self.b_annotations.append(b['annotations'])
+           
+           if self.count:
+               self.b_counts.append(b['counts']) 
+               
+           if self.classification:
+                self.b_binary_labels.append(b['binary_labels'])
+
+       self.b_images = torch.stack(self.b_images,dim = 0)
+       
+       if 'density' in b.keys():
+           self.b_density = torch.stack(self.b_density,dim = 0)
+           
+       if 'point_map' in b.keys():
+           self.b_point_map = torch.stack(self.b_point_map,dim = 0)
+         
+       if 'labels' in b.keys():
+           self.b_labels = self.b_labels
+           
+       if 'annotations' in b.keys():
+           self.b_annotations = self.b_annotations
+       
+       if self.count:
+           self.b_counts = torch.stack(self.b_counts,dim = 0)
+           
+       if self.classification:
+           self.b_binary_labels = torch.stack(self.b_binary_labels,dim = 0)
+       
+       out = self.b_images,self.b_density,self.b_labels
+       
+       if self.count:
+           out = out + (self.b_counts,)
+           
+       if self.classification:
+           out = out + (self.b_binary_labels,)
+           
+       out = out + (self.b_annotations,)
+       
+       out = out + (self.b_point_map,)
+   
+       return out
+
+# def custom_collate_aerial(batch):
+#     return AerialCustomBatch(batch)
+
+# class AerialCustomBatch:
+#     def __init__(self,data):
         
-        for b in batch:
+#         self.b_images = list()
+#         self.b_densities = list()
+#         self.b_point_map = list()
+#         self.b_labels = list()
+#         self.b_annotations = list()
+#         self.b_binary_labels = list()
+        
+#         if self.count:
+#             self.b_counts = list()
+        
+#         for b in data:
                   
-            images.append(b['image'])
+#             self.b_images.append(b['image'])
               
-            if 'density' in b.keys():
-                density.append(b['density'])
+#             if 'density' in b.keys():
+#                 self.b_densities.append(b['density'])
                 
-            if 'point_map' in b.keys():
-                point_map.append(b['point_map'])
+#             if 'point_map' in b.keys():
+#                 self.b_point_map.append(b['point_map'])
             
-            if 'labels' in b.keys():
-                labels.append(b['labels'])
+#             if 'labels' in b.keys():
+#                 self.b_labels.append(b['labels'])
                 
-            if 'annotations' in b.keys():
-                annotations.append(b['annotations'])
+#             if 'annotations' in b.keys():
+#                 self.b_annotations.append(b['annotations'])
             
-            if self.count:
-                counts.append(b['counts']) 
+#             if 'counts' in b.keys():
+#                 self.b_counts.append(b['counts']) 
                 
-            if self.classification:
-                 binary_labels.append(b['binary_labels'])
-
-        images = torch.stack(images,dim = 0)
-        
-        if 'density' in b.keys():
-            density = torch.stack(density,dim = 0)
-            
-        if 'point_map' in b.keys():
-            point_map = torch.stack(point_map,dim = 0)
-          
-        if 'labels' in b.keys():
-            labels = labels
-            
-        if 'annotations' in b.keys():
-            annotations = annotations
-        
-        if self.count:
-            counts = torch.stack(counts,dim = 0)
-            
-        if self.classification:
-            binary_labels = torch.stack(binary_labels,dim = 0)
-        
-        out = images,density,labels
-        
-        if self.count:
-            out = out + (counts,)
-            
-        if self.classification:
-            out = out + (binary_labels,)
-            
-        out = out + (annotations,)
-        
-        out = out + (point_map,)
+#             if 'binary_labels' in b.keys():
+#                  self.b_binary_labels.append(b['binary_labels'])
     
-        return out
+#         self.b_images = torch.stack(self.b_images,dim = 0)
+        
+#         if 'density' in b.keys():
+#             self.b_density = torch.stack(self.b_density,dim = 0)
+            
+#         if 'point_map' in b.keys():
+#             self.b_point_map = torch.stack(self.b_point_map,dim = 0)
+          
+#         if 'labels' in b.keys():
+#             self.b_labels = self.b_labels
+            
+#         if 'annotations' in b.keys():
+#             self.b_annotations = self.b_annotations
+        
+#         if self.count:
+#             self.b_counts = torch.stack(self.b_counts,dim = 0)
+            
+#         if self.classification:
+#             self.b_binary_labels = torch.stack(self.b_binary_labels,dim = 0)
+        
+#         # custom memory pinning method on custom type
+#     # def pin_memory(self):
+#     #     self.b_images = self.inp.pin_memory()
+#     #     self.tgt = self.tgt.pin_memory()
+#     #     return self
+
+
 
 # Define transform to tensor
 # Rescale transform not needed as slices are all same size
@@ -1219,7 +1303,7 @@ class CustResize(object):
 def train_val_split(dataset,train_percent,oversample=False,annotations_only = False,seed = -1):
     
     ''' 
-     Args:
+     args:
          dataset: pytorch dataset
          train_percent: percentage of dataset to allocate to training set
          balance: whether to create a 50/50 dataset of annotations:empty patches
@@ -1322,7 +1406,7 @@ def train_val_split(dataset,train_percent,oversample=False,annotations_only = Fa
     
     return t_indices, t_weights, v_indices, v_weights
 
-def prep_transformed_dataset(is_eval=False,resize=a.args.resize,holdout=a.args.holdout,config={}):
+def prep_transformed_dataset(is_eval=False,resize=a.args.resize,holdout=a.args.holdout,config={},ram=a.args.ram):
     
     if a.args.mode != 'search':
         config['noise'] = a.args.noise
@@ -1353,7 +1437,7 @@ def prep_transformed_dataset(is_eval=False,resize=a.args.resize,holdout=a.args.h
     transformed_dataset = CowObjectsDataset(root_dir=c.proj_dir,transform = dmaps_pre,
                                             convert_to_points=True,generate_density=True,
                                             count = c.counts, 
-                                            classification = True,ram=a.args.ram, holdout=holdout,sat=a.args.sat,resize=resize)
+                                            classification = True,ram=ram, holdout=holdout,sat=a.args.sat,resize=resize)
     
     return transformed_dataset
 
@@ -1380,25 +1464,25 @@ def make_loaders(transformed_dataset,is_eval=False,holdout=a.args.holdout):
     
     # leave shuffle off for use of any samplers
     full_train_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 
-                        num_workers=a.args.workers,collate_fn=transformed_dataset.custom_collate_aerial,
-                        pin_memory=True,sampler=full_train_sampler,persistent_workers=False,prefetch_factor=2)
+                        num_workers=a.args.workers,collate_fn=transformed_dataset.custom_collate_aerial, # transformed_dataset.
+                        pin_memory=a.args.pin_memory,sampler=full_train_sampler,persistent_workers=a.args.pw,prefetch_factor=a.args.prefetch_factor)
 
     full_val_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 
-                        num_workers=a.args.workers,collate_fn=transformed_dataset.custom_collate_aerial,
-                        pin_memory=True,sampler=full_val_sampler,persistent_workers=False,prefetch_factor=2)
+                        num_workers=a.args.workers,collate_fn=transformed_dataset.custom_collate_aerial, # transformed_dataset.
+                        pin_memory=a.args.pin_memory,sampler=full_val_sampler,persistent_workers=a.args.pw,prefetch_factor=a.args.prefetch_factor)
     
     train_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 
                         num_workers=a.args.workers,collate_fn=transformed_dataset.custom_collate_aerial,
-                        pin_memory=True,sampler=train_sampler,persistent_workers=False,prefetch_factor=2)
+                        pin_memory=a.args.pin_memory,sampler=train_sampler,persistent_workers=a.args.pw,prefetch_factor=a.args.prefetch_factor)
 
     val_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 
                         num_workers=a.args.workers,collate_fn=transformed_dataset.custom_collate_aerial,
-                        pin_memory=True,sampler=val_sampler,persistent_workers=False,prefetch_factor=2)
+                        pin_memory=a.args.pin_memory,sampler=val_sampler,persistent_workers=a.args.pw,prefetch_factor=a.args.prefetch_factor)
     
     if a.args.mode == 'eval' and (holdout or a.args.sat):
         val_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 
                             num_workers=a.args.workers,collate_fn=transformed_dataset.custom_collate_aerial,
-                            pin_memory=True,sampler=None,persistent_workers=False,prefetch_factor=2)
+                            pin_memory=a.args.pin_memory,sampler=None,persistent_workers=a.args.pw,prefetch_factor=a.args.prefetch_factor)
         
     
     return full_train_loader, full_val_loader, train_loader, val_loader
@@ -1410,7 +1494,7 @@ class UnNormalize(object):
 
     def __call__(self, tensor):
         """
-        Args:
+        args:
             tensor (Tensor): Tensor image of size (C, H, W) to be normalized.
         Returns:
             Tensor: Normalized image.
@@ -1425,6 +1509,14 @@ def preprocess_batch(data,dlr=False):
     
     if not dlr:
         images,dmaps,labels, binary_labels, annotations,point_maps = data
+        
+        # print(images.is_pinned())
+        # print(dmaps.is_pinned())
+        # #print(labels.is_pinned())
+        # #print(binary_labels.is_pinned())
+        # #print(annotations.is_pinned())
+        # print(point_maps.is_pinned())
+        
         dmaps = dmaps * a.args.dmap_scaling
         images,dmaps,labels, binary_labels, annotations,point_maps = images.to(c.device,non_blocking=True),dmaps.to(c.device,non_blocking=True),labels, binary_labels.to(c.device,non_blocking=True), annotations,point_maps.to(c.device,non_blocking=True)
     

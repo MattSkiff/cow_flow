@@ -19,7 +19,7 @@ import types
 from datetime import datetime 
 
 # Internal
-from utils import get_loss, plot_preds,plot_preds_baselines, counts_preds_vs_actual, t2np, torch_r2, make_model_name, make_hparam_dict, save_model
+from utils import get_loss, plot_preds,plot_preds_baselines, counts_preds_vs_actual, t2np, torch_r2, make_model_name, make_hparam_dict, save_model, init_model
 import model # importing entire file fixes 'cyclical import' issues
 import config as c
 import gvars as g
@@ -33,10 +33,12 @@ def train_baselines(model_name,train_loader,val_loader,config={},writer=None):
     if a.args.mode != 'search':
         config['lr'] = a.args.learning_rate
         config['scheduler']  = a.args.scheduler
-        config['optimiser']  = a.args.optimiser
+        config['optimiser']  = a.args.optim
+        config['weight_decay'] = a.args.weight_decay
+
     
     model_metric_dict = {}
-    modelname = make_model_name(train_loader)
+    modelname = make_model_name()
     model_hparam_dict = make_hparam_dict(val_loader)
     
     if a.args.tensorboard:
@@ -52,33 +54,9 @@ def train_baselines(model_name,train_loader,val_loader,config={},writer=None):
     else:
         loss = torch.nn.MSELoss(size_average=True)
     
-    if a.args.model_name == "FCRN":
-        mdl = b.FCRN_A(modelname=modelname)
-    elif a.args.model_name == "UNet":
-        mdl = b.UNet(modelname=modelname)
-    elif a.args.model_name == "UNet_seg":
-        mdl = b.UNet(modelname=modelname,seg=True)        
-    elif a.args.model_name == "CSRNet":
-        mdl = b.CSRNet(modelname=modelname)
-    elif a.args.model_name == "LCFCN":
-        mdl = b.LCFCN(modelname=modelname)
-    elif a.args.model_name == "MCNN":
-        mdl = b.MCNN(modelname=modelname)
-    elif a.args.model_name == "Res50":
-        mdl = b.Res50(modelname=modelname)
-    elif a.args.model_name == "VGG":
-        mdl = b.VGG_density(modelname=modelname)
-        
-    if config['optimiser'] == 'adam':   
-        optimizer = torch.optim.Adam(mdl.parameters(), lr=config['lr'],
-                                     betas=(a.args.adam_b1, a.args.adam_b2), eps=a.args.adam_e, weight_decay=config['weight_decay'])
-    if config['optimiser'] == 'adamw':
-        optimizer = torch.optim.AdamW(mdl.parameters(), lr=config['lr'], 
-                                     betas=(a.args.adam_b1, a.args.adam_b2), eps=a.args.adam_e, weight_decay=config['weight_decay'])
-    if config['optimiser'] == 'sgd':
-        optimizer = torch.optim.SGD(mdl.parameters(), lr=config['lr'],momentum=a.args.sgd_mom)
-
-    scheduler = choose_scheduler(config=config,optimizer=optimizer)
+    mdl = init_model(feat_extractor=None,config=config)
+    optimizer = choose_optimizer(model=mdl,config=config) 
+    scheduler = choose_scheduler(optimizer=optimizer,config=config)
         
     mdl.to(c.device) 
     
@@ -94,7 +72,7 @@ def train_baselines(model_name,train_loader,val_loader,config={},writer=None):
             
             for i, data in enumerate(tqdm(train_loader, disable=c.hide_tqdm_bar)):
                 
-                optimizer.zero_grad()
+                optimizer.zero_grad(set_to_none=False)
                 images,dmaps,labels, binary_labels, annotations,point_maps = preprocess_batch(data)
                 
                 results = mdl(images)
@@ -205,11 +183,18 @@ def train_baselines(model_name,train_loader,val_loader,config={},writer=None):
 def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,config={},writer=None):
             
             if a.args.mode != 'search':
+                config['fixed1x1conv'] = a.args.fixed1x1conv
+                config['noise'] = a.args.noise
+                config['subnet_bn'] = a.args.subnet_bn
+                config['filters'] = a.args.filters
+                config['batch_size'] = a.args.batch_size
                 config['lr'] = a.args.learning_rate
                 config['feat_extractor']= a.args.feat_extractor
+                config['weight_decay'] = a.args.weight_decay
                 config['joint_optim'] = a.args.joint_optim
                 config['scheduler']  = a.args.scheduler
-                config['optimiser']  = a.args.optimiser
+                config['optimiser']  = a.args.optim
+                config['clamp']  = c.clamp_alpha
     
             if c.debug:
                 torch.autograd.set_detect_anomaly(True)
@@ -219,7 +204,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,co
                 print("Using device: {}".format(c.device))
                 
             model_metric_dict = {}
-            modelname = make_model_name(train_loader)
+            modelname = make_model_name()
             model_hparam_dict = make_hparam_dict(val_loader)
             
             run_start = time.perf_counter()
@@ -244,35 +229,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,co
             
             c_head_trained = False
             
-            if config['joint_optim'] and config['feat_extractor'] != 'none':
-                # TODO
-                if config['optimiser'] == 'adam':   
-                    optimizer = torch.optim.Adam([
-                                {'params': mdl.nf.parameters()},
-                                {'params': mdl.feat_extractor.parameters(), 'lr_init': a.args.fe_lr,'betas':(a.args.fe_b1,a.args.fe_b2),'eps':1e-08, 'weight_decay':a.args.fe_wd}
-                            ], lr=config['lr'], betas=(a.args.adam_b1, a.args.adam_b2), eps=a.args.adam_e, weight_decay=config['weight_decay'] )      
-                    
-                if config['optimiser'] == 'adamw':   
-                    optimizer = torch.optim.AdamW([
-                                {'params': mdl.nf.parameters()},
-                                {'params': mdl.feat_extractor.parameters(), 'lr_init': a.args.fe_lr,'betas':(a.args.fe_b1,a.args.fe_b2),'eps':1e-08, 'weight_decay':a.args.fe_wd}
-                            ], lr=config['lr'], betas=(a.args.adam_b1, a.args.adam_b2), eps=a.args.adam_e, weight_decay=config['weight_decay'] )  
-                
-                if config['optimiser'] == 'sgd':
-                    optimizer = torch.optim.SGD([
-                                {'params': mdl.nf.parameters()},
-                                {'params': mdl.feat_extractor.parameters(), 'lr_init': a.args.fe_lr,'weight_decay':config['weight_decay']}
-                            ], lr=config['lr'],momentum=a.args.sgd_mom)
-            else:
-                
-                if config['optimiser'] == 'adam':   
-                    optimizer = torch.optim.Adam(mdl.parameters(), lr=config['lr'], betas=(a.args.adam_b1, a.args.adam_b2), eps=a.args.adam_e, weight_decay=config['weight_decay'])
-                if config['optimiser'] == 'adamw':   
-                    optimizer = torch.optim.AdamW(mdl.parameters(), lr=config['lr'], betas=(a.args.adam_b1, a.args.adam_b2), eps=a.args.adam_e, weight_decay=config['weight_decay'])
-                if config['optimiser'] == 'sgd':
-                    optimizer = torch.optim.SGD(mdl.parameters(), lr=config['lr'],momentum=a.args.sgd_mom)   
-                    
-            # add scheduler to improve stability further into training
+            optimizer = choose_optimizer(model=mdl,config=config)      
             scheduler = choose_scheduler(config=config,optimizer=optimizer)
         
             mdl.to(c.device)   
@@ -303,7 +260,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,co
                         
                         t1 = time.perf_counter()
                         
-                        optimizer.zero_grad()
+                        optimizer.zero_grad(set_to_none=False)
                         
                         # TODO - can this section
                         if a.args.data == 'dlr':
@@ -312,6 +269,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,co
                             images,dmaps,labels,annotations, point_maps = data 
                         elif not a.args.data == 'mnist' and not c.counts:
                             images,dmaps,labels, binary_labels, annotations,point_maps = preprocess_batch(data)
+                            
                             #images,dmaps,labels,annotations,binary_labels,point_maps  = data 
                         elif not a.args.data == 'mnist':
                             images,dmaps,labels,counts, point_maps = data
@@ -454,90 +412,93 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,co
                             
                         j += 1
                 
-                #### Meta epoch code (metrics) ------
                 
-                # train classification head to filter out null patches
+                
+                # train classification head to filter out nul patches
+                
                 if not a.args.data == 'dlr' and not mdl.mnist and not c_head_trained and a.args.train_classification_head:
                     c_head_trained = True
                     mdl.classification_head = train_classification_head(mdl,head_train_loader,head_val_loader)
-                
-                if mdl.mnist:
-                    val_acc, train_acc = eval_mnist(mdl,val_loader,train_loader)
-                    print("\n")
-                    print("Training Accuracy: ", train_acc,"| Epoch: ",meta_epoch)
-                    print("val Accuracy: ",val_acc,"| Epoch: ",meta_epoch)
-                
-                if c.save_model and c.checkpoints and not a.args.mode == 'search':
-                    mdl.to('cpu')
-                    save_model(mdl,"checkpoint_"+str(l)+"_"+modelname)
-                    #save_weights(model,"checkpoint_"+str(l)+"_"+modelname) # currently have no use for saving weights
-                    mdl.to(c.device)
-                
-                if writer != None:
-                    # DMAP Count Metrics - y,y_n,y_hat_n,y_hat_n_dists,y_hat_coords
-                    # add images to TB writer
-                    if a.args.viz and j % a.args.viz_freq == 0:
-                        plot_preds(mdl,train_loader,writer=writer,writer_epoch=meta_epoch,writer_mode='train',null_filter=False)
-                        
-                    train_metric_dict = dmap_metrics(mdl, train_loader,n=c.eval_n,mode='train')
-                    print(train_metric_dict)
-                    model_metric_dict.update(train_metric_dict)
+                 
+                #### Meta epoch code (metrics) ------
+                with torch.no_grad():
+                    if mdl.mnist:
+                        val_acc, train_acc = eval_mnist(mdl,val_loader,train_loader)
+                        print("\n")
+                        print("Training Accuracy: ", train_acc,"| Epoch: ",meta_epoch)
+                        print("val Accuracy: ",val_acc,"| Epoch: ",meta_epoch)
                     
-                    if a.args.viz and mdl.dlr_acd and j % a.args.viz_freq == 0:
-                        plot_preds(mdl,train_loader,writer=writer,writer_epoch=meta_epoch,writer_mode='train',null_filter=False)
+                    if c.save_model and c.checkpoints and not a.args.mode == 'search':
+                        mdl.to('cpu')
+                        save_model(mdl,"checkpoint_"+str(l)+"_"+modelname)
+                        #save_weights(model,"checkpoint_"+str(l)+"_"+modelname) # currently have no use for saving weights
+                        mdl.to(c.device)
                     
-                    if c.validation:
+                    if writer != None:
+                        # DMAP Count Metrics - y,y_n,y_hat_n,y_hat_n_dists,y_hat_coords
+                        # add images to TB writer
                         if a.args.viz and j % a.args.viz_freq == 0:
-                            plot_preds(mdl,val_loader,writer=writer,writer_epoch=meta_epoch,writer_mode='val',null_filter=False)
+                            plot_preds(mdl,train_loader,writer=writer,writer_epoch=meta_epoch,writer_mode='train',null_filter=False)
                             
-                        val_metric_dict = dmap_metrics(mdl, val_loader,n=c.eval_n,mode='val')
-                        model_metric_dict.update(val_metric_dict)
-
-                # MNIST Model metrics
-                if writer != None and mdl.mnist:
-                    writer.add_scalar('acc/meta_epoch_train',train_acc, meta_epoch)
-                    model_metric_dict['acc/meta_epoch_train'] = train_acc
+                        train_metric_dict = dmap_metrics(mdl, train_loader,n=c.eval_n,mode='train')
+                        print(train_metric_dict)
+                        model_metric_dict.update(train_metric_dict)
+                        
+                        if a.args.viz and mdl.dlr_acd and j % a.args.viz_freq == 0:
+                            plot_preds(mdl,train_loader,writer=writer,writer_epoch=meta_epoch,writer_mode='train',null_filter=False)
+                        
+                        if c.validation:
+                            if a.args.viz and j % a.args.viz_freq == 0:
+                                plot_preds(mdl,val_loader,writer=writer,writer_epoch=meta_epoch,writer_mode='val',null_filter=False)
+                                
+                            val_metric_dict = dmap_metrics(mdl, val_loader,n=c.eval_n,mode='val')
+                            model_metric_dict.update(val_metric_dict)
+    
+                    # MNIST Model metrics
+                    if writer != None and mdl.mnist:
+                        writer.add_scalar('acc/meta_epoch_train',train_acc, meta_epoch)
+                        model_metric_dict['acc/meta_epoch_train'] = train_acc
+                        
+                        writer.add_scalar('acc/meta_epoch_val',val_acc, meta_epoch)
+                        model_metric_dict['acc/meta_epoch_val'] = val_acc
                     
-                    writer.add_scalar('acc/meta_epoch_val',val_acc, meta_epoch)
-                    model_metric_dict['acc/meta_epoch_val'] = val_acc
-                
-                # Count Model Metrics
-                if writer != None and mdl.count:
-                    train_R2 = torch_r2(mdl,train_loader)
-                    writer.add_scalar('R2/meta_epoch_train',train_R2, meta_epoch)
-                    model_metric_dict['R2/meta_epoch_train'] = train_R2
-                    
-                    if c.verbose:
-                        print("Train R2: ",train_R2)
-                    
-                    # TODO (MAPE or RMSE)
-                    #writer.add_scalar('acc/meta_epoch_val',val_acc, l)
-                    #model_metric_dict['acc/meta_epoch_val'] = val_acc
-                    
-                    if c.validation:
-                        val_R2 = torch_r2(mdl,val_loader)
-                        writer.add_scalar('R2/meta_epoch_val',val_R2, meta_epoch)
-                        model_metric_dict['R2/meta_epoch_val'] = val_R2
+                    # Count Model Metrics
+                    if writer != None and mdl.count:
+                        train_R2 = torch_r2(mdl,train_loader)
+                        writer.add_scalar('R2/meta_epoch_train',train_R2, meta_epoch)
+                        model_metric_dict['R2/meta_epoch_train'] = train_R2
                         
                         if c.verbose:
-                            print("Val R2: ",val_R2)
-                
-                # add param tensorboard scalars
-                if writer != None:
+                            print("Train R2: ",train_R2)
+                        
+                        # TODO (MAPE or RMSE)
+                        #writer.add_scalar('acc/meta_epoch_val',val_acc, l)
+                        #model_metric_dict['acc/meta_epoch_val'] = val_acc
+                        
+                        if c.validation:
+                            val_R2 = torch_r2(mdl,val_loader)
+                            writer.add_scalar('R2/meta_epoch_val',val_R2, meta_epoch)
+                            model_metric_dict['R2/meta_epoch_val'] = val_R2
+                            
+                            if c.verbose:
+                                print("Val R2: ",val_R2)
                     
-                    for name,value in model_metric_dict.items():
-                        writer.add_scalar(tag=name, scalar_value=value,global_step=meta_epoch)
+                    # add param tensorboard scalars
+                    if writer != None:
+                        
+                        for name,value in model_metric_dict.items():
+                            writer.add_scalar(tag=name, scalar_value=value,global_step=meta_epoch)
+                        
+                        writer.add_hparams(
+                                  hparam_dict = model_hparam_dict,
+                                  metric_dict = model_metric_dict,
+                                  # TOD0 - this will create an entry per meta epoch
+                                  run_name = "epoch_{}".format(meta_epoch)
+                                  )
+                        
+                        writer.flush()
                     
-                    writer.add_hparams(
-                              hparam_dict = model_hparam_dict,
-                              metric_dict = model_metric_dict,
-                              # TOD0 - this will create an entry per meta epoch
-                              run_name = "epoch_{}".format(meta_epoch)
-                              )
-                    
-                    writer.flush()
-                
-                l += 1
+                    l += 1
             
             # visualise a random reconstruction
             if a.args.viz:
@@ -646,7 +607,7 @@ def train_classification_head(mdl,full_trainloader,full_valloader,criterion = nn
             
             for i, data in enumerate(tqdm(loader, disable=c.hide_tqdm_bar)):
                 
-                optimizer.zero_grad()
+                optimizer.zero_grad(set_to_none=False)
                 
                 images = data[0].to(c.device)
                 binary_labels = data[3].to(c.device)
@@ -757,7 +718,7 @@ def train_feat_extractor(feat_extractor,trainloader,valloader,criterion = nn.Cro
             
             for i, data in enumerate(tqdm(loader, disable=c.hide_tqdm_bar)):
                 
-                optimizer.zero_grad()
+                optimizer.zero_grad(set_to_none=False)
                 
                 images = data[0].to(c.device)
                 binary_labels = data[3].to(c.device)
@@ -838,5 +799,41 @@ def choose_scheduler(config=None,optimizer=None):
         scheduler = StepLR(optimizer,step_size=a.args.step_size,gamma=a.args.step_gamma)
     elif config['scheduler'] == "cyclic":
         scheduler = CyclicLR(optimizer,base_lr=g.MIN_LR,max_lr=g.MAX_LR)
+    else:
+        scheduler = None
         
     return scheduler
+
+def choose_optimizer(config=None,model=None):
+
+    mdl = model        
+
+    if a.args.model_name == 'NF' and config['joint_optim'] and config['feat_extractor'] != 'none':
+
+        if config['optimiser'] == 'adam':   
+            optimizer = torch.optim.Adam([
+                        {'params': mdl.nf.parameters()},
+                        {'params': mdl.feat_extractor.parameters(), 'lr_init': a.args.fe_lr,'betas':(a.args.fe_b1,a.args.fe_b2),'eps':1e-08, 'weight_decay':a.args.fe_wd}
+                    ], lr=config['lr'], betas=(a.args.adam_b1, a.args.adam_b2), eps=a.args.adam_e, weight_decay=config['weight_decay'] )      
+            
+        if config['optimiser'] == 'adamw':   
+            optimizer = torch.optim.AdamW([
+                        {'params': mdl.nf.parameters()},
+                        {'params': mdl.feat_extractor.parameters(), 'lr_init': a.args.fe_lr,'betas':(a.args.fe_b1,a.args.fe_b2),'eps':1e-08, 'weight_decay':a.args.fe_wd}
+                    ], lr=config['lr'], betas=(a.args.adam_b1, a.args.adam_b2), eps=a.args.adam_e, weight_decay=config['weight_decay'] )  
+        
+        if config['optimiser'] == 'sgd':
+            optimizer = torch.optim.SGD([
+                        {'params': mdl.nf.parameters()},
+                        {'params': mdl.feat_extractor.parameters(), 'lr_init': a.args.fe_lr,'weight_decay':config['weight_decay']}
+                    ], lr=config['lr'],momentum=a.args.sgd_mom)
+    else:
+    
+        if config['optimiser'] == 'adam':   
+            optimizer = torch.optim.Adam(mdl.parameters(), lr=config['lr'], betas=(a.args.adam_b1, a.args.adam_b2), eps=a.args.adam_e, weight_decay=config['weight_decay'])
+        if config['optimiser'] == 'adamw':   
+            optimizer = torch.optim.AdamW(mdl.parameters(), lr=config['lr'], betas=(a.args.adam_b1, a.args.adam_b2), eps=a.args.adam_e, weight_decay=config['weight_decay'])
+        if config['optimiser'] == 'sgd':
+            optimizer = torch.optim.SGD(mdl.parameters(), lr=config['lr'],momentum=a.args.sgd_mom) 
+        
+    return optimizer
