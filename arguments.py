@@ -103,6 +103,7 @@ parser.add_argument("-fe_lr",help="fe LR",type=float,default=1e-3)
 parser.add_argument("-fe_wd",help="fe wd",type=float,default=1e-5)
 
 # Hyper parameter tuning
+parser.add_argument('-resume',action='store_true',default=False)
 parser.add_argument('-num_samples',type=int,default=0)
 parser.add_argument('-max_num_epochs',type=int,default=0)
 parser.add_argument('-gpus_per_trial',type=float,default=0) # fractional GPUs ok

@@ -140,7 +140,8 @@ def main(num_samples, max_num_epochs, gpus_per_trial):
         progress_reporter=reporter,
         checkpoint_at_end=False,
         keep_checkpoints_num=1,
-        checkpoint_score_attr='loss')
+        checkpoint_score_attr='loss',
+        resume=a.args.resume)
         
     best_trial = result.get_best_trial("loss", "min") # ,"last"
     
