@@ -44,7 +44,7 @@ def main(num_samples, max_num_epochs, gpus_per_trial):
     
     config = {
         # shared hyper parameters between flow and baselines
-        "lr": tune.loguniform(g.MAX_LR, g.MIN_LAR),
+        "lr": tune.loguniform(g.MAX_LR, g.MIN_LR),
         "batch_size": tune.choice([8,16,32,64]), #[8,16,32,64]),
         'scheduler':tune.choice(['cyclic']),
         #'scheduler':tune.choice(['exponential','step','none']),
@@ -145,10 +145,9 @@ def main(num_samples, max_num_epochs, gpus_per_trial):
         
     best_trial = result.get_best_trial("loss", "min") # ,"last"
     
-    print("Best trial config: {}".format(best_trial.config))
+    #print("Best trial config: {}".format(best_trial.config))
     
-    print("Best trial final validation loss: {}".format(
-        best_trial.last_result["loss"]))
+    #print("Best trial final validation loss: {}".format(best_trial.last_result["loss"]))
     
     # print("Best trial final validation accuracy: {}".format(
     #     best_trial.last_result["accuracy"]))
