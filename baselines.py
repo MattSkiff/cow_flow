@@ -24,7 +24,6 @@ def conv_block(channels: Tuple[int, int],
     """
     Create a block with N convolutional layers with ReLU activation function.
     The first layer is IN x OUT, and all others - OUT x OUT.
-    args:
         channels: (IN, OUT) - no. of input and output channels
         size: kernel size (fixed for all convolution in a block)
         stride: stride (fixed for all convolution in a block)
@@ -68,7 +67,7 @@ class ConvCat(nn.Module):
 
     def forward(self, to_conv: torch.Tensor, to_cat: torch.Tensor):
         """Forward pass.
-        args:
+        Args:
             to_conv: input passed to convolutional block and upsampling
             to_cat: input concatenated with the output of a conv block
         """
@@ -102,7 +101,7 @@ class FCRN_A(nn.Module):
             * fixed max pooling kernel size = (2, 2) and upsampling factor = 2
             * no. of filters as defined in an original model:
               input size -> 32 -> 64 -> 128 -> 512 -> 128 -> 64 -> 1
-        args:
+        Args:
             N: no. of convolutional layers per block (see conv_block)
             input_filters: no. of input channels
         """
@@ -176,7 +175,7 @@ class UNet(nn.Module):
             * fixed max pooling kernel size = (2, 2) and upsampling factor = 2
             * fixed no. of convolutional layers per block = 2 (see conv_block)
             * constant no. of filters for convolutional layers
-        args:
+        Args:
             filters: no. of filters for convolutional layers
             input_filters: no. of input channels
         """

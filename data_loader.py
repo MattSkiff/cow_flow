@@ -404,7 +404,7 @@ class CowObjectsDataset(Dataset):
     def __init__(self, root_dir,transform=None,convert_to_points=False,generate_density=False,
                  count=False,classification=False,ram=False,holdout=a.args.holdout,sat=False,resize=a.args.resize):
         """
-        args:
+        Args:
             root_dir (string): Directory with the following structure:
                 object.names file
                 object.data file
@@ -500,6 +500,7 @@ class CowObjectsDataset(Dataset):
         def compute_labels(idx,resize=False):
             
             # this will break with use of config file.... # TODO URGENT
+
             if a.args.model_name in ['UNet_seg','LCFCN']:  #a.args.dmap_type == 'max':
                 dmap_type = '_max'
             else:
@@ -901,6 +902,7 @@ class CowObjectsDataset(Dataset):
     
     # method to stack tensors of different sizes:
     # https://github.com/sgrvinod/a-PyTorch-Tutorial-to-Object-Detection/blob/master/datasets.py
+
     def custom_collate_aerial(self,batch,debug = False):
        # only needed to collate annotations
 
@@ -1051,8 +1053,6 @@ class CowObjectsDataset(Dataset):
 #     #     self.b_images = self.inp.pin_memory()
 #     #     self.tgt = self.tgt.pin_memory()
 #     #     return self
-
-
 
 # Define transform to tensor
 # Rescale transform not needed as slices are all same size
@@ -1303,7 +1303,7 @@ class CustResize(object):
 def train_val_split(dataset,train_percent,oversample=False,annotations_only = False,seed = -1):
     
     ''' 
-     args:
+     Args:
          dataset: pytorch dataset
          train_percent: percentage of dataset to allocate to training set
          balance: whether to create a 50/50 dataset of annotations:empty patches
@@ -1406,7 +1406,7 @@ def train_val_split(dataset,train_percent,oversample=False,annotations_only = Fa
     
     return t_indices, t_weights, v_indices, v_weights
 
-def prep_transformed_dataset(is_eval=False,resize=a.args.resize,holdout=a.args.holdout,config={},ram=a.args.ram):
+def prep_transformed_dataset(is_eval=False,resize=a.args.resize,holdout=a.args.holdout,config={},ram=a.args.ram): 
     
     if a.args.mode != 'search':
         config['noise'] = a.args.noise
@@ -1478,12 +1478,11 @@ def make_loaders(transformed_dataset,is_eval=False,holdout=a.args.holdout):
     val_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 
                         num_workers=a.args.workers,collate_fn=transformed_dataset.custom_collate_aerial,
                         pin_memory=a.args.pin_memory,sampler=val_sampler,persistent_workers=a.args.pw,prefetch_factor=a.args.prefetch_factor)
-    
+
     if a.args.mode == 'eval' and (holdout or a.args.sat):
         val_loader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 
                             num_workers=a.args.workers,collate_fn=transformed_dataset.custom_collate_aerial,
                             pin_memory=a.args.pin_memory,sampler=None,persistent_workers=a.args.pw,prefetch_factor=a.args.prefetch_factor)
-        
     
     return full_train_loader, full_val_loader, train_loader, val_loader
 
@@ -1494,7 +1493,7 @@ class UnNormalize(object):
 
     def __call__(self, tensor):
         """
-        args:
+        Args:
             tensor (Tensor): Tensor image of size (C, H, W) to be normalized.
         Returns:
             Tensor: Normalized image.

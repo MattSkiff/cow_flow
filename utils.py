@@ -1603,13 +1603,14 @@ class AddUniformNoise(object):
     def __repr__(self):
         return self.__class__.__name__ + '(r1={0}, r2={1})'.format(self.r1, self.r2)
 
-def make_model_name():
+
+def make_model_name(train_loader):
      now = datetime.now() 
      
      parts = [a.args.schema,
               a.args.model_name,
               os.uname().nodename,
-             "BS"+str(a.args.batch_size), # train_loader.batch_size
+             "BS"+str(train_loader.batch_size),
              "LR_I"+str(a.args.learning_rate),
              "E"+str(a.args.meta_epochs*a.args.sub_epochs),
              "DIM"+str(c.density_map_h),
@@ -1694,7 +1695,6 @@ def make_model_name():
      
      if a.args.mode == 'search':
          modelname = 'ray_'+modelname
-     
      return modelname
  
 def make_hparam_dict(val_loader):
@@ -1899,6 +1899,24 @@ def init_model(feat_extractor=None,config=None):
          mdl = baselines.LCFCN(modelname=name)
     elif a.args.model_name ==  'Res50':
          mdl = baselines.Res50(modelname=name)
+    if a.args.model_name == 'NF':
+         mdl = model.CowFlow(modelname='best_mdl_NF',feat_extractor=feat_extractor,config=config)
+    elif a.args.model_name == 'UNet':
+         mdl = baselines.UNet(modelname='best_mdl_UNet')
+    elif a.args.model_name == 'UNet_seg':
+         mdl = baselines.UNet(modelname='best_mdl_UNet_seg',seg=True)
+    elif a.args.model_name == 'CSRNet': 
+         mdl = baselines.CSRNet(modelname='best_mdl_CSRNet')
+    elif a.args.model_name ==  'MCNN':
+         mdl = baselines.MCNN(modelname='best_mdl_MCNN')
+    elif a.args.model_name ==  'FCRN':
+         mdl = baselines.FCRN_A(modelname='best_mdl_FCRN')
+    elif a.args.mdl ==  'VGG':
+         mdl = baselines.VGG_density(modelname='best_mdl_VGG')
+    elif a.args.model_name ==  'LCFCN':
+         mdl = baselines.LCFCN(modelname='best_mdl_LCFCN')
+    elif a.args.model_name ==  'Res50':
+         mdl = baselines.Res50(modelname='best_mdl_Res50')
          
     return mdl
     

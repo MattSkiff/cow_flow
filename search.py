@@ -38,43 +38,28 @@ assert a.args.gpus_per_trial
 
 def main(num_samples, max_num_epochs, gpus_per_trial):
          
-    init(local_mode=False) 
-    # needed to prevent conflict with worker.py and args parsing occuring in raytune
-    # however this also prevents multi-gpu training, which is less than ideal
     
-    
+    init(local_mode=True) # needed to prevent conflict with worker.py and args parsing occuring in raytune 
     # https://github.com/ray-project/ray/issues/4786
     # https://github.com/ray-project/ray/issues/21037
     
-    # 288 combinations
     config = {
         # shared hyper parameters between flow and baselines
-        #"lr": tune.loguniform(g.MIN_LR,g.MAX_LR),
-        "lr": tune.grid_search([1e-5,1e-4,1e-3,1e-2]),
-        "batch_size": tune.grid_search([16,32]), #[8,16,32,64]),
-        #'scheduler':tune.choice(['cyclic']), # NOT COMPATIBLE WITH ADAM!!!
-        'scheduler':tune.grid_search(['exponential','step','none']),
-        'optimiser':tune.grid_search(['sgd','adam','adamw']),
-        'weight_decay':tune.grid_search([1e-5,1e-4,1e-3,1e-2]),
+        "lr": tune.loguniform(g.MAX_LR, g.MIN_LR),
+        "batch_size": tune.choice([8,16,32,64]), #[8,16,32,64]),
+        #'scheduler':tune.choice(['cyclic']),
+        'scheduler':tune.choice(['exponential','step','none']),
+        'optimiser':tune.choice(['sgd','adam','adamw']),
+        'weight_decay':tune.uniform(1e-5, 1e-2),
         'noise':tune.choice([0])
     }
-    
-    if a.args.resize:
-        # 576 combinations
-        config['batch_size'] = tune.grid_search([16,32,64,128])
         
-    if a.args.test_run:
-        config['batch_size'] = tune.grid_search([1])
-    
-    # 1,382,400 combinations
     if a.args.model_name == 'NF':
-        config['batch_size'] = tune.grid_search([4,8,16,32]) #([8,16,32])
-        config['n_pyramid_blocks'] = tune.grid_search([1,2,3,4,5]) # lambda _: np.random.randint(1, 5)
+        config['batch_size'] = tune.choice([4,8,16,32]) #([8,16,32])
+        config['n_pyramid_blocks'] = tune.sample_from(lambda _: np.random.randint(1, 5))
         config['joint_optim'] = tune.choice([1]) # enabled JO always on HP search for now
-        #config['joint_optim'] = tune.choice([1,0])
-        #config['fixed1x1conv'] = tune.choice([1,0]) 
         config['fixed1x1conv'] = tune.choice([0])  # diabled 1x1 always on HP search for now
-        #config['scheduler'] = tune.choice(['exponential','step','none'])
+        config['scheduler'] = tune.choice(['exponential','step','none'])
         config['noise'] = tune.grid_search([1e-5,1e-4,1e-3,1e-2])
         config['freeze_bn'] = tune.grid_search([1,0])
         config['subnet_bn'] = tune.grid_search([1,0])
@@ -88,12 +73,16 @@ def main(num_samples, max_num_epochs, gpus_per_trial):
             config['batch_size'] = tune.grid_search([2,4,8]) #,4,8])
         else:
             config['batch_size'] = tune.grid_search([4,8,16,32]) #,4,8])
-            
+        
+    if a.args.small_batches:
+        config['batch_size'] = tune.choice([2,4,8]) #,4,8])
         config['n_pyramid_blocks'] = tune.choice([1]) #,4,8])
         
     if a.args.model_name == 'LCFCN':
         config['batch_size'] = tune.choice([1])  
-
+    
+    gpus_per_trial = 1
+    
     scheduler = ASHAScheduler(
        metric="loss",
        mode="min",
@@ -106,13 +95,12 @@ def main(num_samples, max_num_epochs, gpus_per_trial):
         metric_columns=["loss", "accuracy", "training_iteration"])
     
     def train_search(config, checkpoint_dir='./checkpoints/'):
-               
+        
         # updating global vars with config vars, as these are used when instantiating subnets when passing subnet constructor func to flow layers in FrEIA
         if a.args.model_name == 'NF':
-            pass
-            #g.FILTERS = config['filters']
-            #g.SUBNET_BN = config['subnet_bn']
-        
+            g.FILTERS = config['filters']
+            g.SUBNET_BN = config['subnet_bn']
+            
         dataset = prep_transformed_dataset(is_eval=a.args.mode=='eval',config=config)
         
         t_indices, t_weights, v_indices, v_weights  = train_val_split(dataset = dataset,
@@ -144,15 +132,13 @@ def main(num_samples, max_num_epochs, gpus_per_trial):
         else:
             train_baselines(a.args.model_name,train_loader,val_loader,config=config)
     
-    
     logdir = g.RAYLOGDIR
-           
+
     result = tune.run(
         train_search,
-        resources_per_trial={"cpu": 4, "gpu": 1}, # a.args.gpus_per_trial
+        resources_per_trial={"cpu": 4, "gpu": gpus_per_trial},
         config=config,
         num_samples=num_samples,
-        name =a.args.schema,
         local_dir=logdir,
         scheduler=scheduler,
         progress_reporter=reporter,
@@ -192,11 +178,11 @@ def main(num_samples, max_num_epochs, gpus_per_trial):
     model_state, optimizer_state = torch.load(os.path.join(logdir)+"/checkpoint")   
     best_trained_model.load_state_dict(model_state)
     
-    #transformed_dataset = prep_transformed_dataset(is_eval=a.args.mode=='eval',config=best_trial.config)
+    transformed_dataset = prep_transformed_dataset(is_eval=a.args.mode=='eval',config=best_trial.config)
     
-    OOD_dataset = prep_transformed_dataset(is_eval=True,holdout=True,config=best_trial.config,ram=False)
+    OOD_dataset = prep_transformed_dataset(is_eval=True,holdout=True,config=best_trial.config)
     OOD_loader = DataLoader(OOD_dataset, batch_size=1,shuffle=False, 
-                        num_workers=4,collate_fn=OOD_dataset.custom_collate_aerial,
+                        num_workers=4,collate_fn=transformed_dataset.custom_collate_aerial,
                         pin_memory=False)
     
     if a.args.model_name == 'NF':

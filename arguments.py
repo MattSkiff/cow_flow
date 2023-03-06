@@ -1,5 +1,4 @@
 import argparse
-import click
 import socket
 import os
 from time import sleep
@@ -28,6 +27,10 @@ parser.add_argument('-mdl_path',help="Specify mdl for eval",default='')
 parser.add_argument('-load_feat_extractor_str',help="Specify fe model name to load",default='')
 parser.add_argument('-bin_classifier_path', default='')
 
+
+parser.add_argument('-ram',help='Load images/dmaps/point maps into ram for faster trainig',action="store_true",default=False)
+parser.add_argument('-workers',help='Choose number of worker processes for pytorch loading',type=int,default=0)
+
 parser.add_argument('-mod',"--model_name",help="Specify model (NF,CSRNet, UNet, UCSRNetNet_seg, FCRN, LCFCN, MCNN).",default='')
 parser.add_argument("-fe_only", help="Trains the feature extractor only.", action="store_true",default=False)
 parser.add_argument("-bc_only", help="Trains the binary classifier only.", action="store_true",default=False)
@@ -40,8 +43,9 @@ parser.add_argument("-gn", "--gpu_number", help="Selects which GPU to train on."
 parser.add_argument('-d','--data',help='Run the architecture on the [dlr,cows,mnist] dataset.',default='cows')
 
 # Data options
+
 parser.add_argument('-sampler',help='type of sampler to use [anno,weighted,none]',default='')
-parser.add_argument('-normalise',help='normalise aerial imagery supplied to model with img net mean & std dev',action='store_true',default=False)
+parser.add_argument('-normalise',help='normalise aerial imagery supplied to model with img net mean & std dev',action='store_true',default=True)
 parser.add_argument('-rs','--resize',help='resize image to the specified img size',action="store_true",default=False)
 parser.add_argument('-rrc',help='perform random resize cropping',action="store_true",default=False)
 parser.add_argument('-sigma',help='Variance of gaussian kernels used to create density maps',type=float,default=4.0)  # ignored for DLR ACD which uses gsd correspondence
@@ -58,13 +62,12 @@ parser.add_argument('-pw',help='persistent workers',action="store_true",default=
 parser.add_argument('-workers',help='Choose number of worker processes for pytorch loading',type=int,default=0)
 parser.add_argument('-ram',help='Load images/dmaps/point maps into ram for faster trainig',action="store_true",default=False)
 
-
 parser.add_argument('-test','--test_run',help='use only a small fraction of data to check everything works',action='store_true')
 # parser.add_argument("-cfile", "--config_file", help="Specify a config file that will determine training options.", type=int, default=0)
 # parser.add_argument("-c", "--counts", help="Train a model that predicts only counts.", action="store_true")
 
 parser.add_argument("-name","--schema",type=str,default='debug') # if debug, ignored
-dparser.add_argument("-tb","--tensorboard",help='calc and write metrics, hyper params to tb files (if off no eval in train loop)',action="store_true",default=False)
+parser.add_argument("-tb","--tensorboard",help='calc and write metrics, hyper params to tb files (if off no eval in train loop)',action="store_true",default=False)
 parser.add_argument("-we","--write_errors",help='write errors / pred int. (for NF) to file',action="store_true",default=False)
 
 parser.add_argument("-debug_viz",action="store_true", default=False) 
@@ -113,11 +116,10 @@ parser.add_argument("-fe_wd",help="fe wd",type=float,default=1e-5)
 parser.add_argument('-resume',action='store_true',default=False)
 parser.add_argument('-num_samples',type=int,default=0)
 parser.add_argument('-max_num_epochs',type=int,default=0)
+
 parser.add_argument('-gpus_per_trial',type=float,default=1) # fractional GPUs ok
 parser.add_argument('-small_batches',action='store_true',default=False)
 parser.add_argument('-resume',action='store_true',default=False) # resume from checkpointed run
-
-
 
 # TODO
 #parser.add_argument('-u_batchnorm',help='UNet batchnorm',action='store_true',default=False)
@@ -129,7 +131,8 @@ parser.add_argument('-resume',action='store_true',default=False) # resume from c
 # parser.add_argument("-eval_image",'--img',help="Run the model on the image specified (requires model loaded)",type=str,default='')
 # parser.add_argument("-load_model",'--load',help="load the model (from path) for evaluation, inference, or visualisation",type=str,default='')
 
-# global args 
+global args 
+
 args = parser.parse_args()
 host = socket.gethostname()
 
@@ -336,4 +339,3 @@ if args.mode == 'search':
 
 # if args.model_name in ['UNet_seg','LCFCN']:
 #     assert args.max_filter_size == 3.99 # hacky way to ensure density maps and segmentation maps aren't overwritten and used for the wrong model
-    
