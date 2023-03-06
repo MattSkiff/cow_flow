@@ -16,7 +16,7 @@ parser.add_argument('-plot_errors',help='plot errors from error and interval fil
 parser.add_argument('-interval_path',help="",default='')
 parser.add_argument('-get_grad_maps',help='dev',action="store_true",default=False)
 parser.add_argument('-jac',help='enable the jacobian as part of training',action="store_true",default=False)
-parser.add_argument('-jo','--joint_optim',help='jointly optimse feat extractor and flow',action="store_true",default=False)
+parser.add_argument('-jo','--joint_optim',help='jointly optimse feat extractor  and flow',action="store_true",default=False)
 parser.add_argument('-pt','--pretrained',help='load imagenet weights into feat extractor',action="store_true",default=False)
 parser.add_argument('-bc','--binary_classifier',help='add binary classifier network to model',action="store_true",default=False)
 
@@ -83,7 +83,7 @@ parser.add_argument('-adam_b1',help='adam beta1',type=float,default=0.9)
 parser.add_argument('-adam_b2',help='adam beta2',type=float,default=0.999)
 parser.add_argument('-adam_e',help='adam episilon',type=float,default=1e-8)
 parser.add_argument('-sgd_mom',help='sgd momentum',type=float,default=0.9)
-parser.add_argument("-scheduler",help="Learning rate scheduler (exponential,step,none)",default ='')
+parser.add_argument("-scheduler",help="Learning rate scheduler (exponential,step,cyclic,none)",default ='')
 parser.add_argument("-step_size",help="step size of stepLR scheduler",type=int,default=10)
 parser.add_argument("-step_gamma",help="gamma of stepLR scheduler",type=float,default=0.1)
 parser.add_argument("-expon_gamma",help="gamma of expon scheduler",type=float,default=0.9)
@@ -110,6 +110,7 @@ parser.add_argument("-fe_lr",help="fe LR",type=float,default=1e-3)
 parser.add_argument("-fe_wd",help="fe wd",type=float,default=1e-5)
 
 # Hyper parameter tuning
+parser.add_argument('-resume',action='store_true',default=False)
 parser.add_argument('-num_samples',type=int,default=0)
 parser.add_argument('-max_num_epochs',type=int,default=0)
 parser.add_argument('-gpus_per_trial',type=float,default=1) # fractional GPUs ok
@@ -306,7 +307,7 @@ if args.model_name in ['UNet_seg','LCFCN']:
     assert args.max_filter_size == args.sigma
 
 if args.mode == 'train':
-    assert args.scheduler in ['exponential','step','none']
+    assert args.scheduler in ['exponential','step','cyclic','none']
     assert args.optim in ['sgd','adam','adamw']
 
 # todo - find better way of checking NF only argument

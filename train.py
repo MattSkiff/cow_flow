@@ -35,14 +35,13 @@ def train_baselines(model_name,train_loader,val_loader,config={},writer=None):
         config['scheduler']  = a.args.scheduler
         config['optimiser']  = a.args.optim
         config['weight_decay'] = a.args.weight_decay
-
     
     model_metric_dict = {}
     modelname = make_model_name()
     model_hparam_dict = make_hparam_dict(val_loader)
     
     if a.args.tensorboard:
-        writer = SummaryWriter(log_dir='/home/mks29/clones/cow_flow/runs/'+a.args.schema+'/'+modelname)
+        writer = SummaryWriter(log_dir='/home/matthew/Desktop/laptop_desktop/clones/cow_flow/runs/'+a.args.schema+'/'+modelname) # /home/mks29/clones/cow_flow/runs/
     else:
         writer = writer
     
@@ -79,7 +78,19 @@ def train_baselines(model_name,train_loader,val_loader,config={},writer=None):
                 
                 if a.args.model_name == 'LCFCN':
                     
+                    for i in range(10):
+                        print('###########################')
+                        print(point_maps)
+                        
+                    for i in range(10):
+                        print('###########################')
+                        print(results)
+                    
                     iter_loss = lcfcn_loss.compute_loss(points=point_maps, probs=results.sigmoid())
+                    
+                    print('###########################')
+                    print(iter_loss)
+                    print('###########################')
                  
                 # TODO: check no one-hot encoding here is ok (single class only)
                 elif a.args.model_name == 'UNet_seg':
@@ -195,6 +206,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,co
                 config['scheduler']  = a.args.scheduler
                 config['optimiser']  = a.args.optim
                 config['clamp']  = c.clamp_alpha
+                config['weight_decay']  = a.args.weight_decay
     
             if c.debug:
                 torch.autograd.set_detect_anomaly(True)
@@ -798,9 +810,15 @@ def choose_scheduler(config=None,optimizer=None):
     elif config['scheduler'] == "step":
         scheduler = StepLR(optimizer,step_size=a.args.step_size,gamma=a.args.step_gamma)
     elif config['scheduler'] == "cyclic":
+<<<<<<< HEAD
         scheduler = CyclicLR(optimizer,base_lr=g.MIN_LR,max_lr=g.MAX_LR)
     else:
         scheduler = None
+=======
+        scheduler = CyclicLR(optimizer,base_lr=g.MIN_LR,max_lr=g.MAX_LR,cycle_momentum=False)
+    else:
+        scheduler = "none"
+>>>>>>> 28d4c36093c47a3eeae3f325b76b577e8e00c585
         
     return scheduler
 

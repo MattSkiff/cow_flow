@@ -20,6 +20,8 @@ if os.uname().nodename == 'hydra':
     RAYLOGDIR =  '/Scratch/repository/skiff/ray/'
 elif os.getenv('WHEREAMI') == 'laptop': # conda env config vars WHEREAMI='laptop' 
     RAYLOGDIR = '/home/mks29/clones/cow_flow/ray/'
+elif  os.getenv('WHEREAMI') == 'fg':
+    RAYLOGDIR = '/home/matthew/Desktop/laptop_desktop/clones/cow_flow/ray/'
 else:
     RAYLOGDIR = '/Scratch/mks29/cow_flow/ray/'
 

@@ -163,10 +163,9 @@ def main(num_samples, max_num_epochs, gpus_per_trial):
         
     best_trial = result.get_best_trial("loss", "min") # ,"last"
     
-    print("Best trial config: {}".format(best_trial.config))
+    #print("Best trial config: {}".format(best_trial.config))
     
-    print("Best trial final validation loss: {}".format(
-        best_trial.last_result["loss"]))
+    #print("Best trial final validation loss: {}".format(best_trial.last_result["loss"]))
     
     # print("Best trial final validation accuracy: {}".format(
     #     best_trial.last_result["accuracy"]))
