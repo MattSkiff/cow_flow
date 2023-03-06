@@ -1604,13 +1604,18 @@ class AddUniformNoise(object):
         return self.__class__.__name__ + '(r1={0}, r2={1})'.format(self.r1, self.r2)
 
 
-def make_model_name(train_loader):
+def make_model_name(train_loader=None):
      now = datetime.now() 
      
+     if train_loader == None:
+         bs = 'search'
+     else:
+         bs = train_loader.batch_size
+            
      parts = [a.args.schema,
               a.args.model_name,
               os.uname().nodename,
-             "BS"+str(train_loader.batch_size),
+             "BS"+str(bs),
              "LR_I"+str(a.args.learning_rate),
              "E"+str(a.args.meta_epochs*a.args.sub_epochs),
              "DIM"+str(c.density_map_h),
@@ -1911,7 +1916,7 @@ def init_model(feat_extractor=None,config=None):
          mdl = baselines.MCNN(modelname='best_mdl_MCNN')
     elif a.args.model_name ==  'FCRN':
          mdl = baselines.FCRN_A(modelname='best_mdl_FCRN')
-    elif a.args.mdl ==  'VGG':
+    elif a.args.model_name ==  'VGG':
          mdl = baselines.VGG_density(modelname='best_mdl_VGG')
     elif a.args.model_name ==  'LCFCN':
          mdl = baselines.LCFCN(modelname='best_mdl_LCFCN')

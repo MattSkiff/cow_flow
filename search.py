@@ -132,7 +132,7 @@ def main(num_samples, max_num_epochs, gpus_per_trial):
         else:
             train_baselines(a.args.model_name,train_loader,val_loader,config=config)
     
-    logdir = g.RAYLOGDIR
+    logdir = g.ABSDIR+'ray/'
 
     result = tune.run(
         train_search,

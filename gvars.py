@@ -16,14 +16,14 @@ MIN_LR = 1e-5
 MAX_LR = 0.1
 
 if os.uname().nodename == 'hydra':
-    #RAYLOGDIR =  '/home/mks29/clones/cow_flow/ray/'
-    RAYLOGDIR =  '/Scratch/repository/skiff/ray/'
+    #RAYLOGDIR =  '/home/mks29/clones/cow_flow/'
+    ABSDIR =  '/Scratch/repository/skiff/'
 elif os.getenv('WHEREAMI') == 'laptop': # conda env config vars WHEREAMI='laptop' 
-    RAYLOGDIR = '/home/mks29/clones/cow_flow/ray/'
+    ABSDIR = '/home/mks29/clones/cow_flow/'
 elif  os.getenv('WHEREAMI') == 'fg':
-    RAYLOGDIR = '/home/matthew/Desktop/laptop_desktop/clones/cow_flow/ray/'
+    ABSDIR = '/home/matthew/Desktop/laptop_desktop/clones/cow_flow/'
 else:
-    RAYLOGDIR = '/Scratch/mks29/cow_flow/ray/'
+    ABSDIR = '/Scratch/mks29/cow_flow/'
 
 bm_dir = 'final_models_paper/256/'
 bm_dir_86 = 'final_models_paper/800x600/'

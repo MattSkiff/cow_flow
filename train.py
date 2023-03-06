@@ -41,7 +41,7 @@ def train_baselines(model_name,train_loader,val_loader,config={},writer=None):
         config['weight_decay'] = a.args.weight_decay
     
     if a.args.tensorboard:
-        writer = SummaryWriter(log_dir='/home/matthew/Desktop/laptop_desktop/clones/cow_flow/runs/'+a.args.schema+'/'+modelname) # /home/mks29/clones/cow_flow/runs/
+        writer = SummaryWriter(log_dir=g.ABSDIR+'runs/'+a.args.schema+'/'+modelname) # /home/mks29/clones/cow_flow/runs/
     else:
         writer = writer
     

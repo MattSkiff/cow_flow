@@ -684,8 +684,6 @@ class CowFlow(nn.Module):
     def __init__(self,modelname,feat_extractor,config = {}):
         super(CowFlow,self).__init__()
         
-<<<<<<< HEAD
-=======
         if config == {}:
             config['joint_optim'] = a.args.joint_optim
             config['fixed1x1conv'] = a.args.fixed1x1conv
@@ -696,7 +694,6 @@ class CowFlow(nn.Module):
             config['filters'] = a.args.filters
             config['feat_extractor'] = a.args.feat_extractor
         
->>>>>>> 28d4c36093c47a3eeae3f325b76b577e8e00c585
         if config['feat_extractor']  == 'resnet18' and not a.args.pyramid:
             modules = list(feat_extractor.children())[:-2]
             self.feat_extractor = nn.Sequential(*modules)
@@ -736,23 +733,13 @@ class CowFlow(nn.Module):
         self.noise = config['noise'] #
         self.sigma = a.args.sigma
         self.seed = c.seed
-<<<<<<< HEAD
         self.optim = config['optimiser'] #
         self.dmap_scaling = a.args.dmap_scaling
         self.subnet_bn = config['subnet_bn'] 
-        #self.feat_extractor_name = config['feat_extractor']
         
         # if a.args.temperature:
         #     self.temperature = nn.Parameter(torch.ones(1) * 1.5)
-            
         
-=======
-        self.optim = config['fixed1x1conv'] #
-        self.dmap_scaling = a.args.dmap_scaling
-        self.subnet_bn = config['subnet_bn'] 
-        #self.feat_extractor_name = config['feat_extractor']
-
->>>>>>> 28d4c36093c47a3eeae3f325b76b577e8e00c585
         if a.args.pyramid:
             if a.args.split_dimensions:
                 self.nf = nf_pyramid_split(condition_dim=u.n_feats_select(config['feat_extractor']),config=config) 

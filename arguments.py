@@ -27,10 +27,6 @@ parser.add_argument('-mdl_path',help="Specify mdl for eval",default='')
 parser.add_argument('-load_feat_extractor_str',help="Specify fe model name to load",default='')
 parser.add_argument('-bin_classifier_path', default='')
 
-
-parser.add_argument('-ram',help='Load images/dmaps/point maps into ram for faster trainig',action="store_true",default=False)
-parser.add_argument('-workers',help='Choose number of worker processes for pytorch loading',type=int,default=0)
-
 parser.add_argument('-mod',"--model_name",help="Specify model (NF,CSRNet, UNet, UCSRNetNet_seg, FCRN, LCFCN, MCNN).",default='')
 parser.add_argument("-fe_only", help="Trains the feature extractor only.", action="store_true",default=False)
 parser.add_argument("-bc_only", help="Trains the binary classifier only.", action="store_true",default=False)
@@ -43,7 +39,6 @@ parser.add_argument("-gn", "--gpu_number", help="Selects which GPU to train on."
 parser.add_argument('-d','--data',help='Run the architecture on the [dlr,cows,mnist] dataset.',default='cows')
 
 # Data options
-
 parser.add_argument('-sampler',help='type of sampler to use [anno,weighted,none]',default='')
 parser.add_argument('-normalise',help='normalise aerial imagery supplied to model with img net mean & std dev',action='store_true',default=True)
 parser.add_argument('-rs','--resize',help='resize image to the specified img size',action="store_true",default=False)
@@ -113,13 +108,11 @@ parser.add_argument("-fe_lr",help="fe LR",type=float,default=1e-3)
 parser.add_argument("-fe_wd",help="fe wd",type=float,default=1e-5)
 
 # Hyper parameter tuning
-parser.add_argument('-resume',action='store_true',default=False)
+parser.add_argument('-resume',action='store_true',default=False) # resume from checkpointed run
 parser.add_argument('-num_samples',type=int,default=0)
 parser.add_argument('-max_num_epochs',type=int,default=0)
-
 parser.add_argument('-gpus_per_trial',type=float,default=1) # fractional GPUs ok
-parser.add_argument('-small_batches',action='store_true',default=False)
-parser.add_argument('-resume',action='store_true',default=False) # resume from checkpointed run
+parser.add_argument('-small_batches',action='store_true',default=False) # for small GPUs on the server
 
 # TODO
 #parser.add_argument('-u_batchnorm',help='UNet batchnorm',action='store_true',default=False)
