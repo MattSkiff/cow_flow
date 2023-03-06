@@ -64,7 +64,7 @@ parser.add_argument('-test','--test_run',help='use only a small fraction of data
 # parser.add_argument("-c", "--counts", help="Train a model that predicts only counts.", action="store_true")
 
 parser.add_argument("-name","--schema",type=str,default='debug') # if debug, ignored
-parser.add_argument("-tb","--tensorboard",help='calc and write metrics, hyper params to tb files (if off no eval in train loop)',action="store_true",default=False)
+dparser.add_argument("-tb","--tensorboard",help='calc and write metrics, hyper params to tb files (if off no eval in train loop)',action="store_true",default=False)
 parser.add_argument("-we","--write_errors",help='write errors / pred int. (for NF) to file',action="store_true",default=False)
 
 parser.add_argument("-debug_viz",action="store_true", default=False) 
