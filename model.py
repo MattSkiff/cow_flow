@@ -4,6 +4,9 @@
 
 # imports
 from __future__ import print_function, division
+import os
+from datetime import datetime 
+import collections
 
 import torch
 from torch import Tensor
@@ -12,20 +15,20 @@ from torchvision.models import alexnet, resnet18, resnet50, vgg16_bn, efficientn
 from torchvision.models.resnet import ResNet, BasicBlock, Bottleneck
 from torchvision.models.vgg import VGG, make_layers, cfgs
 import torch.nn.functional as F
-import numpy as np
-import collections
-import utils as u #init_weights, ft_dims_select
 
-import train # train_feat_extractor
-# importing all fixes cyclical import 
+import numpy as np
 
 # FrEIA imports for invertible networks VLL/HDL
 import FrEIA.framework as Ff
 import FrEIA.modules as Fm
 
+# Internal
+import utils as u #init_weights, ft_dims_select
+import train # train_feat_extractor
 import config as c # hyper params
 import arguments as a
 import gvars as g
+import baselines as b
 from baselines import MCNN, UNet
 
 # https://zablo.net/blog/post/using-resnet-for-mnist-in-pytorch-tutorial/
@@ -931,3 +934,127 @@ class MNISTFlow(nn.Module):
         z = self.nf(x_or_z = labels,c = feats,rev=rev)
         
         return z
+
+def make_model_name(train_loader=None):
+     now = datetime.now() 
+     
+     if train_loader == None:
+         bs = 'search'
+     else:
+         bs = train_loader.batch_size
+            
+     parts = [a.args.schema,
+              a.args.model_name,
+              os.uname().nodename,
+             "BS"+str(bs),
+             "LR_I"+str(a.args.learning_rate),
+             "E"+str(a.args.meta_epochs*a.args.sub_epochs),
+             "DIM"+str(c.density_map_h),
+             "OPTIM"+str(a.args.optim)]
+     
+     if a.args.model_name not in g.BASELINE_MODEL_NAMES:
+         parts.append("FE_"+str(a.args.feat_extractor))    
+     
+     if a.args.dmap_scaling != 1:
+         parts.append('SC{}'.format(a.args.dmap_scaling))
+     
+     if a.args.model_name == 'NF':
+         parts.append('NC'+str(c.n_coupling_blocks))
+         parts.append(a.args.subnet_type)
+         
+         if a.args.subnet_bn:
+             parts.append('BN')
+             
+     if a.args.jac:
+         parts.append('JC')
+    
+     if a.args.all_in_one:
+         parts.append('IN1')
+         
+     if a.args.split_dimensions:
+         parts.append('SPLIT')
+
+     parts.append(a.args.sampler)
+     
+     if a.args.model_name in ['UNet_seg','LCFCN']:
+         parts.append('MX_SZ_'+str(a.args.max_filter_size))
+        
+     parts.append(str(a.args.scheduler))
+     
+     if a.args.data == 'dlr':
+         parts.append('DLRACD')
+     
+     if a.args.data == 'mnist':
+         parts.append('MNIST')
+     
+     if a.args.model_name == 'NF' and a.args.joint_optim:
+         parts.append('JO')
+         
+     if a.args.model_name == 'NF' and a.args.pretrained:
+         parts.append('PT')
+         
+     if a.args.model_name == 'NF' and a.args.pyramid:
+         parts.append('PY_{}'.format(a.args.n_pyramid_blocks))
+         
+     if c.counts and not a.args.data == 'mnist':
+         parts.append('CT')
+     
+     if a.args.model_name == 'NF' and a.args.fixed1x1conv:
+         parts.append('1x1')
+         
+     if c.scale != 1:
+         parts.append('SC_{}'.format(c.scale))
+         
+     if a.args.model_name == 'NF' and c.dropout_p != 0:
+         parts.append('DP_{}'.format(c.dropout_p))
+         
+     parts.extend(["WD",str(a.args.weight_decay)])
+         
+     if c.train_feat_extractor or a.args.load_feat_extractor_str != '':
+         parts.append('FT')
+         
+     if a.args.sigma != 4 and not a.args.data == 'mnist':
+         parts.extend(["FSG",str(a.args.sigma)])
+         
+     if a.args.model_name == 'NF' and c.clamp_alpha != 1.9 and not a.args.data == 'mnist':
+         parts.extend(["CLA",str(c.clamp_alpha)])
+         
+     if c.test_train_split != 70 and not a.args.data == 'mnist':
+         parts.extend(["SPLIT",str(c.test_train_split)])
+         
+            
+     parts.append(str(now.strftime("%d_%m_%Y_%H_%M_%S")))
+     
+     modelname = "_".join(parts)
+     
+     print("Training Model: ",modelname)
+     
+     if a.args.mode == 'search':
+         modelname = 'ray_'+modelname
+     return modelname    
+
+def init_model(feat_extractor=None,config=None):
+      
+    name = make_model_name()
+    # a.args.model_name empty somehow?
+    
+    if a.args.model_name == 'NF':
+         mdl = CowFlow(modelname=name,feat_extractor=feat_extractor,config=config)
+    elif a.args.model_name == 'UNet':
+         mdl = b.UNet(modelname=name)
+    elif a.args.model_name == 'UNet_seg':
+         mdl = b.UNet(modelname=name,seg=True)
+    elif a.args.model_name == 'CSRNet': 
+         mdl = b.CSRNet(modelname=name)
+    elif a.args.model_name ==  'MCNN':
+         mdl = b.MCNN(modelname=name)
+    elif a.args.model_name ==  'FCRN':
+         mdl = b.FCRN_A(modelname=name)
+    elif a.args.model_name ==  'VGG':
+         mdl = b.VGG_density(modelname=name)
+    elif a.args.model_name ==  'LCFCN':
+         mdl = b.LCFCN(modelname=name)
+    elif a.args.model_name ==  'Res50':
+         mdl = b.Res50(modelname=name)        
+         
+    return mdl

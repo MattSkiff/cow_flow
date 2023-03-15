@@ -9,12 +9,13 @@ import sys
 # internal
 import config as c
 import arguments as a
+from arguments import args
 import gvars as g
 import model
 from localisation import export_gradient_maps
 from data_loader import prep_transformed_dataset, make_loaders
 from train import train, train_baselines, train_feat_extractor, train_classification_head
-from utils import load_model,plot_preds,plot_preds_baselines,plot_preds_multi,get_likelihood, plot_errors
+from utils import load_model,plot_preds,plot_preds_baselines,plot_preds_multi,get_likelihood, plot_errors, arguments_check
 from eval import dmap_metrics, eval_baselines
 from dlr_acd import dlr_acd
 from mnist import mnist
@@ -29,7 +30,7 @@ if c.gpu:
 if a.args.data == 'dlr':
     mdl, train_loader, val_loader = dlr_acd()
 
-if a.args.data == 'mnist':
+if a.a.args.data == 'mnist':
     mdl, train_loader, val_loader = mnist()
 
 if a.args.data == 'cows':

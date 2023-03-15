@@ -8,6 +8,8 @@ from torch.optim.lr_scheduler import ExponentialLR, StepLR, CyclicLR
 import torch.nn.functional as TF
 from torchvision.models import vgg16_bn, resnet18, efficientnet_b3 
 from ray import tune
+from ray.air import session
+from ray.air.checkpoint import Checkpoint
 
 # tensorboard
 from tqdm import tqdm # progress bar
@@ -15,24 +17,29 @@ from lcfcn  import lcfcn_loss # lcfcn
 import time 
 import copy
 import os
+import math
 import types
 from datetime import datetime 
 
 # Internal
-from utils import get_loss, plot_preds,plot_preds_baselines, counts_preds_vs_actual, t2np, torch_r2, make_model_name, make_hparam_dict, save_model, init_model
-import model # importing entire file fixes 'cyclical import' issues
+# from utils import get_loss, plot_preds,plot_preds_baselines, counts_preds_vs_actual, t2np, torch_r2, make_model_name, make_hparam_dict, save_model, init_model
+import model as m# importing entire file fixes 'cyclical import' issues
+import utils as u
 import config as c
 import gvars as g
 import arguments as a
 import baselines as b
-from data_loader import preprocess_batch
+import data_loader as dl
+# from data_loader import preprocess_batch
 from eval import eval_mnist, dmap_metrics, dmap_pr_curve, eval_baselines
                
 def train_baselines(model_name,train_loader,val_loader,config={},writer=None):
     
     model_metric_dict = {}
-    modelname = make_model_name(train_loader)
-    model_hparam_dict = make_hparam_dict(val_loader)
+    modelname = m.make_model_name(train_loader)
+    model_hparam_dict = u.make_hparam_dict(val_loader)
+    loaded_checkpoint = session.get_checkpoint()
+    start = 0
     
     if a.args.mode != 'search':
         config['lr'] = a.args.learning_rate
@@ -53,7 +60,7 @@ def train_baselines(model_name,train_loader,val_loader,config={},writer=None):
     else:
         loss = torch.nn.MSELoss(size_average=True)
     
-    mdl = init_model(feat_extractor=None,config=config)
+    mdl = m.init_model(feat_extractor=None,config=config)
     optimizer = choose_optimizer(model=mdl,config=config) 
     scheduler = choose_scheduler(optimizer=optimizer,config=config)
 
@@ -87,7 +94,13 @@ def train_baselines(model_name,train_loader,val_loader,config={},writer=None):
     
     train_loss = []; val_loss = []; best_loss = float('inf'); l = 0
     
-    for meta_epoch in range(a.args.meta_epochs):
+    start = 0; meta_epoch_start = 0
+    if loaded_checkpoint:
+        last_step = loaded_checkpoint.to_dict()["step"]
+        start = last_step + 1
+        meta_epoch_start = start // a.args.sub_epochs
+    
+    for meta_epoch in range(meta_epoch_start,a.args.meta_epochs):
         
         for sub_epoch in range(a.args.sub_epochs):
             
@@ -98,26 +111,14 @@ def train_baselines(model_name,train_loader,val_loader,config={},writer=None):
             for i, data in enumerate(tqdm(train_loader, disable=c.hide_tqdm_bar)):
                 
                 optimizer.zero_grad(set_to_none=False)
-                images,dmaps,labels, binary_labels, annotations,point_maps = preprocess_batch(data)
+                images,dmaps,labels, binary_labels, annotations,point_maps = dl.preprocess_batch(data)
                 
                 results = mdl(images)
                 
                 if a.args.model_name == 'LCFCN':
                     
-                    for i in range(10):
-                        print('###########################')
-                        print(point_maps)
-                        
-                    for i in range(10):
-                        print('###########################')
-                        print(results)
-                    
                     iter_loss = lcfcn_loss.compute_loss(points=point_maps, probs=results.sigmoid())
-                    
-                    print('###########################')
-                    print(iter_loss)
-                    print('###########################')
-                 
+
                 # TODO: check no one-hot encoding here is ok (single class only)
                 elif a.args.model_name == 'UNet_seg':
                     
@@ -128,7 +129,7 @@ def train_baselines(model_name,train_loader,val_loader,config={},writer=None):
                     
                     iter_loss = loss(results.squeeze(),dmaps.squeeze())
                     
-                t_loss = t2np(iter_loss)
+                t_loss = u.t2np(iter_loss)
                 iter_loss.backward()
                 train_loss.append(t_loss)
                 # disable gradient clipping
@@ -145,7 +146,7 @@ def train_baselines(model_name,train_loader,val_loader,config={},writer=None):
                 
                 for i, data in enumerate(tqdm(val_loader, disable=c.hide_tqdm_bar)):
                     
-                    images,dmaps,labels, binary_labels, annotations,point_maps = preprocess_batch(data)
+                    images,dmaps,labels, binary_labels, annotations,point_maps = dl.preprocess_batch(data)
                     results = mdl(images)
                     
                     if a.args.model_name == 'LCFCN':
@@ -160,22 +161,23 @@ def train_baselines(model_name,train_loader,val_loader,config={},writer=None):
                         
                         iter_loss = loss(results.squeeze(),dmaps.squeeze())
                         
-                    v_loss = t2np(iter_loss)
+                    v_loss = u.t2np(iter_loss)
                     val_loss.append(v_loss)
                     
-                    l = l + 1
-                
+                    l = l + 1       
+        
             mean_train_loss = np.mean(train_loss)
             mean_val_loss = np.mean(val_loss)
+            
             tune_save_report(epoch=l,net=mdl,optimizer=optimizer,loss=mean_val_loss)
 
             if mean_val_loss < best_loss and c.save_model and not a.args.mode == 'search':
                 best_loss = mean_val_loss
                 # At this point also save a snapshot of the current model
-                save_model(mdl,"best"+"_"+modelname) # want to overwrite - else too many copies stored # +str(l)
+                u.save_model(mdl,"best"+"_"+modelname) # want to overwrite - else too many copies stored # +str(l)
                 
                 if a.args.viz and l % a.args.viz_freq == 0:
-                    plot_preds_baselines(mdl,val_loader,mode="val",mdl_type=a.args.model_name,writer=writer,writer_epoch=meta_epoch,writer_mode='val')
+                    u.plot_preds_baselines(mdl,val_loader,mode="val",mdl_type=a.args.model_name,writer=writer,writer_epoch=meta_epoch,writer_mode='val')
                 
             t_e2 = time.perf_counter()
             print("\nTrain | Sub Epoch Time (s): {:f}, Epoch train loss: {:.4f},Epoch val loss: {:.4f}".format(t_e2-t_e1,mean_train_loss,mean_val_loss))
@@ -208,7 +210,7 @@ def train_baselines(model_name,train_loader,val_loader,config={},writer=None):
     mdl.to(c.device)
     
     if a.args.save_final_mod:
-        save_model(mdl,"final"+"_"+modelname)
+        u.save_model(mdl,"final"+"_"+modelname)
         
     if not a.args.skip_final_eval:
         val_metric_dict = eval_baselines(mdl,val_loader,mode='val')
@@ -220,8 +222,11 @@ def train_baselines(model_name,train_loader,val_loader,config={},writer=None):
 def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,config={},writer=None):
     
             model_metric_dict = {}
-            modelname = make_model_name(train_loader)
-            model_hparam_dict = make_hparam_dict(val_loader)
+            modelname = m.make_model_name(train_loader)
+            model_hparam_dict = u.make_hparam_dict(val_loader)
+            loaded_checkpoint = session.get_checkpoint()
+            start = 0
+
             
             if a.args.mode != 'search':
                 config['fixed1x1conv'] = a.args.fixed1x1conv
@@ -262,13 +267,13 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,co
                 writer = writer
             
             # define backbone here 
-            feat_extractor = model.select_feat_extractor(config['feat_extractor'],train_loader,val_loader,config=config)
+            feat_extractor = m.select_feat_extractor(config['feat_extractor'],train_loader,val_loader,config=config)
             
             if a.args.data == 'mnist':
-                mdl = model.MNISTFlow(modelname=modelname,feat_extractor = feat_extractor)
+                mdl = m.MNISTFlow(modelname=modelname,feat_extractor = feat_extractor)
             else:
                 # backbone attached attached during mdl init
-                mdl = model.CowFlow(modelname=modelname,feat_extractor = feat_extractor,config=config)
+                mdl = m.CowFlow(modelname=modelname,feat_extractor = feat_extractor,config=config)
             
             c_head_trained = False
             
@@ -313,7 +318,13 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,co
             j = 0 # track total sub epochs
             l = 0 # track meta epochs
             
-            for meta_epoch in range(a.args.meta_epochs):
+            start = 0; meta_epoch_start = 0
+            if loaded_checkpoint:
+                last_step = loaded_checkpoint.to_dict()["step"]
+                start = last_step + 1
+                meta_epoch_start = start // a.args.sub_epochs
+            
+            for meta_epoch in range(meta_epoch_start,a.args.meta_epochs):
                 
                 ### Train Loop ------
                 for sub_epoch in range(a.args.sub_epochs):
@@ -336,11 +347,11 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,co
                         
                         # TODO - can this section
                         if a.args.data == 'dlr':
-                            images,dmaps,counts,point_maps = data = preprocess_batch(data,dlr=True)
+                            images,dmaps,counts,point_maps = data = dl.preprocess_batch(data,dlr=True)
                         elif not a.args.data == 'mnist' and not c.counts and not train_loader.dataset.classification:
                             images,dmaps,labels,annotations, point_maps = data 
                         elif not a.args.data == 'mnist' and not c.counts:
-                            images,dmaps,labels, binary_labels, annotations,point_maps = preprocess_batch(data)
+                            images,dmaps,labels, binary_labels, annotations,point_maps = dl.preprocess_batch(data)
                             #images,dmaps,labels,annotations,binary_labels,point_maps  = data 
                         elif not a.args.data == 'mnist':
                             images,dmaps,labels,counts, point_maps = data
@@ -374,11 +385,11 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,co
                         # this loss needs to calc distance between predicted density and density map
                         # note: probably going to get an error with mnist or counts # TODO
                         dims = tuple(range(1, len(z.size())))
-                        loss = get_loss(z, log_det_jac,dims) 
+                        loss = u.get_loss(z, log_det_jac,dims) 
                         k += 1
                         train_mb_iter += 1
                         
-                        loss_t = t2np(loss)
+                        loss_t = u.t2np(loss)
                         
                         if c.debug:
                             print('loss/minibatch_train',train_mb_iter)
@@ -456,15 +467,16 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,co
                                         print('val true count: {:f}'.format(dmaps.sum()))
                                     
                                 dims = tuple(range(1, len(z.size())))
-                                loss = get_loss(z, log_det_jac,dims)
+                                loss = u.get_loss(z, log_det_jac,dims)
                                 k += 1
                                 val_mb_iter += 1
-                                val_loss.append(t2np(loss))
+                                val_loss.append(u.t2np(loss))
                                 
                                 if writer != None:
                                     writer.add_scalar('loss/minibatch_val',loss, val_mb_iter)
                              
                         mean_val_loss = np.mean(np.array(val_loss))
+                            
                         tune_save_report(epoch=j,net=mdl,optimizer=optimizer,loss=mean_val_loss)
                          
                         if c.verbose:
@@ -479,7 +491,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,co
                             best_loss = mean_val_loss
                             
                             # At this point also save a snapshot of the current model
-                            save_model(mdl,"best"+"_"+modelname) # want to overwrite - else too many copies stored # +str(l)
+                            u.save_model(mdl,"best"+"_"+modelname) # want to overwrite - else too many copies stored # +str(l)
                             
                         j += 1
                 
@@ -499,7 +511,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,co
                     
                     if c.save_model and c.checkpoints and not a.args.mode == 'search':
                         mdl.to('cpu')
-                        save_model(mdl,"checkpoint_"+str(l)+"_"+modelname)
+                        u.save_model(mdl,"checkpoint_"+str(l)+"_"+modelname)
                         #save_weights(model,"checkpoint_"+str(l)+"_"+modelname) # currently have no use for saving weights
                         mdl.to(c.device)
                     
@@ -507,18 +519,18 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,co
                         # DMAP Count Metrics - y,y_n,y_hat_n,y_hat_n_dists,y_hat_coords
                         # add images to TB writer
                         if a.args.viz and j % a.args.viz_freq == 0:
-                            plot_preds(mdl,train_loader,writer=writer,writer_epoch=meta_epoch,writer_mode='train',null_filter=False)
+                            u.plot_preds(mdl,train_loader,writer=writer,writer_epoch=meta_epoch,writer_mode='train',null_filter=False)
                             
                         train_metric_dict = dmap_metrics(mdl, train_loader,n=c.eval_n,mode='train')
                         print(train_metric_dict)
                         model_metric_dict.update(train_metric_dict)
                         
                         if a.args.viz and mdl.dlr_acd and j % a.args.viz_freq == 0:
-                            plot_preds(mdl,train_loader,writer=writer,writer_epoch=meta_epoch,writer_mode='train',null_filter=False)
+                            u.plot_preds(mdl,train_loader,writer=writer,writer_epoch=meta_epoch,writer_mode='train',null_filter=False)
                         
                         if c.validation:
                             if a.args.viz and j % a.args.viz_freq == 0:
-                                plot_preds(mdl,val_loader,writer=writer,writer_epoch=meta_epoch,writer_mode='val',null_filter=False)
+                                u.plot_preds(mdl,val_loader,writer=writer,writer_epoch=meta_epoch,writer_mode='val',null_filter=False)
                                 
                             val_metric_dict = dmap_metrics(mdl, val_loader,n=c.eval_n,mode='val')
                             model_metric_dict.update(val_metric_dict)
@@ -533,7 +545,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,co
                     
                     # Count Model Metrics
                     if writer != None and mdl.count:
-                        train_R2 = torch_r2(mdl,train_loader)
+                        train_R2 = u.torch_r2(mdl,train_loader)
                         writer.add_scalar('R2/meta_epoch_train',train_R2, meta_epoch)
                         model_metric_dict['R2/meta_epoch_train'] = train_R2
                         
@@ -545,7 +557,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,co
                         #model_metric_dict['acc/meta_epoch_val'] = val_acc
                         
                         if c.validation:
-                            val_R2 = torch_r2(mdl,val_loader)
+                            val_R2 = u.torch_r2(mdl,val_loader)
                             writer.add_scalar('R2/meta_epoch_val',val_R2, meta_epoch)
                             model_metric_dict['R2/meta_epoch_val'] = val_R2
                             
@@ -664,13 +676,13 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,co
                     preds_loader = val_loader
                     dmap_pr_mode = 'val'
                     
-                plot_preds(mdl, preds_loader, plot = True,null_filter=False)
+                u.plot_preds(mdl, preds_loader, plot = True,null_filter=False)
                 # TODO skip PR curve, as this funciton takes 20 minutes
                 # dmap_pr_curve(mdl, preds_loader,n = 10,mode = dmap_pr_mode)
                 
                 if c.counts:
                     print("Plotting Train R2")
-                    counts_preds_vs_actual(mdl,train_loader,plot=a.args.viz)
+                    u.counts_preds_vs_actual(mdl,train_loader,plot=a.args.viz)
             
             ### Post-Training ---
             mdl.hparam_dict = model_hparam_dict
@@ -693,7 +705,7 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,co
                 print(final_metrics)
             
             if a.args.save_final_mod and not a.args.mode == 'search':
-                save_model(mdl,"final"+"_"+modelname)
+                u.save_model(mdl,"final"+"_"+modelname)
             
             run_end = time.perf_counter()
             print("Finished Model: ",modelname)
@@ -819,7 +831,7 @@ def train_classification_head(mdl,full_trainloader,full_valloader,criterion = nn
     mdl.classification_head.load_state_dict(best_model_wts)
     
     if not a.args.mode == 'search':
-        save_model(mdl.classification_head,filename=filename,loc=g.FEAT_MOD_DIR)
+        u.save_model(mdl.classification_head,filename=filename,loc=g.FEAT_MOD_DIR)
     
     return mdl.classification_head
         
@@ -929,18 +941,30 @@ def train_feat_extractor(feat_extractor,trainloader,valloader,criterion = nn.Cro
         print("Finetuning finished.")
         
     feat_extractor.load_state_dict(best_model_wts)
-    save_model(feat_extractor,filename=filename,loc=g.FEAT_MOD_DIR)
+    u.save_model(feat_extractor,filename=filename,loc=g.FEAT_MOD_DIR)
     
     return feat_extractor
 
 def tune_save_report(epoch,net,optimizer,loss):
+    
     if a.args.mode == 'search':
         
-        with tune.checkpoint_dir(epoch) as checkpoint_dir:
-            path = os.path.join(checkpoint_dir, "checkpoint")
-            torch.save((net.state_dict(), optimizer.state_dict()), path)
-            
-        tune.report(loss=(loss))
+        if math.isnan(loss):
+            loss = 1e99
+        else:
+            loss = loss
+        
+        # with tune.checkpoint_dir(epoch) as checkpoint_dir:
+        #     path = os.path.join(checkpoint_dir, "checkpoint")
+        #     torch.save((net.state_dict(), optimizer.state_dict()), path)
+        
+        state_dict = net.state_dict()
+        metrics = {"loss": loss}
+        checkpoint = Checkpoint.from_dict(
+            dict(epoch=epoch, model_weights=state_dict)
+        )
+        
+        session.report(metrics, checkpoint=checkpoint)
         
 def choose_scheduler(config=None,optimizer=None):
     

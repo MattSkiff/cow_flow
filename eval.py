@@ -21,12 +21,14 @@ import matplotlib.pyplot as plt
 import statsmodels.stats.api as sms
 
 # Internal
-from utils import ft_dims_select, np_split,is_baseline, create_point_map,loader_check,create_point_map
+# from utils import ft_dims_select, np_split,is_baseline, create_point_map,loader_check,create_point_map
+import utils as u
 import config as c
 import gvars as g
 import arguments as a
-from data_loader import CustToTensor, AerialNormalize, Resize,UnNormalize
-from data_loader import CustResize, prep_transformed_dataset, preprocess_batch
+import data_loader as dl
+#from data_loader import CustToTensor, AerialNormalize, Resize,UnNormalize
+#from data_loader import CustResize, prep_transformed_dataset, preprocess_batch
  
 from lcfcn import lcfcn_loss
 
@@ -108,15 +110,15 @@ def plot_pr_curves(directory='./viz/data/auc_plot/'):
 
 def eval_dataloaders(mdl):
     
-    transforms = [CustToTensor()]
-    transforms.append(AerialNormalize())
+    transforms = [dl.CustToTensor()]
+    transforms.append(dl.AerialNormalize())
     
     if mdl.density_map_h == 256:
-        transforms.append(Resize())
+        transforms.append(dl.Resize())
     else:
-        transforms.append(CustResize())
+        transforms.append(dl.CustResize())
     
-    transformed_dataset = prep_transformed_dataset(transforms)
+    transformed_dataset = dl.prep_transformed_dataset(transforms)
     
     dataloader = DataLoader(transformed_dataset, batch_size=a.args.batch_size,shuffle=False, 
                         num_workers=0,collate_fn=transformed_dataset.custom_collate_aerial,
@@ -298,13 +300,13 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True,null_filter=(a.a
         width = 256
         height = 256
     
-    loader_check(mdl=mdl,loader=loader)
+    u.loader_check(mdl=mdl,loader=loader)
     
     assert not (write_errors_only and qq)
     assert not mdl.count
     assert c.data_prop == 1
     assert mode in ['train','val']
-    assert is_baseline(mdl)
+    assert u.is_baseline(mdl)
    
     print("Dmap Evaluation....")
     t1 = time.perf_counter()
@@ -322,7 +324,7 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True,null_filter=(a.a
         # if i == 30:
         #     break
     
-        images,dmaps,labels, binary_labels, annotations,point_maps = preprocess_batch(data)
+        images,dmaps,labels, binary_labels, annotations,point_maps = dl.preprocess_batch(data)
 
         x = mdl(images)
         
@@ -442,7 +444,7 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True,null_filter=(a.a
             if a.args.debug_viz:
                 if len(annotations[0]) > 0:
                     
-                    unnorm = UnNormalize(mean=tuple(c.norm_mean),
+                    unnorm = dl.UnNormalize(mean=tuple(c.norm_mean),
                                           std=tuple(c.norm_std))
                     
                     im = unnorm(images[idx])
@@ -471,14 +473,14 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True,null_filter=(a.a
             
             if a.args.model_name in ['LCFCN','UNet_seg']:
                 
-                pred_coord_pmap, point_flag = create_point_map(mdl=None,annotations=coordinates,pred=True,resize=a.args.resize)
+                pred_coord_pmap, point_flag = u.create_point_map(mdl=None,annotations=coordinates,pred=True,resize=a.args.resize)
                 gt_pmap = point_maps[idx].squeeze().cpu().detach().numpy()
                 
-                gt_dmap_split_counts = np_split(gt_pmap,nrows=nr,ncols=nc).sum(axis=(1,2))
-                pred_dmap_split_counts = np_split(pred_coord_pmap,nrows=nr,ncols=nc).sum(axis=(1,2))
+                gt_dmap_split_counts = u.np_split(gt_pmap,nrows=nr,ncols=nc).sum(axis=(1,2))
+                pred_dmap_split_counts = u.np_split(pred_coord_pmap,nrows=nr,ncols=nc).sum(axis=(1,2))
             else:
-                gt_dmap_split_counts = np_split(ground_truth_dmap,nrows=nr,ncols=nc).sum(axis=(1,2))
-                pred_dmap_split_counts = np_split(dmap_np,nrows=nr,ncols=nc).sum(axis=(1,2))
+                gt_dmap_split_counts = u.np_split(ground_truth_dmap,nrows=nr,ncols=nc).sum(axis=(1,2))
+                pred_dmap_split_counts = u.np_split(dmap_np,nrows=nr,ncols=nc).sum(axis=(1,2))
                 
             game.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)))
             gampe.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)/np.maximum(np.ones(len(gt_dmap_split_counts)),gt_dmap_split_counts)))  
@@ -523,7 +525,7 @@ def eval_baselines(mdl,loader,mode,is_unet_seg=False,write=True,null_filter=(a.a
 @torch.no_grad()
 def get_psnr(mdl,loader):
     
-    loader_check(mdl=mdl,loader=loader)
+    u.loader_check(mdl=mdl,loader=loader)
     
     assert not mdl.count
     assert c.data_prop == 1
@@ -533,7 +535,7 @@ def get_psnr(mdl,loader):
     
     for i, data in enumerate(tqdm(loader, disable=False)):
         
-        images,dmaps,labels, binary_labels, annotations,point_maps = preprocess_batch(data)
+        images,dmaps,labels, binary_labels, annotations,point_maps = dl.preprocess_batch(data)
         x = mdl(images)
             
         for idx in range(images.size()[0]):               
@@ -679,7 +681,7 @@ def dmap_metrics(mdl, loader,n=50,mode='',null_filter=(a.args.bin_classifier_pat
     
     thres=4*2 #mdl.sigma*2
     
-    loader_check(mdl=mdl,loader=loader)
+    u.loader_check(mdl=mdl,loader=loader)
     
     assert not (write_errors_only and qq)
     assert not mdl.count
@@ -704,9 +706,9 @@ def dmap_metrics(mdl, loader,n=50,mode='',null_filter=(a.args.bin_classifier_pat
     for i, data in enumerate(tqdm(loader, disable=False)):
         
         if not a.args.data=='cows' and not loader.dataset.classification:
-            images,dmaps,counts,point_maps = preprocess_batch(data,dlr=True)
+            images,dmaps,counts,point_maps = dl.preprocess_batch(data,dlr=True)
         elif a.args.data=='cows':
-            images,dmaps,labels,binary_labels,annotations,point_maps  = preprocess_batch(data)
+            images,dmaps,labels,binary_labels,annotations,point_maps  = dl.preprocess_batch(data)
         else:
             images,dmaps,counts,point_maps = data
 
@@ -720,7 +722,7 @@ def dmap_metrics(mdl, loader,n=50,mode='',null_filter=(a.args.bin_classifier_pat
             n_ds = 3
                             
         in_channels = c.channels*4**n_ds
-        ft_dims = ft_dims_select(mdl) 
+        ft_dims = u.ft_dims_select(mdl) 
 
         x_list = []; x_error = []
                     
@@ -814,7 +816,7 @@ def dmap_metrics(mdl, loader,n=50,mode='',null_filter=(a.args.bin_classifier_pat
                 ground_truth_point_map = point_maps[idx].cpu().detach().numpy()
                 gt_count = ground_truth_point_map.sum() / 3
             else:
-                ground_truth_point_map, _ = create_point_map(mdl=mdl,annotations=annotations[idx].cpu().detach().numpy(),resize=a.args.resize) 
+                ground_truth_point_map, _ = u.create_point_map(mdl=mdl,annotations=annotations[idx].cpu().detach().numpy(),resize=a.args.resize) 
                 gt_count = ground_truth_point_map.sum()
                 #gt_count = ground_truth_dmap.sum().round()
                 gt_coords = annotations[idx]
@@ -911,8 +913,8 @@ def dmap_metrics(mdl, loader,n=50,mode='',null_filter=(a.args.bin_classifier_pat
                 nr,nc = 320//4**l,320//4**l
                 
             
-            gt_dmap_split_counts = np_split(ground_truth_dmap,nrows=nr,ncols=nc).sum(axis=(1,2))
-            pred_dmap_split_counts = np_split(dmap_rev_np,nrows=nr,ncols=nc).sum(axis=(1,2))
+            gt_dmap_split_counts = u.np_split(ground_truth_dmap,nrows=nr,ncols=nc).sum(axis=(1,2))
+            pred_dmap_split_counts = u.np_split(dmap_rev_np,nrows=nr,ncols=nc).sum(axis=(1,2))
         
             game.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)))
             gampe.append(sum(abs(pred_dmap_split_counts-gt_dmap_split_counts)/np.maximum(np.ones(len(gt_dmap_split_counts)),gt_dmap_split_counts)))  
@@ -986,7 +988,7 @@ def dmap_pr_curve(mdl, loader,n = 10,mode = ''):
             n_ds = 3
                             
         in_channels = c.channels*4**n_ds
-        ft_dims = ft_dims_select(mdl) 
+        ft_dims = u.ft_dims_select(mdl) 
 
         x_list = []
                     

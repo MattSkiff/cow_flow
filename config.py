@@ -11,6 +11,8 @@ if os.uname().nodename == 'weka-13':
 else:
     proj_dir = "/home/mks29/clones/cow_flow/data"
 
+a.args = a.create_args()
+
 gpu = True
 seed = 101  #101 # important to keep this constant between model and servers for evaluaton
 

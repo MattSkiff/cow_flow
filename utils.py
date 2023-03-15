@@ -1,4 +1,5 @@
 # MIT License Matthew Skiffington 2022
+
 # External
 import torch
 import dill # solve error when trying to pickle lambda function in FrEIA
@@ -36,7 +37,6 @@ import config as c
 import gvars as g
 import arguments as a
 import data_loader 
-import model
 import baselines
 
 # TODO - shift below 5 util functions to utils
@@ -1604,103 +1604,7 @@ class AddUniformNoise(object):
         return self.__class__.__name__ + '(r1={0}, r2={1})'.format(self.r1, self.r2)
 
 
-def make_model_name(train_loader=None):
-     now = datetime.now() 
-     
-     if train_loader == None:
-         bs = 'search'
-     else:
-         bs = train_loader.batch_size
-            
-     parts = [a.args.schema,
-              a.args.model_name,
-              os.uname().nodename,
-             "BS"+str(bs),
-             "LR_I"+str(a.args.learning_rate),
-             "E"+str(a.args.meta_epochs*a.args.sub_epochs),
-             "DIM"+str(c.density_map_h),
-             "OPTIM"+str(a.args.optim)]
-     
-     if a.args.model_name not in g.BASELINE_MODEL_NAMES:
-         parts.append("FE_"+str(a.args.feat_extractor))    
-     
-     if a.args.dmap_scaling != 1:
-         parts.append('SC{}'.format(a.args.dmap_scaling))
-     
-     if a.args.model_name == 'NF':
-         parts.append('NC'+str(c.n_coupling_blocks))
-         parts.append(a.args.subnet_type)
-         
-         if a.args.subnet_bn:
-             parts.append('BN')
-             
-     if a.args.jac:
-         parts.append('JC')
-    
-     if a.args.all_in_one:
-         parts.append('IN1')
-         
-     if a.args.split_dimensions:
-         parts.append('SPLIT')
 
-     parts.append(a.args.sampler)
-     
-     if a.args.model_name in ['UNet_seg','LCFCN']:
-         parts.append('MX_SZ_'+str(a.args.max_filter_size))
-        
-     parts.append(str(a.args.scheduler))
-     
-     if a.args.data == 'dlr':
-         parts.append('DLRACD')
-     
-     if a.args.data == 'mnist':
-         parts.append('MNIST')
-     
-     if a.args.model_name == 'NF' and a.args.joint_optim:
-         parts.append('JO')
-         
-     if a.args.model_name == 'NF' and a.args.pretrained:
-         parts.append('PT')
-         
-     if a.args.model_name == 'NF' and a.args.pyramid:
-         parts.append('PY_{}'.format(a.args.n_pyramid_blocks))
-         
-     if c.counts and not a.args.data == 'mnist':
-         parts.append('CT')
-     
-     if a.args.model_name == 'NF' and a.args.fixed1x1conv:
-         parts.append('1x1')
-         
-     if c.scale != 1:
-         parts.append('SC_{}'.format(c.scale))
-         
-     if a.args.model_name == 'NF' and c.dropout_p != 0:
-         parts.append('DP_{}'.format(c.dropout_p))
-         
-     parts.extend(["WD",str(a.args.weight_decay)])
-         
-     if c.train_feat_extractor or a.args.load_feat_extractor_str != '':
-         parts.append('FT')
-         
-     if a.args.sigma != 4 and not a.args.data == 'mnist':
-         parts.extend(["FSG",str(a.args.sigma)])
-         
-     if a.args.model_name == 'NF' and c.clamp_alpha != 1.9 and not a.args.data == 'mnist':
-         parts.extend(["CLA",str(c.clamp_alpha)])
-         
-     if c.test_train_split != 70 and not a.args.data == 'mnist':
-         parts.extend(["SPLIT",str(c.test_train_split)])
-         
-            
-     parts.append(str(now.strftime("%d_%m_%Y_%H_%M_%S")))
-     
-     modelname = "_".join(parts)
-     
-     print("Training Model: ",modelname)
-     
-     if a.args.mode == 'search':
-         modelname = 'ray_'+modelname
-     return modelname
  
 def make_hparam_dict(val_loader):
     
@@ -1821,8 +1725,8 @@ def loader_check(mdl,loader):
         
     if mdl.density_map_h == 256:
         assert a.args.resize or a.args.rrc
-   
-      
+
+     
 # working
 def plot_errors(error_files_list,prediction_interval_file_name):
     
@@ -1881,47 +1785,4 @@ def plot_errors(error_files_list,prediction_interval_file_name):
     plt.subplots_adjust(left=0.1, right=0.87, top=0.9, bottom=0.1)
     plt.savefig("/home/mks29/Desktop/diagrams/temp_plot_errors_comparison", bbox_inches='tight', pad_inches = 0.3)
     plt.show()
-    
-def init_model(feat_extractor=None,config=None):
-    
-    name = make_model_name()
-    
-    if a.args.model_name == 'NF':
-         mdl = model.CowFlow(modelname=name,feat_extractor=feat_extractor,config=config)
-    elif a.args.model_name == 'UNet':
-         mdl = baselines.UNet(modelname=name)
-    elif a.args.model_name == 'UNet_seg':
-         mdl = baselines.UNet(modelname=name,seg=True)
-    elif a.args.model_name == 'CSRNet': 
-         mdl = baselines.CSRNet(modelname=name)
-    elif a.args.model_name ==  'MCNN':
-         mdl = baselines.MCNN(modelname=name)
-    elif a.args.model_name ==  'FCRN':
-         mdl = baselines.FCRN_A(modelname=name)
-    elif a.args.model_name ==  'VGG':
-         mdl = baselines.VGG_density(modelname=name)
-    elif a.args.model_name ==  'LCFCN':
-         mdl = baselines.LCFCN(modelname=name)
-    elif a.args.model_name ==  'Res50':
-         mdl = baselines.Res50(modelname=name)
-    if a.args.model_name == 'NF':
-         mdl = model.CowFlow(modelname='best_mdl_NF',feat_extractor=feat_extractor,config=config)
-    elif a.args.model_name == 'UNet':
-         mdl = baselines.UNet(modelname='best_mdl_UNet')
-    elif a.args.model_name == 'UNet_seg':
-         mdl = baselines.UNet(modelname='best_mdl_UNet_seg',seg=True)
-    elif a.args.model_name == 'CSRNet': 
-         mdl = baselines.CSRNet(modelname='best_mdl_CSRNet')
-    elif a.args.model_name ==  'MCNN':
-         mdl = baselines.MCNN(modelname='best_mdl_MCNN')
-    elif a.args.model_name ==  'FCRN':
-         mdl = baselines.FCRN_A(modelname='best_mdl_FCRN')
-    elif a.args.model_name ==  'VGG':
-         mdl = baselines.VGG_density(modelname='best_mdl_VGG')
-    elif a.args.model_name ==  'LCFCN':
-         mdl = baselines.LCFCN(modelname='best_mdl_LCFCN')
-    elif a.args.model_name ==  'Res50':
-         mdl = baselines.Res50(modelname='best_mdl_Res50')
-         
-    return mdl
     

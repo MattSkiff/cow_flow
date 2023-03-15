@@ -540,12 +540,7 @@ class CowObjectsDataset(Dataset):
             # using ray breaks relative pathing above somehow
             if a.args.mode == 'search':
                 dmap_path = "/home/mks29/clones/cow_flow"+dmap_path[1:]
-            
-            # print('################################################################')
-            # print(dmap_path)
-            # print('################################################################')
 
-            
             if a.args.ram and not a.args.mode == 'store':
                 
                 if not os.path.exists(dmap_path):
@@ -1406,9 +1401,9 @@ def train_val_split(dataset,train_percent,oversample=False,annotations_only = Fa
     
     return t_indices, t_weights, v_indices, v_weights
 
-def prep_transformed_dataset(is_eval=False,resize=a.args.resize,holdout=a.args.holdout,config={},ram=a.args.ram): 
+def prep_transformed_dataset(config,is_eval=False,resize=a.args.resize,holdout=a.args.holdout,ram=a.args.ram): # ={}
     
-    if a.args.mode != 'search':
+    if a.args.mode != 'search' or a.args.exp_dir != '':
         config['noise'] = a.args.noise
     
     transforms = [CustToTensor()]
