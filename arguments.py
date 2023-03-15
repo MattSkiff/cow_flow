@@ -113,18 +113,18 @@ def create_args():
     parser.add_argument('-resume',action='store_true',default=False) # resume from checkpointed run
     parser.add_argument('-num_samples',type=int,default=0)
     parser.add_argument('-max_num_epochs',type=int,default=0)
-    parser.add_argument('-gpus_per_trial',type=float,default=1) # fractional GPUs ok
-    parser.add_argument('-small_batches',action='store_true',default=False) # for small GPUs on the server
+    #parser.add_argument('-gpus_per_trial',type=float,default=1) # fractional GPUs ok # can assume 1 per trial
+    parser.add_argument('-small_batches',action='store_true',default=False) # for small GPUs on the server (11-12GB)
     parser.add_argument('-exp_dir',type=str,default='') # for processing experiment results
     
-    # args, unknown = parser.parse_known_args()
     # https://stackoverflow.com/questions/32522912/celery-error-unrecognized-arguments-a-flask-argparse
     # potentially fix for ray worker conflict ?
     # I think this is the main problem
     # https://stackoverflow.com/questions/419163/what-does-if-name-main-do
     
-    args = parser.parse_args()
-    
+    # args = parser.parse_args()
+    args, unknown = parser.parse_known_args()
+
     return args
 
 def arguments_check(args):

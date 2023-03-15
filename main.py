@@ -9,16 +9,17 @@ import sys
 # internal
 import config as c
 import arguments as a
-from arguments import args
 import gvars as g
 import model
 from localisation import export_gradient_maps
 from data_loader import prep_transformed_dataset, make_loaders
 from train import train, train_baselines, train_feat_extractor, train_classification_head
-from utils import load_model,plot_preds,plot_preds_baselines,plot_preds_multi,get_likelihood, plot_errors, arguments_check
+from utils import load_model,plot_preds,plot_preds_baselines,plot_preds_multi,get_likelihood, plot_errors
 from eval import dmap_metrics, eval_baselines
 from dlr_acd import dlr_acd
 from mnist import mnist
+
+config = {}
 
 if a.args.n_pyramid_blocks > 32:
     sys.setrecursionlimit(10000) # avoids error when saving model
@@ -30,14 +31,14 @@ if c.gpu:
 if a.args.data == 'dlr':
     mdl, train_loader, val_loader = dlr_acd()
 
-if a.a.args.data == 'mnist':
+if a.args.data == 'mnist':
     mdl, train_loader, val_loader = mnist()
 
 if a.args.data == 'cows':
     # torchivsion inputs are 3x227x227, mnist_resnet 1x227...
     # 0.1307, 0.3081 = mean, std dev mnist
 
-    transformed_dataset = prep_transformed_dataset(is_eval=a.args.mode=='eval')
+    transformed_dataset = prep_transformed_dataset(is_eval=a.args.mode=='eval',config=config)
     
     # check dataloader if running interactively
     if any('SPYDER' in name for name in os.environ) and not a.args.mode == 'store':

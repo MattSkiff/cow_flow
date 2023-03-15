@@ -2,6 +2,9 @@ import arguments as a
 import numpy as np
 import os
 
+# bit suss recreating args in every file, but possibly workaround for conflict with ray workers?
+# a.args = a.create_args()
+# a.arguments_check(a.args)
 FEAT_MOD_DIR = './models/feat_extractors/'
 VIZ_DIR = './viz'
 VIZ_DATA_DIR = './viz/data/'
@@ -9,7 +12,7 @@ WEIGHT_DIR = './weights'
 MODEL_DIR = './models'
 LOG_DIR = './logs'
 C_DIR = './cstates'
-DMAP_DIR = './data/precompute/size_{}_sigma_{}/'.format(15,a.args.sigma)
+DMAP_DIR = './data/precompute/size_{}_sigma_{}/'.format(15,4) #a.args.sigma)
 
 # used in search.py and cyclic
 MIN_LR = 1e-5
@@ -69,11 +72,16 @@ FILTERS = 0
 global SUBNET_BN
 SUBNET_BN = False
 
-if a.args.model_name in BASELINE_MODEL_NAMES:
-    assert a.args.noise == 0
-
-if not (a.args.mode == 'plot' and a.args.plot_errors):
-    assert a.args.model_name in BASELINE_MODEL_NAMES + ['NF','ALL']
-
-if a.args.model_name == 'NF' and a.args.mode == 'train':
-    assert a.args.subnet_type in SUBNETS
+def check_gvars():
+    
+    if a.args.model_name in BASELINE_MODEL_NAMES:
+        assert a.args.noise == 0
+    
+    if not (a.args.mode == 'plot' and a.args.plot_errors):
+        assert a.args.model_name in BASELINE_MODEL_NAMES + ['NF','ALL']
+    
+    if a.args.model_name == 'NF' and a.args.mode == 'train':
+        assert a.args.subnet_type in SUBNETS
+    
+if __name__ == "__main__":
+    check_gvars()

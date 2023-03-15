@@ -63,8 +63,9 @@ norm_mean, norm_std = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
 if not gpu:
     device = 'cpu' 
 else: 
-    device = 'cuda' 
-    torch.cuda.set_device(0)
+    device='cpu'
+    #device = 'cuda' 
+    #torch.cuda.set_device(0)
 
 # if dmap is scaled down outside of flow
 # less downsample 'levels' are needed'

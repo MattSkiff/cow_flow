@@ -34,18 +34,19 @@ import data_loader as dl
 from eval import eval_mnist, dmap_metrics, dmap_pr_curve, eval_baselines
                
 def train_baselines(model_name,train_loader,val_loader,config={},writer=None):
-    
+        
     model_metric_dict = {}
     modelname = m.make_model_name(train_loader)
     model_hparam_dict = u.make_hparam_dict(val_loader)
     loaded_checkpoint = session.get_checkpoint()
     start = 0
     
-    if a.args.mode != 'search':
-        config['lr'] = a.args.learning_rate
-        config['scheduler']  = a.args.scheduler
-        config['optimiser']  = a.args.optim
-        config['weight_decay'] = a.args.weight_decay
+    # this block of code was screwing up config obj, as args don't get passed into ray worker
+    # if a.args.mode != 'search':
+    #     config['lr'] = a.args.learning_rate
+    #     config['scheduler']  = a.args.scheduler
+    #     config['optimiser']  = a.args.optim
+    #     config['weight_decay'] = a.args.weight_decay
     
     if a.args.tensorboard:
         writer = SummaryWriter(log_dir=g.ABSDIR+'runs/'+a.args.schema+'/'+modelname) # /home/mks29/clones/cow_flow/runs/
@@ -63,23 +64,6 @@ def train_baselines(model_name,train_loader,val_loader,config={},writer=None):
     mdl = m.init_model(feat_extractor=None,config=config)
     optimizer = choose_optimizer(model=mdl,config=config) 
     scheduler = choose_scheduler(optimizer=optimizer,config=config)
-
-    if a.args.model_name == "FCRN":
-        mdl = b.FCRN_A(modelname=modelname)
-    elif a.args.model_name == "UNet":
-        mdl = b.UNet(modelname=modelname)
-    elif a.args.model_name == "UNet_seg":
-        mdl = b.UNet(modelname=modelname,seg=True)        
-    elif a.args.model_name == "CSRNet":
-        mdl = b.CSRNet(modelname=modelname)
-    elif a.args.model_name == "LCFCN":
-        mdl = b.LCFCN(modelname=modelname)
-    elif a.args.model_name == "MCNN":
-        mdl = b.MCNN(modelname=modelname)
-    elif a.args.model_name == "Res50":
-        mdl = b.Res50(modelname=modelname)
-    elif a.args.model_name == "VGG":
-        mdl = b.VGG_density(modelname=modelname)
         
     if config['optimiser'] == 'adam':   
         optimizer = torch.optim.Adam(mdl.parameters(), lr=config['lr'],
@@ -98,11 +82,11 @@ def train_baselines(model_name,train_loader,val_loader,config={},writer=None):
     if loaded_checkpoint:
         last_step = loaded_checkpoint.to_dict()["step"]
         start = last_step + 1
-        meta_epoch_start = start // a.args.sub_epochs
+        meta_epoch_start = start // config['sub_epochs']
     
-    for meta_epoch in range(meta_epoch_start,a.args.meta_epochs):
+    for meta_epoch in range(meta_epoch_start,config['meta_epochs']):
         
-        for sub_epoch in range(a.args.sub_epochs):
+        for sub_epoch in range(config['sub_epochs']):
             
             t_e1 = time.perf_counter()
             
@@ -203,6 +187,9 @@ def train_baselines(model_name,train_loader,val_loader,config={},writer=None):
     filename = "./models/"+"final"+modelname+".txt"
     
     # could switch to using json and print params on model reload
+    if not os.path.exists("./models/"):
+        os.makedirs("./models/")
+    
     with open(filename, 'w') as f:
         print(model_hparam_dict, file=f)
     
@@ -212,10 +199,10 @@ def train_baselines(model_name,train_loader,val_loader,config={},writer=None):
     if a.args.save_final_mod:
         u.save_model(mdl,"final"+"_"+modelname)
         
-    if not a.args.skip_final_eval:
-        val_metric_dict = eval_baselines(mdl,val_loader,mode='val')
-        model_metric_dict.update(val_metric_dict)
-        print(val_metric_dict)
+    # if not a.args.skip_final_eval:
+    #     val_metric_dict = eval_baselines(mdl,val_loader,mode='val')
+    #     model_metric_dict.update(val_metric_dict)
+    #     print(val_metric_dict)
     
     return mdl    
 
@@ -227,26 +214,26 @@ def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,co
             loaded_checkpoint = session.get_checkpoint()
             start = 0
 
-            
-            if a.args.mode != 'search':
-                config['fixed1x1conv'] = a.args.fixed1x1conv
-                config['noise'] = a.args.noise
-                config['subnet_bn'] = a.args.subnet_bn
-                config['filters'] = a.args.filters
-                config['batch_size'] = a.args.batch_size
-                config['lr'] = a.args.learning_rate
-                config['feat_extractor']= a.args.feat_extractor
-                config['weight_decay'] = a.args.weight_decay
-                config['joint_optim'] = a.args.joint_optim
-                config['scheduler']  = a.args.scheduler
-                config['optimiser']  = a.args.optim
-                config['clamp']  = c.clamp_alpha
-                config['lr'] = a.args.learning_rate
-                config['feat_extractor']= a.args.feat_extractor
-                config['joint_optim'] = a.args.joint_optim
-                config['scheduler']  = a.args.scheduler
-                config['optimiser']  = a.args.optim
-                config['weight_decay']  = a.args.weight_decay
+            # TODO - move this out of trainable function
+            # if a.args.mode != 'search':
+            #     config['fixed1x1conv'] = a.args.fixed1x1conv
+            #     config['noise'] = a.args.noise
+            #     config['subnet_bn'] = a.args.subnet_bn
+            #     config['filters'] = a.args.filters
+            #     config['batch_size'] = a.args.batch_size
+            #     config['lr'] = a.args.learning_rate
+            #     config['feat_extractor']= a.args.feat_extractor
+            #     config['weight_decay'] = a.args.weight_decay
+            #     config['joint_optim'] = a.args.joint_optim
+            #     config['scheduler']  = a.args.scheduler
+            #     config['optimiser']  = a.args.optim
+            #     config['clamp']  = c.clamp_alpha
+            #     config['lr'] = a.args.learning_rate
+            #     config['feat_extractor']= a.args.feat_extractor
+            #     config['joint_optim'] = a.args.joint_optim
+            #     config['scheduler']  = a.args.scheduler
+            #     config['optimiser']  = a.args.optim
+            #     config['weight_decay']  = a.args.weight_decay
     
             if c.debug:
                 torch.autograd.set_detect_anomaly(True)
@@ -983,10 +970,10 @@ def choose_scheduler(config=None,optimizer=None):
     return scheduler
 
 def choose_optimizer(config=None,model=None):
+    
+    mdl = model   
 
-    mdl = model        
-
-    if a.args.model_name == 'NF' and config['joint_optim'] and config['feat_extractor'] != 'none':
+    if config['model_name'] == 'NF' and config['joint_optim'] and config['feat_extractor'] != 'none':
 
         if config['optimiser'] == 'adam':   
             optimizer = torch.optim.Adam([
@@ -1013,5 +1000,5 @@ def choose_optimizer(config=None,model=None):
             optimizer = torch.optim.AdamW(mdl.parameters(), lr=config['lr'], betas=(a.args.adam_b1, a.args.adam_b2), eps=a.args.adam_e, weight_decay=config['weight_decay'])
         if config['optimiser'] == 'sgd':
             optimizer = torch.optim.SGD(mdl.parameters(), lr=config['lr'],momentum=a.args.sgd_mom) 
-        
+    
     return optimizer

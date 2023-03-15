@@ -35,9 +35,12 @@ def main(num_samples, max_num_epochs):
     # args = a.create_args()
     # a.arguments_check(args)
     
-    #runtime_env = {"working_dir": g.ABSDIR, "excludes": ["/data/","/models/","/ray/","/weights/","/runs/","/.git/"]}
+    # namespace='coll', runtime_env={"working_dir": "./"}
+    #"working_dir": g.ABSDIR, 
+    runtime_env = {"working_dir": "./","conda":'cowflow','excludes':['/.git/']} # "excludes": ["/data/","/models/*","/ray/*","/weights/*","/runs/*","/.git/"],
 
-    init(local_mode=True) # runtime_env=runtime_env,
+    assert torch.cuda.is_available()
+    init(namespace='coll',local_mode=False,runtime_env=runtime_env) # ,
     
     #init(local_mode=False) # needed to prevent conflict with worker.py and args parsing occuring in raytune 
     # https://github.com/ray-project/ray/issues/4786
@@ -53,7 +56,10 @@ def main(num_samples, max_num_epochs):
         'weight_decay':tune.uniform(1e-5, 1e-2),
         'noise':tune.choice([0]),
         'model_name':a.args.model_name,
-        'scaling_config': ScalingConfig(num_workers=4,use_gpu=True) # worker = ray actor = single exp.
+        'scaling_config': ScalingConfig(num_workers=4,use_gpu=True), # worker = ray actor = single exp.
+        'meta_epochs':a.args.meta_epochs,
+        'sub_epochs':a.args.sub_epochs
+        
     }
     
     if a.args.model_name == 'NF':
@@ -92,6 +98,7 @@ def main(num_samples, max_num_epochs):
     
     def train_search(config=config, checkpoint_dir='./checkpoints/'):
         
+        import torch
         # updating global vars with config vars, as these are used when instantiating subnets when passing subnet constructor func to flow layers in FrEIA
         if a.args.model_name == 'NF':
             g.FILTERS = config['filters']

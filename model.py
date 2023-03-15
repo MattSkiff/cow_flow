@@ -1034,27 +1034,29 @@ def make_model_name(train_loader=None):
      return modelname    
 
 def init_model(feat_extractor=None,config=None):
-      
+    
     name = make_model_name()
     # a.args.model_name empty somehow?
     
-    if a.args.model_name == 'NF':
+    model_name = config['model_name']
+    
+    if model_name == 'NF':
          mdl = CowFlow(modelname=name,feat_extractor=feat_extractor,config=config)
-    elif a.args.model_name == 'UNet':
+    elif model_name == 'UNet':
          mdl = b.UNet(modelname=name)
-    elif a.args.model_name == 'UNet_seg':
+    elif model_name == 'UNet_seg':
          mdl = b.UNet(modelname=name,seg=True)
-    elif a.args.model_name == 'CSRNet': 
+    elif model_name == 'CSRNet': 
          mdl = b.CSRNet(modelname=name)
-    elif a.args.model_name ==  'MCNN':
+    elif model_name ==  'MCNN':
          mdl = b.MCNN(modelname=name)
-    elif a.args.model_name ==  'FCRN':
+    elif model_name ==  'FCRN':
          mdl = b.FCRN_A(modelname=name)
-    elif a.args.model_name ==  'VGG':
+    elif model_name ==  'VGG':
          mdl = b.VGG_density(modelname=name)
-    elif a.args.model_name ==  'LCFCN':
+    elif model_name ==  'LCFCN':
          mdl = b.LCFCN(modelname=name)
-    elif a.args.model_name ==  'Res50':
-         mdl = b.Res50(modelname=name)        
-         
+    elif model_name ==  'Res50':
+         mdl = b.Res50(modelname=name)       
+        
     return mdl
