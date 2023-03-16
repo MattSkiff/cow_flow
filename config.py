@@ -63,9 +63,9 @@ norm_mean, norm_std = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
 if not gpu:
     device = 'cpu' 
 else: 
-    device='cpu'
-    #device = 'cuda' 
-    #torch.cuda.set_device(0)
+    # device='cpu'
+    device = "cuda" 
+    torch.cuda.set_device(0)
 
 # if dmap is scaled down outside of flow
 # less downsample 'levels' are needed'
@@ -150,10 +150,12 @@ if not a.args.resize and not a.args.data == 'dlr':
     density_map_w,density_map_h = (800,608)
 
 if gpu:
-    device = torch.device("cuda:{}".format(a.args.gpu_number) if torch.cuda.is_available() else "cpu") # select gpu
+    device = torch.device("cuda:{}".format(0) if torch.cuda.is_available() else "cpu") # select gpu # a.args.gpu_number
 
-if a.args.gpu_number != 0:
-    assert gpu
+# assume gpu_number is always 0 for now as ray arg parsing doesn't really work
+# use CUDA VISIBLE DEVICES to control access to GPUs
+# if a.args.gpu_number != 0:
+#     assert gpu
 
 # Checks ------ 
 

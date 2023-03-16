@@ -34,7 +34,11 @@ import data_loader as dl
 from eval import eval_mnist, dmap_metrics, dmap_pr_curve, eval_baselines
                
 def train_baselines(model_name,train_loader,val_loader,config={},writer=None):
-        
+    
+    # CUDA not available in worker for some reason
+    # for i in range(100):
+    #     print(torch.cuda.is_available())
+    
     model_metric_dict = {}
     modelname = m.make_model_name(train_loader)
     model_hparam_dict = u.make_hparam_dict(val_loader)

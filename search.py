@@ -3,7 +3,7 @@
 from ray import tune,air,init
 from ray.tune import CLIReporter, ExperimentAnalysis
 from ray.tune.schedulers import ASHAScheduler
-from ray.air.config import ScalingConfig #, RunConfig
+from ray.air.config import RunConfig  #, FailureConfig
 
 import torch
 from torch.cuda import empty_cache      
@@ -32,19 +32,12 @@ if c.gpu:
 
 def main(num_samples, max_num_epochs):
     
-    # args = a.create_args()
-    # a.arguments_check(args)
-    
     # namespace='coll', runtime_env={"working_dir": "./"}
     #"working_dir": g.ABSDIR, 
     runtime_env = {"working_dir": "./","conda":'cowflow','excludes':['/.git/']} # "excludes": ["/data/","/models/*","/ray/*","/weights/*","/runs/*","/.git/"],
 
     assert torch.cuda.is_available()
-    init(namespace='coll',local_mode=False,runtime_env=runtime_env) # ,
-    
-    #init(local_mode=False) # needed to prevent conflict with worker.py and args parsing occuring in raytune 
-    # https://github.com/ray-project/ray/issues/4786
-    # https://github.com/ray-project/ray/issues/21037
+    init(local_mode=False,runtime_env=runtime_env) # , namespace='coll',
     
     config = {
         # shared hyper parameters between flow and baselines
@@ -56,7 +49,6 @@ def main(num_samples, max_num_epochs):
         'weight_decay':tune.uniform(1e-5, 1e-2),
         'noise':tune.choice([0]),
         'model_name':a.args.model_name,
-        'scaling_config': ScalingConfig(num_workers=4,use_gpu=True), # worker = ray actor = single exp.
         'meta_epochs':a.args.meta_epochs,
         'sub_epochs':a.args.sub_epochs
         
@@ -81,15 +73,13 @@ def main(num_samples, max_num_epochs):
         config['feat_extractor'] = tune.grid_search(['resnet9','resnet18','vgg16_bn','resnet50']) #  
         
     if a.args.small_batches:
-        if a.args.model_name == 'NF': 
             # 1,036,800 combinations
             config['batch_size'] = tune.grid_search([2,4,8]) #,4,8])
-        else:
-            config['batch_size'] = tune.grid_search([4,8,16,32]) #,4,8])
-        
-    if a.args.small_batches:
-        config['batch_size'] = tune.choice([2,4,8]) #,4,8])
-        config['n_pyramid_blocks'] = tune.choice([1]) #,4,8])
+            
+            if a.args.model_name == 'NF': 
+                config['n_pyramid_blocks'] = tune.choice([1]) #,4,8])
+            else:
+                config['batch_size'] = tune.grid_search([4,8,16,32]) #,4,8])
         
     if a.args.model_name == 'LCFCN':
         config['batch_size'] = tune.choice([1])  
@@ -196,7 +186,7 @@ def main(num_samples, max_num_epochs):
             tuner = tune.Tuner.restore(a.args.exp_dir)
         else:
             tuner = tune.Tuner( 
-                  train_search,
+                  tune.with_resources(train_search, resources={'gpu':1}), #train_search,
                   param_space=config,
                   tune_config=tune.TuneConfig(
                       max_concurrent_trials=10,
@@ -204,8 +194,9 @@ def main(num_samples, max_num_epochs):
                       reuse_actors=True,
                       num_samples=num_samples,
                       scheduler=scheduler),
-                  run_config=air.RunConfig(local_dir=logdir,name=a.args.schema,
+                  run_config=RunConfig(local_dir=logdir,name=a.args.schema,
                                            progress_reporter=reporter,
+                                           # failure_config=FailureConfig(max_failures=100), # hack CUDA
                                            checkpoint_config=air.CheckpointConfig(checkpoint_at_end=False,
                                                                                   num_to_keep=1,
                                                                                   checkpoint_score_order='min',

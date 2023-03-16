@@ -35,7 +35,7 @@ def create_args():
     parser.add_argument("-skip_final_eval", help="Skips final eval.", action="store_true",default=False)
     parser.add_argument('-save_final_mod',help="Save final model",action="store_true",default=False)
     parser.add_argument("-uc", "--unconditional", help="Trains the model without labels.", action="store_true")
-    parser.add_argument("-gn", "--gpu_number", help="Selects which GPU to train on.", type=int, default=0)
+    # parser.add_argument("-gn", "--gpu_number", help="Selects which GPU to train on.", type=int, default=0) # not needed 
     
     # Choose Dataset
     parser.add_argument('-d','--data',help='Run the architecture on the [dlr,cows,mnist] dataset.',default='cows')
@@ -133,7 +133,7 @@ def arguments_check(args):
         
     # checks
     assert args.mode in ['train','eval','store','plot','search']
-    assert args.gpu_number > -1
+    # assert args.gpu_number > -1
 
     if args.resume:
         assert args.mode == 'search'
@@ -263,14 +263,14 @@ def arguments_check(args):
     if args.data == "dlr":
         assert args.image_size == 320
 
-    if host == 'hydra':
-         assert args.gpu_number < 8
-    elif host == 'quartet':
-        assert args.gpu_number < 4
-    elif host == 'quatern' or host == 'deuce':
-        assert args.gpu_number < 2
-    else:
-        assert args.gpu_number < 1 
+    # if host == 'hydra':
+    #      assert args.gpu_number < 8
+    # elif host == 'quartet':
+    #     assert args.gpu_number < 4
+    # elif host == 'quatern' or host == 'deuce':
+    #     assert args.gpu_number < 2
+    # else:
+    #     assert args.gpu_number < 1 
         
     assert not (args.holdout and args.sat)
 
