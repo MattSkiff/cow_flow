@@ -49,7 +49,7 @@ def create_args():
     parser.add_argument('-dmap_scaling',help='Scale up density map to ensure gaussianed density is not too close to zero per pixel',type=int,default=1)
     parser.add_argument('-min_scaling',help='Minimum scaling bound (0-1) for random resized crop transform',type=float,default=-1)
     parser.add_argument('-img_sz','--image_size',help='Size of the random crops taken from the original data patches [Cows 800x600, DLR 320x320] - must be divisble by 8 for CSRNet',type=int,default=256)
-    parser.add_argument('-max_filter_size',help='Size of max filters for unet seg and LCFCN',type=int,default=0)
+    parser.add_argument('-max_filter_size',help='Size of max filters for unet seg and LCFCN',type=int,default=4)
     parser.add_argument('-dt','--disable_transforms',help="turn off flipping, rotating, random noise (but not resize)",default=False)
     
     # Data loader options
@@ -110,10 +110,11 @@ def create_args():
     parser.add_argument("-fe_wd",help="fe wd",type=float,default=1e-5)
     
     # Hyper parameter tuning
+    parser.add_argument('-ray_old',action='store_true',default=False) # resume from checkpointed run
     parser.add_argument('-resume',action='store_true',default=False) # resume from checkpointed run
     parser.add_argument('-num_samples',type=int,default=0)
     parser.add_argument('-max_num_epochs',type=int,default=0)
-    #parser.add_argument('-gpus_per_trial',type=float,default=1) # fractional GPUs ok # can assume 1 per trial
+    parser.add_argument('-gpus_per_exp',type=float,default=1) # fractional GPUs ok # can assume 1 per trial
     parser.add_argument('-small_batches',action='store_true',default=False) # for small GPUs on the server (11-12GB)
     parser.add_argument('-exp_dir',type=str,default='') # for processing experiment results
     
@@ -276,6 +277,7 @@ def arguments_check(args):
 
 if __name__ == "__main__":
     
+    global args
     args = create_args()
 
     # TODO

@@ -401,7 +401,7 @@ class DLRACDCropRotateFlipScaling(object):
 class CowObjectsDataset(Dataset):
     """Cow Objects dataset."""
     
-    def __init__(self, root_dir,transform=None,convert_to_points=False,generate_density=False,
+    def __init__(self, root_dir,transform=None,convert_to_points=False,generate_density=False,model_name=a.args.model_name,
                  count=False,classification=False,ram=False,holdout=a.args.holdout,sat=False,resize=a.args.resize):
         """
         Args:
@@ -481,26 +481,10 @@ class CowObjectsDataset(Dataset):
             
         self.im_paths = im_paths
         
-        #debugging over predictions (which are v. uncommon) from PvA plots
-        #print(im_paths[7])
-        # print(im_paths[28])
-        # print(im_paths[35])
-        # print(im_paths[104])
-        # print(im_paths[114])
-        # print(im_paths[122])
-        # print(im_paths[185])
-        # print(im_paths[224])
-        # print(im_paths[275])
-        # print(im_paths[262])
-        # print(im_paths[521])
-        # print(im_paths[530])
-        # print(im_paths[547])
-        #1/0
-        
         def compute_labels(idx,resize=False):
             
             # this will break with use of config file.... # TODO URGENT
-
+            
             if a.args.model_name in ['UNet_seg','LCFCN']:  #a.args.dmap_type == 'max':
                 dmap_type = '_max'
             else:
@@ -522,7 +506,7 @@ class CowObjectsDataset(Dataset):
             img_path = os.path.join(self.root_dir,
                                     self.im_paths[idx])
             
-            if a.args.sat:
+            if self.sat:
                 txt_path = img_path[:-4]+'txt'
             else:
                 txt_path = img_path[:-3]+'txt'
@@ -538,10 +522,10 @@ class CowObjectsDataset(Dataset):
             dmap_path = g.DMAP_DIR+self.im_names[idx]
             
             # using ray breaks relative pathing above somehow
-            if a.args.mode == 'search':
-                dmap_path = "/home/mks29/clones/cow_flow"+dmap_path[1:]
+            # if a.args.mode == 'search':
+            #     dmap_path = "/home/mks29/clones/cow_flow"+dmap_path[1:]
 
-            if a.args.ram and not a.args.mode == 'store':
+            if self.ram and not a.args.mode == 'store':
                 
                 if not os.path.exists(dmap_path):
                     ValueError("Dmaps must have been previously stored!")
@@ -610,9 +594,9 @@ class CowObjectsDataset(Dataset):
                                 
                             
                         if a.args.model_name in ['UNet_seg','LCFCN']: 
-                            density_map += scipy.ndimage.filters.maximum_filter(base_map,size = (a.args.max_filter_size,a.args.max_filter_size))
+                            density_map += scipy.ndimage.filters.maximum_filter(base_map,size = (4,4)) # a.args.max_filter_size,a.args.max_filter_size
                         else:
-                            density_map += scipy.ndimage.filters.gaussian_filter(base_map, sigma = a.args.sigma, mode='constant')
+                            density_map += scipy.ndimage.filters.gaussian_filter(base_map, sigma = 4, mode='constant') # a.args.sigma
                 
                             # import matplotlib.pyplot as plt
                             # fig, ax = plt.subplots(1,1)
@@ -683,7 +667,7 @@ class CowObjectsDataset(Dataset):
                
             if self.holdout:
                 txt_file = "holdout.txt"
-            elif a.args.sat:
+            elif self.sat:
                 txt_file = "satellite.txt"
             else:
                 txt_file = "train.txt"
@@ -1107,7 +1091,7 @@ class AerialNormalize(object):
 
 class DmapAddUniformNoise(object):
     """Add uniform noise to Dmaps to stabilise training."""
-    def __init__(self, r1=0., r2=a.args.noise):
+    def __init__(self, r1, r2):
         self.r1 = r1
         self.r2 = r2
     
@@ -1403,6 +1387,9 @@ def train_val_split(dataset,train_percent,oversample=False,annotations_only = Fa
 
 def prep_transformed_dataset(config,is_eval=False,resize=a.args.resize,holdout=a.args.holdout,ram=a.args.ram): # ={}
     
+    if a.args.mode == '': # retrieve arguments from object store if arguments missing due to conflict with ray
+        a.args = config['args']
+
     if a.args.mode != 'search' or a.args.exp_dir != '':
         config['noise'] = a.args.noise
     
@@ -1424,7 +1411,7 @@ def prep_transformed_dataset(config,is_eval=False,resize=a.args.resize,holdout=a
     if not a.args.mode == 'eval' and not (holdout or a.args.sat) and not a.args.get_grad_maps:
           transforms.append(RotateFlip())
         
-    transforms.append(DmapAddUniformNoise(r2=config['noise']))
+    transforms.append(DmapAddUniformNoise(r1=0,r2=config['noise']))
     
     dmaps_pre = T.Compose(transforms)
                        
@@ -1437,7 +1424,8 @@ def prep_transformed_dataset(config,is_eval=False,resize=a.args.resize,holdout=a
     return transformed_dataset
 
 def make_loaders(transformed_dataset,is_eval=False,holdout=a.args.holdout):
-
+    # only in main.py, not search.py
+    
     t_indices, t_weights, v_indices, v_weights  = train_val_split(dataset = transformed_dataset,
                                                       train_percent = c.test_train_split,
                                                       annotations_only = (a.args.sampler == 'anno'),
@@ -1503,13 +1491,6 @@ def preprocess_batch(data,dlr=False):
     
     if not dlr:
         images,dmaps,labels, binary_labels, annotations,point_maps = data
-        
-        # print(images.is_pinned())
-        # print(dmaps.is_pinned())
-        # #print(labels.is_pinned())
-        # #print(binary_labels.is_pinned())
-        # #print(annotations.is_pinned())
-        # print(point_maps.is_pinned())
         
         dmaps = dmaps * a.args.dmap_scaling
         images,dmaps,labels, binary_labels, annotations,point_maps = images.to(c.device,non_blocking=True),dmaps.to(c.device,non_blocking=True),labels, binary_labels.to(c.device,non_blocking=True), annotations,point_maps.to(c.device,non_blocking=True)

@@ -35,9 +35,8 @@ from eval import eval_mnist, dmap_metrics, dmap_pr_curve, eval_baselines
                
 def train_baselines(model_name,train_loader,val_loader,config={},writer=None):
     
-    # CUDA not available in worker for some reason
-    # for i in range(100):
-    #     print(torch.cuda.is_available())
+    if a.args.mode == '': # retrieve arguments from object store if arguments missing due to conflict with ray
+        a.args = config['args']
     
     model_metric_dict = {}
     modelname = m.make_model_name(train_loader)
@@ -53,7 +52,7 @@ def train_baselines(model_name,train_loader,val_loader,config={},writer=None):
     #     config['weight_decay'] = a.args.weight_decay
     
     if a.args.tensorboard:
-        writer = SummaryWriter(log_dir=g.ABSDIR+'runs/'+a.args.schema+'/'+modelname) # /home/mks29/clones/cow_flow/runs/
+        writer = SummaryWriter(log_dir=g.ABSDIR+'runs/'+a.args.schema+'/'+modelname) # /home/mks29/clones/cow_flow/runs/ # config['schema']
     else:
         writer = writer
     
@@ -211,7 +210,10 @@ def train_baselines(model_name,train_loader,val_loader,config={},writer=None):
     return mdl    
 
 def train(train_loader,val_loader,head_train_loader=None,head_val_loader=None,config={},writer=None):
-    
+            
+            if a.args.mode == '': # retrieve arguments from object store if arguments missing due to conflict with ray
+                a.args = get(arguments_store)
+        
             model_metric_dict = {}
             modelname = m.make_model_name(train_loader)
             model_hparam_dict = u.make_hparam_dict(val_loader)

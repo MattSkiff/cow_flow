@@ -1038,7 +1038,10 @@ def init_model(feat_extractor=None,config=None):
     name = make_model_name()
     # a.args.model_name empty somehow?
     
-    model_name = config['model_name']
+    if 'model_name' in config.keys():
+        assert a.args.model_name == config['model_name']
+    
+    model_name = a.args.model_name #config['model_name']
     
     if model_name == 'NF':
          mdl = CowFlow(modelname=name,feat_extractor=feat_extractor,config=config)

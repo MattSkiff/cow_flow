@@ -65,7 +65,7 @@ if not gpu:
 else: 
     # device='cpu'
     device = "cuda" 
-    torch.cuda.set_device(0)
+    #torch.cuda.set_device(0)
 
 # if dmap is scaled down outside of flow
 # less downsample 'levels' are needed'

@@ -1,7 +1,7 @@
 # external
 # from functools import partial
 from ray import tune,air,init
-from ray.tune import CLIReporter, ExperimentAnalysis
+from ray.tune import CLIReporter, ExperimentAnalysis, ResultGrid
 from ray.tune.schedulers import ASHAScheduler
 from ray.air.config import RunConfig  #, FailureConfig
 
@@ -11,7 +11,7 @@ from torch.utils.data.sampler import SubsetRandomSampler # RandomSampling
 from torch.utils.data import DataLoader
 import numpy as np
                                                                                                                                                           
-import sys
+import sys, os
 
 # internal
 import model
@@ -31,14 +31,15 @@ if c.gpu:
     empty_cache() # free up memory for cuda
 
 def main(num_samples, max_num_epochs):
-    
+        
     # namespace='coll', runtime_env={"working_dir": "./"}
     #"working_dir": g.ABSDIR, 
     runtime_env = {"working_dir": "./","conda":'cowflow','excludes':['/.git/']} # "excludes": ["/data/","/models/*","/ray/*","/weights/*","/runs/*","/.git/"],
 
     assert torch.cuda.is_available()
     init(local_mode=False,runtime_env=runtime_env) # , namespace='coll',
-    
+      
+    # need to decide whether to do grid search here or randomly sample from grid - tune.grid_search
     config = {
         # shared hyper parameters between flow and baselines
         "lr": tune.loguniform(g.MAX_LR, g.MIN_LR),
@@ -50,7 +51,8 @@ def main(num_samples, max_num_epochs):
         'noise':tune.choice([0]),
         'model_name':a.args.model_name,
         'meta_epochs':a.args.meta_epochs,
-        'sub_epochs':a.args.sub_epochs
+        'sub_epochs':a.args.sub_epochs,
+        'args':a.args,
         
     }
     
@@ -65,28 +67,31 @@ def main(num_samples, max_num_epochs):
         config['joint_optim'] = tune.choice([1]) # enabled JO always on HP search for now
         config['fixed1x1conv'] = tune.choice([0])  # diabled 1x1 always on HP search for now
         config['scheduler'] = tune.choice(['exponential','step','none'])
-        config['noise'] = tune.grid_search([1e-5,1e-4,1e-3,1e-2])
-        config['freeze_bn'] = tune.grid_search([1,0])
-        config['subnet_bn'] = tune.grid_search([1,0])
-        config['filters'] = tune.grid_search([8,16,32,64,128,256])
-        config['clamp'] = tune.grid_search([1,1.2,1.9,4,30])
-        config['feat_extractor'] = tune.grid_search(['resnet9','resnet18','vgg16_bn','resnet50']) #  
+        config['noise'] = tune.choice([1e-5,1e-4,1e-3,1e-2])
+        config['freeze_bn'] = tune.choice([1,0])
+        config['subnet_bn'] = tune.choice([1,0])
+        config['filters'] = tune.choice([8,16,32,64,128,256])
+        config['clamp'] = tune.choice([1,1.2,1.9,4,30])
+        config['feat_extractor'] = tune.choice(['resnet9','resnet18','vgg16_bn','resnet50']) #  
         
     if a.args.small_batches:
             # 1,036,800 combinations
-            config['batch_size'] = tune.grid_search([2,4,8]) #,4,8])
+            config['batch_size'] = tune.choice([2,4,8]) #,4,8])
             
             if a.args.model_name == 'NF': 
                 config['n_pyramid_blocks'] = tune.choice([1]) #,4,8])
             else:
-                config['batch_size'] = tune.grid_search([4,8,16,32]) #,4,8])
+                config['batch_size'] = tune.choice([4,8,16,32]) #,4,8]) # 
         
     if a.args.model_name == 'LCFCN':
         config['batch_size'] = tune.choice([1])  
     
     logdir = g.ABSDIR+'ray/'
     
-    def train_search(config=config, checkpoint_dir='./checkpoints/'):
+    def train_search(config=config,checkpoint_dir='./checkpoints/'):
+        
+        if a.args.mode == '': # retrieve arguments from object store if arguments missing due to conflict with ray
+            a.args = config['args']
         
         import torch
         # updating global vars with config vars, as these are used when instantiating subnets when passing subnet constructor func to flow layers in FrEIA
@@ -94,7 +99,7 @@ def main(num_samples, max_num_epochs):
             g.FILTERS = config['filters']
             g.SUBNET_BN = config['subnet_bn']
         
-        dataset = prep_transformed_dataset(is_eval=a.args.mode=='eval',config=config)
+        dataset = prep_transformed_dataset(is_eval=a.args.mode=='eval',config=config,resize=a.args.resize)
         
         t_indices, t_weights, v_indices, v_weights  = train_val_split(dataset = dataset,
                                                           train_percent = c.test_train_split,
@@ -127,44 +132,50 @@ def main(num_samples, max_num_epochs):
             
         return
     
-    def load_best_model_from_result(result,best_config):    
+    def load_best_model_from_result(result):  # result  
+    
+        # code still not working - 
+        filtered_df = result.get_dataframe().iloc[0:99,:]
+        logdir = filtered_df[filtered_df.loss == filtered_df.loss.min()].iloc[0]['logdir']
         
-        best_trial = result.get_best_result(metric="loss",mode="min",scope='all') # ,"last"
+        exp = ExperimentAnalysis(a.args.exp_dir) # check this is only 1 trial
+        all_configs = exp.get_all_configs()
+        best_config = all_configs[logdir]
+        
+        # best_config = exp.get_best_trial(metric='loss',mode='min').config
+        # best_trial = exp.get_best_trial(metric='loss',mode='min')
+
+        best_checkpoint = exp.get_best_checkpoint(logdir,metric='loss',mode='min')
         
         if a.args.model_name == 'NF':
             fe = model.select_feat_extractor(a.args.feat_extractor,config=best_config)
         else:
             fe = None
     
-        best_trained_model = model.init_model(feat_extractor=fe,config=best_trial.config)
-        
-        device = "cpu"
-        if torch.cuda.is_available():
-            device = "cuda:0"
-            # if gpus_per_trial > 1:
-            #     best_trained_model = nn.DataParallel(best_trained_model)
-                            
-        # empty model initialised
-        best_trained_model.to(device)
+        best_trained_model = model.init_model(feat_extractor=fe,config=best_config) # empty model initialised
+        best_trained_model.to(c.device)
         
         # https://docs.ray.io/en/latest/tune/getting-started.html#tune-tutorial
         # https://docs.ray.io/en/latest/train/dl_guide.html 
+                
+        if a.args.ray_old: # old methods for loading models
+            best_checkpoint_path = exp.get_best_checkpoint(logdir,metric='loss',mode='min',return_path=True)
+            model_state, _ = torch.load(os.path.join(best_checkpoint_path, "checkpoint"))
+            best_trained_model.load_state_dict(model_state)
+        else: # new method
+            best_checkpoint_dict = best_checkpoint.to_dict()
+            best_trained_model.load_state_dict(best_checkpoint_dict.get("model_weights"))
         
-        best_result = result.get_best_result("loss", mode="min",scope='all') # doesn't include checkpoint name
-        best_checkpoint = best_result.best_checkpoints[0][0]
-        best_checkpoint_dict = best_checkpoint.to_dict()
-        best_trained_model.load_state_dict(best_checkpoint_dict.get("model_weights"))
-        
-        return best_trained_model
+        return best_trained_model,best_config
 
     if a.args.exp_dir != '' and not a.args.resume:
         
-        print(f"Loading results from {a.args.results_dir}...")
+        print(f"Loading results from {a.args.exp_dir}...")
 
         # ray 2.3
-        # restored_tuner = tune.Tuner.restore(a.args.results_dir)
+        # restored_tuner = tune.Tuner.restore(a.args.exp_dir)
         # result_grid = restored_tuner.get_results()
-        result = ExperimentAnalysis(a.args.results_dir)
+        result = ResultGrid(ExperimentAnalysis(a.args.exp_dir))
 
     else:
         assert a.args.num_samples
@@ -189,7 +200,7 @@ def main(num_samples, max_num_epochs):
                   tune.with_resources(train_search, resources={'gpu':1}), #train_search,
                   param_space=config,
                   tune_config=tune.TuneConfig(
-                      max_concurrent_trials=10,
+                      max_concurrent_trials=a.args.gpus_per_exp,
                       #metric='loss', # tune complains ASHA already has metric set  
                       reuse_actors=True,
                       num_samples=num_samples,
@@ -207,9 +218,12 @@ def main(num_samples, max_num_epochs):
         
         result = tuner.fit()
     
-    best_trial = result.get_best_result(metric="loss",mode="min",scope='all') 
-    best_config = best_trial.config
-    best_model = load_best_model_from_result(result,best_config)
+    # select best trial from first 100 trials of experiment, then loaded best checkpoint in func
+    # need to use the methods from here - https://docs.ray.io/en/releases-2.1.0/tune/api_docs/result_grid.html
+
+    
+    #best_trial = result.get_best_result(metric="loss",mode="min",scope='all') 
+    best_model,best_config = load_best_model_from_result(result)
 
     transformed_dataset = prep_transformed_dataset(is_eval=a.args.mode=='eval',config=best_config)
     
@@ -232,13 +246,13 @@ def main(num_samples, max_num_epochs):
     print(holdout_metric_dict)
 
     print("Best trial config")
-    print(best_trial.config)
+    print(best_config)
     
     with open("/home/mks29/clones/cow_flow/models/"+search_name+".txt", 'w') as f:
         print("Best trial OOD test set metrics",file=f)
         print(holdout_metric_dict, file=f)
         print("Best trial config",file=f)
-        print(best_trial.config, file=f)
+        print(best_config, file=f)
     
     if a.args.exp_dir != '' and not a.args.resume:
         save_model(best_model,search_name)
