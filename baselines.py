@@ -120,8 +120,8 @@ class FCRN_A(nn.Module):
         self.finetuned = False
         self.scheduler = a.args.scheduler
         self.scale = c.scale
-        self.density_map_h = c.density_map_h
-        self.density_map_w = c.density_map_w
+        # self.density_map_h = c.density_map_h
+        # self.density_map_w = c.density_map_w
         self.downsampling = c.downsampling
         self.scale = c.scale
         self.noise = a.args.noise
@@ -195,8 +195,8 @@ class UNet(nn.Module):
         self.finetuned = False
         self.scheduler = a.args.scheduler
         self.scale = c.scale
-        self.density_map_h = c.density_map_h
-        self.density_map_w = c.density_map_w
+        # self.density_map_h = c.density_map_h
+        # self.density_map_w = c.density_map_w
         self.downsampling = c.downsampling
         self.scale = c.scale
         self.sigma = a.args.sigma
@@ -347,8 +347,8 @@ class CSRNet(nn.Module):
         self.finetuned = False
         self.scheduler = a.args.scheduler
         self.scale = c.scale
-        self.density_map_h = c.density_map_h
-        self.density_map_w = c.density_map_w
+        # self.density_map_h = c.density_map_h
+        # self.density_map_w = c.density_map_w
         self.downsampling = c.downsampling
         self.scale = c.scale
         self.noise = a.args.noise
@@ -425,8 +425,8 @@ class LCFCN(nn.Module):
         self.finetuned = False
         self.scheduler = a.args.scheduler
         self.scale = c.scale
-        self.density_map_h = c.density_map_h
-        self.density_map_w = c.density_map_w
+        # self.density_map_h = c.density_map_h
+        # self.density_map_w = c.density_map_w
         self.downsampling = c.downsampling
         self.scale = c.scale
         self.noise = a.args.noise
@@ -614,8 +614,8 @@ class MCNN(nn.Module):
         self.finetuned = False
         self.scheduler = a.args.scheduler
         self.scale = c.scale
-        self.density_map_h = c.density_map_h
-        self.density_map_w = c.density_map_w
+        # self.density_map_h = c.density_map_h
+        # self.density_map_w = c.density_map_w
         self.downsampling = c.downsampling
         self.scale = c.scale
         self.noise = a.args.noise
@@ -745,8 +745,8 @@ class VGG_density(nn.Module):
         self.finetuned = False
         self.scheduler = a.args.scheduler
         self.scale = c.scale
-        self.density_map_h = c.density_map_h
-        self.density_map_w = c.density_map_w
+        # self.density_map_h = c.density_map_h
+        # self.density_map_w = c.density_map_w
         self.downsampling = c.downsampling
         self.scale = c.scale
         self.noise = a.args.noise
@@ -794,8 +794,8 @@ class Res50(nn.Module):
         self.finetuned = False
         self.scheduler = a.args.scheduler
         self.scale = c.scale
-        self.density_map_h = c.density_map_h
-        self.density_map_w = c.density_map_w
+        # self.density_map_h = c.density_map_h
+        # self.density_map_w = c.density_map_w
         self.downsampling = c.downsampling
         self.scale = c.scale
         self.noise = a.args.noise

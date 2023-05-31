@@ -1,3 +1,10 @@
+'''
+Search.py can either start a raytune hyper parameter search (currently randomly sampling from the hyperparameter space),
+or it can load an existing results directory created using RayTune and this script, and continue evaluation from there.
+
+If the exp_dir arg is not empty, it will load the results directory, pick the best trial (according to minimum loss) and
+run the evaluation code.
+'''
 # external
 # from functools import partial
 from ray import tune,air,init
@@ -42,18 +49,20 @@ def main(num_samples, max_num_epochs):
     # need to decide whether to do grid search here or randomly sample from grid - tune.grid_search
     config = {
         # shared hyper parameters between flow and baselines
+        # want to use loguniform for even distribution of HP sampling over orders of magnitude
         "lr": tune.loguniform(g.MAX_LR, g.MIN_LR),
-        "batch_size": tune.choice([8,16,32,64]), #[8,16,32,64]),
+        "batch_size": tune.choice([8,16,32,64,128,256]), #[8,16,32,64]),
         #'scheduler':tune.choice(['cyclic']),
         'scheduler':tune.choice(['exponential','step','none']),
         'optimiser':tune.choice(['sgd','adam','adamw']),
-        'weight_decay':tune.uniform(1e-5, 1e-2),
+        'weight_decay':tune.loguniform(1e-5, 1e-2),
         'noise':tune.choice([0]),
         'model_name':a.args.model_name,
         'meta_epochs':a.args.meta_epochs,
         'sub_epochs':a.args.sub_epochs,
         'args':a.args,
-        
+        'density_map_h':c.density_map_h, # used when initialising model (+ during eval)
+        'density_map_w':c.density_map_w 
     }
     
     if a.args.model_name == 'NF':
@@ -132,15 +141,26 @@ def main(num_samples, max_num_epochs):
             
         return
     
-    def load_best_model_from_result(result):  # result  
+    def load_best_model_from_result(result,config):  # result  
     
         # code still not working - 
         filtered_df = result.get_dataframe().iloc[0:99,:]
+        
+        print("Length of Results Dataframe: {}".format(filtered_df.shape[0]))
+        
+        print(filtered_df)
+        
+        # trying 2nd min - debugging
+        # s = filtered_df.loss
+        # second_min = min(s[s != s.min()])
+        
         logdir = filtered_df[filtered_df.loss == filtered_df.loss.min()].iloc[0]['logdir']
         
-        exp = ExperimentAnalysis(a.args.exp_dir) # check this is only 1 trial
+        exp = ExperimentAnalysis(a.args.exp_dir) # check this is only 1 trial # problem here
         all_configs = exp.get_all_configs()
-        best_config = all_configs[logdir]
+        best_config = all_configs[logdir] 
+        
+        config.update(best_config)
         
         # best_config = exp.get_best_trial(metric='loss',mode='min').config
         # best_trial = exp.get_best_trial(metric='loss',mode='min')
@@ -152,7 +172,7 @@ def main(num_samples, max_num_epochs):
         else:
             fe = None
     
-        best_trained_model = model.init_model(feat_extractor=fe,config=best_config) # empty model initialised
+        best_trained_model = model.init_model(feat_extractor=fe,config=config) # empty model initialised
         best_trained_model.to(c.device)
         
         # https://docs.ray.io/en/latest/tune/getting-started.html#tune-tutorial
@@ -163,9 +183,13 @@ def main(num_samples, max_num_epochs):
             model_state, _ = torch.load(os.path.join(best_checkpoint_path, "checkpoint"))
             best_trained_model.load_state_dict(model_state)
         else: # new method
-            best_checkpoint_dict = best_checkpoint.to_dict()
-            best_trained_model.load_state_dict(best_checkpoint_dict.get("model_weights"))
-        
+            try:
+                best_checkpoint_dict = best_checkpoint.to_dict()
+                best_trained_model.load_state_dict(best_checkpoint_dict.get("model_weights"))
+            except AttributeError as e:
+                print(e)
+                sys.exit("Re-try with ray_old flag")
+                
         return best_trained_model,best_config
 
     if a.args.exp_dir != '' and not a.args.resume:
@@ -223,7 +247,7 @@ def main(num_samples, max_num_epochs):
 
     
     #best_trial = result.get_best_result(metric="loss",mode="min",scope='all') 
-    best_model,best_config = load_best_model_from_result(result)
+    best_model,best_config = load_best_model_from_result(result,config)
 
     transformed_dataset = prep_transformed_dataset(is_eval=a.args.mode=='eval',config=best_config)
     

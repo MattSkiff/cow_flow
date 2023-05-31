@@ -100,6 +100,11 @@ def train_baselines(model_name,train_loader,val_loader,config={},writer=None):
                 optimizer.zero_grad(set_to_none=False)
                 images,dmaps,labels, binary_labels, annotations,point_maps = dl.preprocess_batch(data)
                 
+                # todo test delete
+                # for i in range(10): print(images.size())
+                # import time as sleepy
+                # sleepy.sleep(10)
+                
                 results = mdl(images)
                 
                 if a.args.model_name == 'LCFCN':

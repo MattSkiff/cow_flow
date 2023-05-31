@@ -46,7 +46,7 @@ def create_args():
     parser.add_argument('-rs','--resize',help='resize image to the specified img size',action="store_true",default=False)
     parser.add_argument('-rrc',help='perform random resize cropping',action="store_true",default=False)
     parser.add_argument('-sigma',help='Variance of gaussian kernels used to create density maps',type=float,default=4.0)  # ignored for DLR ACD which uses gsd correspondence
-    parser.add_argument('-dmap_scaling',help='Scale up density map to ensure gaussianed density is not too close to zero per pixel',type=int,default=1)
+    parser.add_argument('-dmap_scaling',help='Scale up density map to ensure gaussianed density is not too close to zero per pixel',type=int,default=1000)
     parser.add_argument('-min_scaling',help='Minimum scaling bound (0-1) for random resized crop transform',type=float,default=-1)
     parser.add_argument('-img_sz','--image_size',help='Size of the random crops taken from the original data patches [Cows 800x600, DLR 320x320] - must be divisble by 8 for CSRNet',type=int,default=256)
     parser.add_argument('-max_filter_size',help='Size of max filters for unet seg and LCFCN',type=int,default=4)
@@ -100,7 +100,7 @@ def create_args():
     parser.add_argument('-nse',"--noise",help='amount of uniform noise (sample evenly from 0-x) | 0 for none',type=float,default=0)
     parser.add_argument('-f','--filters',help='width of conv subnetworks',type=int,default=0)
     parser.add_argument("-split", "--split_dimensions", help="split off half the dimensions after each block of coupling layers.", type=int, default=0)
-    parser.add_argument("-subnet_type",help="type of subnet to use in flow [fc,conv,MCNN,UNet,conv_shallow,conv_deep]",default ='')
+    parser.add_argument("-subnet_type",help="type of subnet to use in flow [fc,conv,MCNN,UNet,conv_shallow,conv_deep]",default ='conv')
     parser.add_argument("-subnet_bn",help="Add batchnorm to subnets",action="store_true",default=False)
     
     parser.add_argument("-fe_load_imagenet_weights",help="load pt weights into FE",action='store_true',default=False)
@@ -131,7 +131,9 @@ def create_args():
 def arguments_check(args):
     
     host = socket.gethostname()
-        
+    
+    assert args.model_name in ['NF','UNet','CSRNet','FCRN','LCFCN','UNet_seg','MCNN','Res50','VGG']
+    
     # checks
     assert args.mode in ['train','eval','store','plot','search']
     # assert args.gpu_number > -1
@@ -177,8 +179,12 @@ def arguments_check(args):
             if args.model_name == 'NF':
                 assert args.subnet_type == 'conv'
                 assert args.jac
+                assert args.dmap_scaling == 1
             assert args.batch_size >= 1
 
+    if args.model_name in ['MCNN','FCRN','VGG','Res50','CSRNet']:
+        assert args.dmap_scaling == 1000 # required for training and eval of these models
+        
     if args.mode == 'search' and args.model_name == 'NF':
         assert args.pyramid
                  

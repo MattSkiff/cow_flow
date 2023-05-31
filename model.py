@@ -1060,6 +1060,25 @@ def init_model(feat_extractor=None,config=None):
     elif model_name ==  'LCFCN':
          mdl = b.LCFCN(modelname=name)
     elif model_name ==  'Res50':
-         mdl = b.Res50(modelname=name)       
+         mdl = b.Res50(modelname=name) 
+    else:
+        ValueError("No modelname provided")
+         
+    # TODO Fix this horrendous hack - can't parse args while using search.py + haven't yet loaded model (can't use attributes)
+    # use user input? parse model name?
+    if "density_map_h" in config:     
+        mdl.density_map_h = config['density_map_h']
+    
+    if "density_map_w" in config:
+        mdl.density_map_w = config['density_map_w']
+        
+    else:
+        print("entering density map h/w as 256")
+        from time import sleep
+        sleep(5)
+
+        mdl.density_map_h = 256
+        mdl.density_map_w = 256
+
         
     return mdl
